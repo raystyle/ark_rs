@@ -6,3 +6,4 @@
 | id | 状态 | 标题 | trace |
 |---|---|---|---|
 | REQ-0001 | implemented | 文档体系全量迁移 dev-evo | check.py 全 PASS 加四件套绿 |
+| REQ-0002 | implemented | aidoc 投影强制化重构 | cargo aidoc --check --strict 加 missing_docs deny 加 cargo test 全绿 |

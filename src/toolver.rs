@@ -195,7 +195,10 @@ pub fn pin_drift(installed: Option<&str>, pin: &str) -> PinDrift {
     let Some(v) = installed else {
         return PinDrift::Behind;
     };
-    match (crate::resolve::version_key(v), crate::resolve::version_key(pin)) {
+    match (
+        crate::resolve::version_key(v),
+        crate::resolve::version_key(pin),
+    ) {
         (Some(i), Some(p)) if i == p => PinDrift::Current,
         (Some(i), Some(p)) if i > p => PinDrift::Ahead,
         _ => PinDrift::Behind,
@@ -545,24 +548,45 @@ mod tests {
         assert_eq!(pin_drift(None, "1.2.0"), PinDrift::Behind, "未装按落后补装");
         // 数值段比较而非字符串序（v9 不压 v24 的同源教训）
         assert_eq!(pin_drift(Some("9.0.0"), "24.0.0"), PinDrift::Behind);
-        assert_eq!(pin_drift(Some("garbage"), "1.2.0"), PinDrift::Behind, "解析失败保守落后");
+        assert_eq!(
+            pin_drift(Some("garbage"), "1.2.0"),
+            PinDrift::Behind,
+            "解析失败保守落后"
+        );
         // git for windows 四段后缀形态：数值等即 Current（status 旧字符串比较恒列的口径差）
-        assert_eq!(pin_drift(Some("2.55.0.windows.5"), "2.55.0"), PinDrift::Current);
+        assert_eq!(
+            pin_drift(Some("2.55.0.windows.5"), "2.55.0"),
+            PinDrift::Current
+        );
     }
 
     /// D49 尾：status drift 判定统一口径——npm-tgz 排除、数值段不等、缺值不列。
     #[test]
     fn status漂移判定_统一口径() {
-        assert!(!status_drift_hint(Some("npm-tgz"), Some("0.3.4"), Some("9.9.9")), "npm-tgz 不列");
-        assert!(status_drift_hint(Some("zip"), Some("1.0.0"), Some("1.1.0")), "落后列");
-        assert!(status_drift_hint(Some("zip"), Some("2.0.0"), Some("1.1.0")), "领先也列（提示滚锁）");
-        assert!(!status_drift_hint(
-            Some("msi"),
-            Some("2.55.0.windows.5"),
-            Some("2.55.0")
-        ), "git 后缀形态数值等不列");
-        assert!(!status_drift_hint(Some("zip"), None, Some("1.0.0")), "未装不列");
-        assert!(!status_drift_hint(Some("zip"), Some("1.0.0"), None), "未锁不列");
+        assert!(
+            !status_drift_hint(Some("npm-tgz"), Some("0.3.4"), Some("9.9.9")),
+            "npm-tgz 不列"
+        );
+        assert!(
+            status_drift_hint(Some("zip"), Some("1.0.0"), Some("1.1.0")),
+            "落后列"
+        );
+        assert!(
+            status_drift_hint(Some("zip"), Some("2.0.0"), Some("1.1.0")),
+            "领先也列（提示滚锁）"
+        );
+        assert!(
+            !status_drift_hint(Some("msi"), Some("2.55.0.windows.5"), Some("2.55.0")),
+            "git 后缀形态数值等不列"
+        );
+        assert!(
+            !status_drift_hint(Some("zip"), None, Some("1.0.0")),
+            "未装不列"
+        );
+        assert!(
+            !status_drift_hint(Some("zip"), Some("1.0.0"), None),
+            "未锁不列"
+        );
     }
 
     #[test]

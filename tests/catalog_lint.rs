@@ -106,7 +106,10 @@ fn lint_manifest(dir: &Path, cat: &ark::catalog::Catalog) -> Vec<String> {
         if let Some(pi) = &m.post_install {
             for (plat, cmds) in [("win", &pi.win), ("linux", &pi.linux), ("mac", &pi.mac)] {
                 let covered = cmds.is_some()
-                    || pi.skip.as_ref().is_some_and(|s| s.iter().any(|p| p == plat));
+                    || pi
+                        .skip
+                        .as_ref()
+                        .is_some_and(|s| s.iter().any(|p| p == plat));
                 if !covered {
                     errs.push(format!(
                         "manifest.{name}: post_install 平台 {plat} 无命令且未进 skip（R016 三键齐备）"
@@ -114,7 +117,9 @@ fn lint_manifest(dir: &Path, cat: &ark::catalog::Catalog) -> Vec<String> {
                 }
             }
             if pi.win.is_none() && pi.linux.is_none() && pi.mac.is_none() {
-                errs.push(format!("manifest.{name}: post_install 三键全空（应省略整节）"));
+                errs.push(format!(
+                    "manifest.{name}: post_install 三键全空（应省略整节）"
+                ));
             }
         }
         // env_set 面（对线 R5 确认轮收口）：键值形态校验与引擎同源（D39 起的未校验面补齐）
@@ -179,7 +184,11 @@ fn 夹具manifest_三键齐备与引用一致() {
     let cat = ark::catalog::Catalog::load(Path::new("tests/fixtures/tools.toml"))
         .expect("fixtures catalog 应能解析");
     let errs = lint_manifest(Path::new("tests/fixtures"), &cat);
-    assert!(errs.is_empty(), "fixtures manifest lint 未过:\n{}", errs.join("\n"));
+    assert!(
+        errs.is_empty(),
+        "fixtures manifest lint 未过:\n{}",
+        errs.join("\n")
+    );
 }
 
 #[test]
@@ -195,10 +204,12 @@ fn manifest_引用不一致红灯() {
         "schema_version = 1\n[manifest.pwsh.env_set]\nPOWERSHELL_TELEMETRY_OPTOUT = \"1\"\n",
     )
     .expect("写临时 manifest");
-    let cat = ark::catalog::Catalog::load(&dir.path().join("tools.toml")).expect("临时 catalog 应能解析");
+    let cat =
+        ark::catalog::Catalog::load(&dir.path().join("tools.toml")).expect("临时 catalog 应能解析");
     let errs = lint_manifest(dir.path(), &cat);
     assert!(
-        errs.iter().any(|e| e.contains("age") && e.contains("age-alias")),
+        errs.iter()
+            .any(|e| e.contains("age") && e.contains("age-alias")),
         "应报引用不一致: {errs:?}"
     );
 }
@@ -216,7 +227,10 @@ fn manifest_缺键与空节红灯() {
             }
             for (plat, cmds) in [("win", &pi.win), ("linux", &pi.linux), ("mac", &pi.mac)] {
                 let covered = cmds.is_some()
-                    || pi.skip.as_ref().is_some_and(|s| s.iter().any(|p| p == plat));
+                    || pi
+                        .skip
+                        .as_ref()
+                        .is_some_and(|s| s.iter().any(|p| p == plat));
                 if !covered {
                     errs.push(format!("manifest.{name}: 平台 {plat} 未覆盖"));
                 }
@@ -227,7 +241,10 @@ fn manifest_缺键与空节红灯() {
         }
     }
     assert!(errs.iter().any(|e| e.contains("三键全空")), "{errs:?}");
-    assert!(errs.iter().any(|e| e.contains("平台 linux 未覆盖")), "{errs:?}");
+    assert!(
+        errs.iter().any(|e| e.contains("平台 linux 未覆盖")),
+        "{errs:?}"
+    );
 }
 
 #[test]
@@ -241,7 +258,11 @@ fn manifest_mirror空节红灯与有键放行() {
             errs.push(format!("manifest.{name}: mirror 节全键空"));
         }
     }
-    assert_eq!(errs, vec!["manifest.a: mirror 节全键空".to_string()], "只报空节");
+    assert_eq!(
+        errs,
+        vec!["manifest.a: mirror 节全键空".to_string()],
+        "只报空节"
+    );
 }
 
 #[test]
@@ -260,14 +281,28 @@ fn manifest_mirror值形态红灯() {
                     errs.push(format!("manifest.{name}: mirror env 值含换行或双引号: {k}"));
                 }
             }
-            if mir.npm_registry.as_deref().is_some_and(|v| !ark::manifest::env_value_sane(v)) {
-                errs.push(format!("manifest.{name}: mirror npm_registry 值含换行或双引号"));
+            if mir
+                .npm_registry
+                .as_deref()
+                .is_some_and(|v| !ark::manifest::env_value_sane(v))
+            {
+                errs.push(format!(
+                    "manifest.{name}: mirror npm_registry 值含换行或双引号"
+                ));
             }
         }
     }
-    assert!(errs.iter().any(|e| e.contains("a: mirror npm_registry")), "{errs:?}");
+    assert!(
+        errs.iter().any(|e| e.contains("a: mirror npm_registry")),
+        "{errs:?}"
+    );
     assert!(errs.iter().any(|e| e.contains("bad-key")), "{errs:?}");
-    assert!(!errs.iter().any(|e| e.contains("b:") || e.contains("OK_KEY")), "干净节不应报: {errs:?}");
+    assert!(
+        !errs
+            .iter()
+            .any(|e| e.contains("b:") || e.contains("OK_KEY")),
+        "干净节不应报: {errs:?}"
+    );
 }
 
 #[test]
@@ -288,7 +323,12 @@ fn manifest_env_set值形态红灯() {
     }
     assert!(errs.iter().any(|e| e.contains("b: env_set 值")), "{errs:?}");
     assert!(errs.iter().any(|e| e.contains("bad key")), "{errs:?}");
-    assert!(!errs.iter().any(|e| e.contains("a:") || e.contains("GOOD_KEY")), "干净节不应报: {errs:?}");
+    assert!(
+        !errs
+            .iter()
+            .any(|e| e.contains("a:") || e.contains("GOOD_KEY")),
+        "干净节不应报: {errs:?}"
+    );
     // 引擎面同拒：坏值在写入前硬错（校验先于任何 set_user_env_var，单测可直接跑）
     let m = ark::manifest::ToolManifest {
         env_set: Some([("EVIL".to_string(), "v\ninjected=1".to_string())].into()),

@@ -237,7 +237,12 @@ fn mirror_query_私有仓pin锚镜像直装() -> Result<(), Box<dyn std::error::
         return Ok(());
     }
     let cat = std::env::var("LOCALAPPDATA")
-        .map(|l| std::path::PathBuf::from(l).join("ohmyenv").join("catalog").join("tools.toml"))
+        .map(|l| {
+            std::path::PathBuf::from(l)
+                .join("ohmyenv")
+                .join("catalog")
+                .join("tools.toml")
+        })
         .map_err(|_| "仅 Windows 本机闸门（用户数据副本作清单源）".to_string())?;
     if !cat.exists() {
         eprintln!("skip: 用户数据副本缺件（先 ark catalog sync）");
@@ -249,7 +254,11 @@ fn mirror_query_私有仓pin锚镜像直装() -> Result<(), Box<dyn std::error::
         .env("ARK_CATALOG", &cat)
         .output()?;
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert_eq!(out.status.code(), Some(0), "ARK_MIRROR=1 query omc 应成功: {stdout}");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "ARK_MIRROR=1 query omc 应成功: {stdout}"
+    );
     assert!(
         stdout.contains("url=https://env.ohmygh.com/omc/"),
         "url 应为镜像资产域直拼: {stdout}"

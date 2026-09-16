@@ -18,8 +18,11 @@ const MAX_ATTEMPTS: u32 = 3;
 /// 版本选择：--latest / --tag / --version 三选一（都不给则用 pin 的锁定版本）。
 #[derive(Debug, Clone, Default)]
 pub struct ResolveOptions {
+    /// 拉 latest 滚动版（忽略 pin）
     pub latest: bool,
+    /// 指定 tag 解析
     pub tag: Option<String>,
+    /// 指定版本解析
     pub version: Option<String>,
 }
 
@@ -27,12 +30,19 @@ pub struct ResolveOptions {
 /// shasums_url 仅 cdn_index_url 分支有值（HashiCorp SHA256SUMS 清单地址），供 checksum 用。
 #[derive(Debug, Clone)]
 pub struct Resolution {
+    /// 工具名
     pub tool: String,
+    /// 命中 release tag
     pub tag: String,
+    /// 提取版本号
     pub version: String,
+    /// 命中资产名
     pub asset_name: String,
+    /// 资产字节数
     pub asset_size: u64,
+    /// 资产下载直链
     pub asset_url: String,
+    /// HashiCorp 形态校验清单地址（仅 index 分支）
     pub shasums_url: Option<String>,
     /// 官方 sha256 直值锚（D43，ziglang index 形态 per-target shasum）：
     /// checksum 官方链最前（优先于清单与 digest），亦是 D44 镜像段校验锚。

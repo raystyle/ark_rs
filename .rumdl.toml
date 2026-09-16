@@ -4,7 +4,7 @@
 [global]
 flavor = "standard"
 respect-gitignore = true
-exclude = [".git", "target"]
+exclude = [".git", "target", "docs/aidoc"]
 
 [MD013]
 enabled = false

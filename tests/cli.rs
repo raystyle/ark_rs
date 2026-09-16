@@ -115,10 +115,7 @@ fn env_root_同设主名优先_端到端() {
         .assert()
         .success()
         .stdout(contains(primary.to_string_lossy().as_ref()))
-        .stdout(predicates::str::contains(
-            fallback.to_string_lossy().as_ref(),
-        )
-        .not());
+        .stdout(predicates::str::contains(fallback.to_string_lossy().as_ref()).not());
 }
 
 #[test]

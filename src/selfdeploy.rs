@@ -10,9 +10,13 @@ use crate::platform;
 
 /// 自部署结果。
 pub struct SelfDeployOutcome {
+    /// 部署位是否实际复制（幂等 false）
     pub copied: bool,
+    /// bin 目录是否新注册 PATH
     pub path_registered: bool,
+    /// 部署 bin 目录
     pub bin_dir: PathBuf,
+    /// 部署位 exe 全路径
     pub exe: PathBuf,
     /// 同步到用户数据目录的 catalog 路径；无源可同步时为 None。
     pub catalog: Option<PathBuf>,
@@ -222,7 +226,10 @@ pub fn self_deploy(env_root: &Path) -> Result<SelfDeployOutcome, String> {
             eprintln!("[OK] 已移除旧 ome 部署位 PATH 条目: {}", legacy.display());
         }
         if let Err(e) = std::fs::remove_dir_all(&legacy) {
-            eprintln!("[WARN] 旧 ome 部署位目录未删成（占用则下次 init 再收）: {}: {e}", legacy.display());
+            eprintln!(
+                "[WARN] 旧 ome 部署位目录未删成（占用则下次 init 再收）: {}: {e}",
+                legacy.display()
+            );
         }
     }
     let catalog = deploy_catalog()?;

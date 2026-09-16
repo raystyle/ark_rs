@@ -24,73 +24,134 @@ use crate::resolve::Resolution;
 #[serde(default)]
 pub struct Tool {
     // —— 静态元数据（ome 不回写）——
+    /// 七类 taxonomy 分类（agent/runtime/cli 等分组与排序依据）
     pub category: Option<String>,
+    /// 部署形态：envroot 泊位或 installer 系统装
     pub deploy: Option<String>,
+    /// EnvRoot 下相对目录（Windows 名录布局）
     pub dir: Option<String>,
+    /// PATH 注册目录（支持 `~` 与 `$VAR` 展开）
     pub bin: Option<String>,
+    /// 本机可执行文件相对路径（探测与验证目标）
     pub exe: Option<String>,
+    /// 解压九分派类型（zip/targz-bin/msi/copy/ome-self 等）
     pub extract: Option<String>,
+    /// GitHub 仓坐标 owner/name（resolve 与自更新源）
     pub repo: Option<String>,
+    /// release tag 前缀（缺省 v）
     pub tag_prefix: Option<String>,
+    /// 资产名匹配正则（release 资产检索）
     pub asset_pattern: Option<String>,
+    /// 版本号提取正则（自资产名或 tag）
     pub version_pattern: Option<String>,
     // —— 已装版本探测（D28 入册清单化：探测参数与正则自 toolver 源码表迁字段；
     //    probe_args 缺省 ["--version"]，oscdimg 无参为 []；probe_pattern 取第 1 捕获组）——
+    /// 已装版本探测实参（缺省 --version；oscdimg 无参为空）
     pub probe_args: Option<Vec<String>>,
+    /// 版本探测正则（取第 1 捕获组）
     pub probe_pattern: Option<String>,
     // —— manifest 引用（R016 D39：声明该工具的安装逻辑在 manifest.toml 同名节；缺省同名语义）——
+    /// manifest 面状态（两件分离各自诊断）
     pub manifest: Option<String>,
     // —— guide 字段（D25：`ark skill` 自适应引导；静态内容 + 实测探测键）——
+    /// 一句话描述（skill 自适应引导用）
     pub desc: Option<String>,
+    /// 引导提示的环境变量键清单
     pub guide_env: Option<Vec<String>>,
+    /// 引导提示的目录清单
     pub guide_dirs: Option<Vec<String>>,
+    /// 引导注意事项多行文本（D25）
     pub guide_notes: Option<String>,
+    /// cdn 模板下载直链（`{version}` 占位）
     pub cdn_url: Option<String>,
+    /// index 型清单 URL（resolve 分支 c）
     pub cdn_index_url: Option<String>,
+    /// cdn 资产名正则（target 键形）
     pub cdn_asset_pattern: Option<String>,
+    /// 版本文件 URL（latest 滚动源）
     pub cdn_version_url: Option<String>,
+    /// Linux cdn 直链（回退通用）
     pub linux_cdn_url: Option<String>,
+    /// Linux cdn 资产名正则（回退通用）
     pub linux_cdn_asset_pattern: Option<String>,
+    /// Linux 额外多二进制（逗号分隔，同目录落位）
     pub linux_extra_bins: Option<String>,
+    /// 校验清单资产名（SHA256SUMS 类）
     pub sums_asset: Option<String>,
+    /// 校验清单行匹配正则
     pub sums_pattern: Option<String>,
+    /// 边车后缀（`.sha256` 形态的锚边车）
     pub asset_sha_suffix: Option<String>,
+    /// 引导器资产名（evergreen 型安装引导）
     pub bootstrap_asset: Option<String>,
     // —— Linux / macOS 平台专属字段（缺失时回退到通用字段）——
+    /// Linux 平台 repo（缺失回退通用）
     pub linux_repo: Option<String>,
+    /// Linux 资产名正则（回退通用）
     pub linux_asset_pattern: Option<String>,
+    /// Linux 目录布局（回退通用）
     pub linux_dir: Option<String>,
+    /// Linux PATH 目录（回退通用）
     pub linux_bin: Option<String>,
+    /// Linux 可执行路径（回退通用）
     pub linux_exe: Option<String>,
+    /// Linux 解压类型（回退通用）
     pub linux_extract: Option<String>,
+    /// Linux 校验行正则（回退通用）
     pub linux_sums_pattern: Option<String>,
+    /// Linux 边车后缀（回退通用）
     pub linux_asset_sha_suffix: Option<String>,
+    /// Linux 引导器资产（回退通用）
     pub linux_bootstrap_asset: Option<String>,
     // —— macOS 专属字段（缺失时回退 linux_*，再回退通用；仅 darwin 构建生效）——
+    /// macOS 平台 repo（缺失回退 linux 再回退通用）
     pub mac_repo: Option<String>,
+    /// macOS 资产名正则（回退链同上）
     pub mac_asset_pattern: Option<String>,
+    /// macOS 目录布局（回退链同上）
     pub mac_dir: Option<String>,
+    /// macOS PATH 目录（回退链同上）
     pub mac_bin: Option<String>,
+    /// macOS 可执行路径（回退链同上）
     pub mac_exe: Option<String>,
+    /// macOS 解压类型（回退链同上）
     pub mac_extract: Option<String>,
+    /// macOS 校验行正则（回退链同上）
     pub mac_sums_pattern: Option<String>,
+    /// macOS 边车后缀（回退链同上）
     pub mac_asset_sha_suffix: Option<String>,
+    /// macOS 引导器资产（回退链同上）
     pub mac_bootstrap_asset: Option<String>,
+    /// macOS cdn 直链（回退链同上）
     pub mac_cdn_url: Option<String>,
+    /// macOS cdn 资产正则（回退链同上）
     pub mac_cdn_asset_pattern: Option<String>,
+    /// macOS 额外多二进制（回退链同上）
     pub mac_extra_bins: Option<String>,
     // —— pin 字段（ark pin/update 回写；按平台分列，通用四键即 Windows pin）——
+    /// pin 锁定的 release tag（Windows 通用位；ark pin/update 回写）
     pub tag: Option<String>,
+    /// pin 锁定的版本号（Windows 通用位）
     pub version: Option<String>,
+    /// pin 锁定的资产名（Windows 通用位）
     pub asset: Option<String>,
+    /// pin 锁定的资产 sha256（Windows 通用位）
     pub sha256: Option<String>,
+    /// Linux 平台 pin tag（分列不跨平台回退）
     pub linux_tag: Option<String>,
+    /// Linux 平台 pin 版本
     pub linux_version: Option<String>,
+    /// Linux 平台 pin 资产名
     pub linux_asset: Option<String>,
+    /// Linux 平台 pin sha256
     pub linux_sha256: Option<String>,
+    /// macOS 平台 pin tag（分列不跨平台回退）
     pub mac_tag: Option<String>,
+    /// macOS 平台 pin 版本
     pub mac_version: Option<String>,
+    /// macOS 平台 pin 资产名
     pub mac_asset: Option<String>,
+    /// macOS 平台 pin sha256
     pub mac_sha256: Option<String>,
     /// 版本锁定开关（静态元数据，跨平台生效）：true 时 update/pin/带版本选项的 install 全部跳过，
     /// 用于钉死特定版本（如 bun 1.3.14——最后一个完全用 Zig 编写核心的版本，2026-09-01 用户裁决）。
@@ -364,8 +425,11 @@ pub fn pin_key(base: &str) -> String {
 
 /// 已加载的 catalog：order 保工具书写顺序（即安装/更新顺序），tools 按键查值。
 pub struct Catalog {
+    /// 清单文件路径（回写与状态面定位）
     pub path: PathBuf,
+    /// 工具书写顺序（安装与更新遍历序）
     pub order: Vec<String>,
+    /// 工具条目按键查值表
     pub tools: HashMap<String, Tool>,
 }
 
@@ -658,9 +722,15 @@ pub enum Outcome {
     /// 未联网：`off` 显式关闭（TTL 0 或离线）、`fresh` 未过期、`unreachable` 探活失败（已退避）。
     Skipped(&'static str),
     /// 本地与云端同锚（只更新检查标记）。
-    InSync { sha: String },
+    InSync {
+        /// 对齐的锚
+        sha: String,
+    },
     /// 已从云端拉取并落位。
-    Updated { sha: String },
+    Updated {
+        /// 拉取的锚
+        sha: String,
+    },
 }
 
 impl Outcome {
@@ -746,8 +816,11 @@ pub fn signature_path(catalog: &Path) -> PathBuf {
 /// 清单签名状态（D34）：valid 通过内嵌公钥验签；invalid 有签名但验不过；missing 无签名件。
 #[derive(Debug, PartialEq, Eq)]
 pub enum SignatureState {
+    /// 验签通过
     Valid,
+    /// 有签名但验不过（含原因）
     Invalid(String),
+    /// 无签名件
     Missing,
 }
 
@@ -1035,8 +1108,11 @@ pub fn seq_gate(pulled: u64, seen: u64, what: &str) -> Result<u64, String> {
 
 /// 已拉到缓存的云端清单（含分离签名件路径）。
 pub struct CloudCatalog {
+    /// 清单文件路径（回写与状态面定位）
     pub path: PathBuf,
+    /// 分离签名件路径（minisig）
     pub sig_path: PathBuf,
+    /// 清单内容 sha256 锚
     pub sha: String,
     /// 顶层 seq（回滚重放防护；缺省 0）
     pub seq: u64,
@@ -1154,7 +1230,12 @@ pub fn sync_to(env_root: &Path, target: &Path, force: bool, ttl: u64) -> Result<
     seq_gate(cloud.seq, seen_seq_floor(target), "tools.toml")?;
     // CF 边缘残影第二道（D45，对岸三犯根治的端上消费面）：锚探测与 toml 拉取异源
     // （sha 边车旧、本体新时 sha 说 current），已拉到手的 seq 高于已见不得按 current 丢弃新档
-    let in_sync = is_current(local_sha.as_deref(), &cloud.sha, cloud.seq, seen_seq_floor(target));
+    let in_sync = is_current(
+        local_sha.as_deref(),
+        &cloud.sha,
+        cloud.seq,
+        seen_seq_floor(target),
+    );
     if in_sync {
         // 内容同锚：补签名件（本地可能缺，比如首次带签名上线或本地被改写后签名被封存）
         place(&cloud.sig_path, &signature_path(target))?;
@@ -1321,14 +1402,23 @@ pub fn auto_refresh_if_user_data(env_root: &Path, resolved: &Path) {
 
 /// 子功能 status 的数据面：解析面路径与来源、本地与云端锚、检查年龄、TTL 与离线态。
 pub struct CatalogState {
+    /// 清单文件路径（回写与状态面定位）
     pub path: PathBuf,
+    /// 解析面来源标签（repo/userdata/cloud 等）
     pub origin: &'static str,
+    /// 本地副本 sha256 锚
     pub local_sha: Option<String>,
+    /// 云端 sha256 锚（边车探测）
     pub cloud_sha: Option<String>,
+    /// 云端探测失败原因（含则未达）
     pub cloud_error: Option<String>,
+    /// 距上次同步秒数（None 未同步过）
     pub age_secs: Option<u64>,
+    /// 自动刷新 TTL 秒数
     pub ttl_secs: u64,
+    /// 离线开关态（ARK_OFFLINE）
     pub offline: bool,
+    /// 同步新鲜标记（.last-sync）
     pub synced: bool,
     /// 解析面清单的独立签名状态（D34，本地校验）。
     pub signature: SignatureState,
@@ -1338,12 +1428,19 @@ pub struct CatalogState {
 
 /// manifest 面状态：在位与本地锚、年龄、云端锚对比与签名态（两件各自可诊断）。
 pub struct ManifestState {
+    /// 清单文件路径（回写与状态面定位）
     pub path: PathBuf,
+    /// manifest 在位性
     pub present: bool,
+    /// 本地副本 sha256 锚
     pub local_sha: Option<String>,
+    /// 云端 sha256 锚（边车探测）
     pub cloud_sha: Option<String>,
+    /// 云端探测失败原因（含则未达）
     pub cloud_error: Option<String>,
+    /// 距上次同步秒数（None 未同步过）
     pub age_secs: Option<u64>,
+    /// 同步新鲜标记（.last-sync）
     pub synced: bool,
     /// manifest 独立签名状态（sync 只落验签过的件，故 invalid 意味着本地被改过）。
     pub signature: SignatureState,
@@ -1451,7 +1548,10 @@ mod tests {
             vec!["python".to_string(), "vault".to_string()],
             "去重保序滤空"
         );
-        assert!(cat.select("python,not-exist").is_err(), "任一段未知整体拒绝");
+        assert!(
+            cat.select("python,not-exist").is_err(),
+            "任一段未知整体拒绝"
+        );
     }
 
     /// D45：current 判定的 seq 消费——同锚且 seq 不高于已见才 current（CF 残影下
@@ -1460,7 +1560,10 @@ mod tests {
     fn current判定_sha同锚还要seq不高于已见() {
         let sha = "AA";
         assert!(is_current(Some("aa"), sha, 5, 5), "同锚同 seq：current");
-        assert!(is_current(Some("aa"), sha, 4, 5), "同锚 seq 低（回放已被门拦，双保险）：current");
+        assert!(
+            is_current(Some("aa"), sha, 4, 5),
+            "同锚 seq 低（回放已被门拦，双保险）：current"
+        );
         assert!(
             !is_current(Some("aa"), sha, 6, 5),
             "同锚但 seq 高：边车旧本体新，不得按 current 丢新档"

@@ -18,19 +18,25 @@ use crate::toolver;
 /// `configure` 为 deploy 侧：PATH、用户环境变量、注册表与配置；download 为 false。
 #[derive(Debug, Clone, Default)]
 pub struct InstallOptions {
+    /// 安装后落 manifest 配置（env_set/shims/mirror）
     pub configure: bool,
+    /// 回写 pin 锁（update 传 false）
     pub update_lock: bool,
+    /// 强制重装跳过幂等检查
     pub force: bool,
 }
 
 /// 安装结果动作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallAction {
+    /// 新装落位
     Installed,
+    /// 幂等跳过（已在位同版）
     Skipped,
 }
 
 impl InstallAction {
+    /// 动作短名（emit 块 value）。
     pub fn as_str(&self) -> &'static str {
         match self {
             InstallAction::Installed => "installed",
@@ -41,8 +47,11 @@ impl InstallAction {
 
 /// 安装结果：动作、版本、安装目录（msi 无绿色目录，为 None）。
 pub struct InstallOutcome {
+    /// 安装动作（installed/skipped）
     pub action: InstallAction,
+    /// 安装落定版本
     pub version: String,
+    /// 安装目录（msi 无绿色目录为 None）
     pub dir: Option<PathBuf>,
 }
 

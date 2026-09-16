@@ -12,10 +12,15 @@ use crate::toolver;
 /// status 三态行：locked=pin version，installed=实跑探测，path=用户 PATH 是否含 bin。
 #[derive(Clone)]
 pub struct StatusRow {
+    /// 工具名
     pub name: String,
+    /// 分类（分组渲染与排序）
     pub category: String,
+    /// 锁定版本（catalog pin；None 未锁）
     pub locked: Option<String>,
+    /// 已装版本（探针实测；None 未探到）
     pub installed: Option<String>,
+    /// PATH 在位性
     pub path: bool,
     /// 本平台无 effective exe（平台不适用，如 shellcheck 在 Windows）时为 None，渲染为 -。
     pub exe: Option<PathBuf>,

@@ -656,7 +656,6 @@ fn run_tar(args: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

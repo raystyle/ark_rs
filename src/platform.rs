@@ -429,6 +429,7 @@ fn rebuild_env_block(text: &str, body: &[String]) -> String {
     out
 }
 
+/// 向 profile env 块合并 export 行（已有键行级 upsert，无则追加；幂等不重写）。
 pub fn merge_env_exports(text: &str, key: &str, value: &str) -> String {
     let line = format!("export {key}=\"{value}\"");
     let prefix_tag = format!("export {key}=");
@@ -575,7 +576,10 @@ pub fn remove_user_env_var(key: &str) -> Result<bool, String> {
 /// 「文本变化」等价「真撤了」（对线 R1 复审残留）。
 pub fn remove_env_export(text: &str, key: &str) -> String {
     let prefix_tag = format!("export {key}=");
-    if !text.lines().any(|l| l.trim_start().starts_with(&prefix_tag)) {
+    if !text
+        .lines()
+        .any(|l| l.trim_start().starts_with(&prefix_tag))
+    {
         return text.to_string();
     }
     let body: Vec<String> = merged_env_body(text)
@@ -1218,7 +1222,11 @@ mod tests {
         let alias = ome_alias_target().expect("别名应可解析");
         let deploy = self_deploy_target().expect("部署位应可解析");
         assert_eq!(alias.parent(), deploy.parent(), "别名与部署位同目录");
-        assert!(alias.ends_with("ome.exe"), "别名文件名: {}", alias.display());
+        assert!(
+            alias.ends_with("ome.exe"),
+            "别名文件名: {}",
+            alias.display()
+        );
     }
 
     #[cfg(not(windows))]
@@ -1258,8 +1266,14 @@ mod tests {
     #[test]
     fn temp路径判定_闸注册面() {
         let tmp = std::env::temp_dir();
-        assert!(is_temp_path(&tmp.join("ark-probe").join("zig")), "temp 子路径应命中闸");
-        assert!(!is_temp_path(&dirs::home_dir().expect("home").join(".local").join("bin")), "正式泊位不误伤");
+        assert!(
+            is_temp_path(&tmp.join("ark-probe").join("zig")),
+            "temp 子路径应命中闸"
+        );
+        assert!(
+            !is_temp_path(&dirs::home_dir().expect("home").join(".local").join("bin")),
+            "正式泊位不误伤"
+        );
     }
 
     #[test]
@@ -1370,7 +1384,10 @@ mod tests {
                 format!("payload-{name}"),
                 "件 {name} 内容应一致"
             );
-            assert!(from.join(name).exists(), "旧位件 {name} 应保留（copy 不 move）");
+            assert!(
+                from.join(name).exists(),
+                "旧位件 {name} 应保留（copy 不 move）"
+            );
         }
         std::fs::write(from.join("tools.toml"), "changed").expect("改旧位");
         assert!(
@@ -1451,7 +1468,10 @@ mod tests {
         assert_eq!(absorb_legacy_env_block(clean), clean, "无旧标记零动作");
         let mixed = "# >>> ark env\nexport K=\"new\"\n# <<< ark env\nother\n# >>> ome env\nexport K=\"old\"\nexport ONLY_OLD=\"1\"\n# <<< ome env\n";
         let t = absorb_legacy_env_block(mixed);
-        assert!(t.contains("# >>> ark env") && !t.contains("# >>> ome env"), "旧块退役");
+        assert!(
+            t.contains("# >>> ark env") && !t.contains("# >>> ome env"),
+            "旧块退役"
+        );
         assert!(t.contains("export K=\"new\""), "同 KEY 以 ark 值为准");
         assert!(!t.contains("export K=\"old\""), "旧值不重复带");
         assert!(t.contains("export ONLY_OLD=\"1\""), "旧块独有键保留");
@@ -1493,10 +1513,7 @@ mod tests {
         let t = merge_env_exports(legacy, "DOTNET_CLI_TELEMETRY_OPTOUT", "1");
         assert!(t.contains("# >>> ark env"), "应写 ark 块");
         assert!(!t.contains("# >>> ome env"), "旧块应退役");
-        assert!(
-            t.contains("export KEEPME=\"1\""),
-            "旧块既有行应并入不丢失"
-        );
+        assert!(t.contains("export KEEPME=\"1\""), "旧块既有行应并入不丢失");
         assert!(t.contains("export DOTNET_CLI_TELEMETRY_OPTOUT=\"1\""));
         // 同 KEY 旧值在新块与旧块并存时：旧块行弃、新值唯一
         let mixed = "# >>> ark env\nexport K=\"new\"\n# <<< ark env\n# >>> ome env\nexport K=\"old\"\n# <<< ome env\n";
@@ -1519,7 +1536,10 @@ mod tests {
         let t1 = merge_hook_block("export A=1\n", marker, &lines);
         assert!(t1.starts_with("export A=1\n"), "块外原文在前不动");
         assert!(t1.contains(marker) && t1.contains("# <<< ark fnm <<<"));
-        assert!(t1.find(lines[0]).unwrap() < t1.find(lines[1]).unwrap(), "先导 PATH 再 eval");
+        assert!(
+            t1.find(lines[0]).unwrap() < t1.find(lines[1]).unwrap(),
+            "先导 PATH 再 eval"
+        );
         assert!(lines.iter().all(|l| t1.contains(l)), "块体为单一权威形态");
         // 幂等：二调逐字不变（防每装一次重写 profile）
         assert_eq!(merge_hook_block(&t1, marker, &lines), t1);
@@ -1578,8 +1598,14 @@ mod tests {
         let lines = fnm_hook_lines();
         let unclosed = "A=1\n# >>> ark fnm >>>\nold body\nB=2\n";
         let t = merge_hook_block(unclosed, marker, &lines);
-        assert!(!t.contains("B=2") && !t.contains("old body"), "未闭合截断收口");
-        assert!(t.contains("A=1\n") && t.contains(lines[1]), "闭标记前原文与新块体保留");
+        assert!(
+            !t.contains("B=2") && !t.contains("old body"),
+            "未闭合截断收口"
+        );
+        assert!(
+            t.contains("A=1\n") && t.contains(lines[1]),
+            "闭标记前原文与新块体保留"
+        );
         assert_eq!(merge_hook_block(&t, marker, &lines), t, "截断后幂等");
         // 标记行带行首行尾空白：识别并规范重写
         let padded = "A=1\n  # >>> ark fnm >>>  \nold\n\t# <<< ark fnm <<< \nB=2\n";

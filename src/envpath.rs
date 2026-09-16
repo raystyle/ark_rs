@@ -20,6 +20,7 @@ fn norm_path(s: &str) -> String {
         .to_lowercase()
 }
 
+/// 向 PATH 文本追加目录（已含则 None，未变不重写）。
 pub fn add_path_entry(raw: &str, dir: &str) -> Option<String> {
     let expanded_dir = norm_path(dir);
     let parts: Vec<&str> = raw.split(';').filter(|p| !p.is_empty()).collect();

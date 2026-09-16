@@ -27,15 +27,13 @@ fn 云端清单刷新_锚一致且落位幂等() -> TestResult<()> {
     // oracle 独立来源：测内直接取镜像边车首 token（不经被测刷新链）
     let sidecar = ark::download::mirror_sidecar_sha(
         &root,
-        &format!("{}/ome/catalog/tools.toml.sha256", ark::download::MIRROR_BASE),
+        &format!(
+            "{}/ome/catalog/tools.toml.sha256",
+            ark::download::MIRROR_BASE
+        ),
     )?;
 
-    let first = ark::catalog::sync_to(
-        &root,
-        &target,
-        true,
-        ark::catalog::DEFAULT_TTL_SECS,
-    )?;
+    let first = ark::catalog::sync_to(&root, &target, true, ark::catalog::DEFAULT_TTL_SECS)?;
     assert_eq!(first.action(), "updated", "首次刷新应落位");
     assert_eq!(
         ark::download::sha256_file(&target)?,
@@ -72,20 +70,10 @@ fn 云端清单刷新_锚一致且落位幂等() -> TestResult<()> {
         ark::catalog::SignatureState::Valid
     );
 
-    let second = ark::catalog::sync_to(
-        &root,
-        &target,
-        true,
-        ark::catalog::DEFAULT_TTL_SECS,
-    )?;
+    let second = ark::catalog::sync_to(&root, &target, true, ark::catalog::DEFAULT_TTL_SECS)?;
     assert_eq!(second.action(), "current", "同锚二次刷新应幂等");
 
-    let third = ark::catalog::sync_to(
-        &root,
-        &target,
-        false,
-        ark::catalog::DEFAULT_TTL_SECS,
-    )?;
+    let third = ark::catalog::sync_to(&root, &target, false, ark::catalog::DEFAULT_TTL_SECS)?;
     assert_eq!(third.action(), "skipped", "TTL 内不应联网");
     assert_eq!(third.reason(), "fresh");
 

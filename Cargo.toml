@@ -39,3 +39,7 @@ windows-sys = { version = "0.59", features = [
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
+
+[lints.rust]
+# dev-evo tool-rust 强制口径（ADR-0006 第五十九批）：lib 公开项契约注释全覆盖
+missing_docs = "deny"

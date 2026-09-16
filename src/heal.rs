@@ -325,6 +325,7 @@ static HEALS: &[HealDef] = &[
 
 /// 单次自愈执行结果行。
 pub struct HealRow {
+    /// 维度名（verify 维度注册表的键）
     pub dim: String,
     /// 动作类：install / keys / bunfig / goproxy / alias / dormant / routed / inapplicable
     pub action: &'static str,

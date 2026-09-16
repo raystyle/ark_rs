@@ -1,0 +1,1206 @@
+{
+  "crate": "ark",
+  "version": "1.2.2",
+  "items": [
+    {
+      "path": "ark::catalog",
+      "kind": "module",
+      "docs": "catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：\n`ark catalog status`（看解析面与云端同步态）与 `ark catalog sync`（从云端刷新用户数据副本，D33）。\n\n数据契约见 `docs/references/R001`：读用 serde（字段同 R001），\n写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。\n路径解析优先级：\n- EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\\ 则 D:\\ohmyenv 否则 C:\\ohmyenv\n- catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\\tools.toml > cwd\\catalog\\tools.toml\n  > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）\n  > 用户数据目录 catalog\\tools.toml（自部署布局）"
+    },
+    {
+      "path": "ark::catalog::CLOUD_CATALOG_KEY",
+      "kind": "constant",
+      "docs": "云端清单在镜像里的键（D41 C：主键 `ark/catalog/`；兼容键 `ome/catalog/` 为 omc 铺段前\n的过渡窗回落，读序主键先、404 落兼容键；停 ome/ 键判据为存量机水位清零）。"
+    },
+    {
+      "path": "ark::catalog::CLOUD_CATALOG_PUBKEY_ID",
+      "kind": "constant",
+      "docs": "内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出）。"
+    },
+    {
+      "path": "ark::catalog::CLOUD_MANIFEST_KEY",
+      "kind": "constant",
+      "docs": "云端 manifest 键（R016 两件分离：与 tools.toml 同批同签；双键读序同上）。"
+    },
+    {
+      "path": "ark::catalog::Catalog",
+      "kind": "struct",
+      "docs": "已加载的 catalog：order 保工具书写顺序（即安装/更新顺序），tools 按键查值。"
+    },
+    {
+      "path": "ark::catalog::CatalogState",
+      "kind": "struct",
+      "docs": "子功能 status 的数据面：解析面路径与来源、本地与云端锚、检查年龄、TTL 与离线态。"
+    },
+    {
+      "path": "ark::catalog::CloudCatalog",
+      "kind": "struct",
+      "docs": "已拉到缓存的云端清单（含分离签名件路径）。"
+    },
+    {
+      "path": "ark::catalog::DEFAULT_TTL_SECS",
+      "kind": "constant",
+      "docs": "自动刷新默认 TTL（秒）：一天一次锚比对。"
+    },
+    {
+      "path": "ark::catalog::ManifestState",
+      "kind": "struct",
+      "docs": "manifest 面状态：在位与本地锚、年龄、云端锚对比与签名态（两件各自可诊断）。"
+    },
+    {
+      "path": "ark::catalog::Outcome",
+      "kind": "enum",
+      "docs": "刷新结果。"
+    },
+    {
+      "path": "ark::catalog::SignatureState",
+      "kind": "enum",
+      "docs": "清单签名状态（D34）：valid 通过内嵌公钥验签；invalid 有签名但验不过；missing 无签名件。"
+    },
+    {
+      "path": "ark::catalog::Tool",
+      "kind": "struct",
+      "docs": "工具条目：字段与 R001 一一对应；可选字段为空时整行省略，故全部 Option。"
+    },
+    {
+      "path": "ark::catalog::auto_refresh",
+      "kind": "function",
+      "docs": "自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，\n失败记退避标记（锚取本地值），TTL 内不再重试，保证不拖慢用户命令。"
+    },
+    {
+      "path": "ark::catalog::auto_refresh_if_user_data",
+      "kind": "function",
+      "docs": "命令入口接线：解析面**就是**用户数据副本时按 TTL 刷新；跳过与失败都不拦命令。"
+    },
+    {
+      "path": "ark::catalog::auto_ttl",
+      "kind": "function",
+      "docs": "当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。"
+    },
+    {
+      "path": "ark::catalog::catalog_state",
+      "kind": "function",
+      "docs": "子功能 status 采集（云端不可达时如实标注 error 字段，不报错退出）。"
+    },
+    {
+      "path": "ark::catalog::check_signature",
+      "kind": "function",
+      "docs": "校验磁盘清单与其分离签名（`<清单>.minisig`）。"
+    },
+    {
+      "path": "ark::catalog::classify_origin",
+      "kind": "function",
+      "docs": "解析面来源分类（纯函数，供 status 子功能报告）：userdata / repo / env / other。"
+    },
+    {
+      "path": "ark::catalog::cloud_sha",
+      "kind": "function",
+      "docs": "云端清单锚（边车首 token，大写；走下载链重试与 curl 兜底，命令面用）。"
+    },
+    {
+      "path": "ark::catalog::fetch_cloud",
+      "kind": "function",
+      "docs": "取锚后拉取（sync 子功能用；锚与键同源解析）。"
+    },
+    {
+      "path": "ark::catalog::fetch_with_anchor",
+      "kind": "function",
+      "docs": "按给定锚拉取云端清单到缓存（键读序：主键先、兼容键回落；任一键全链通过即返回），\n过 sha、解析、内嵌公钥验签三重验证（任一不过即拒收）。"
+    },
+    {
+      "path": "ark::catalog::is_user_data_catalog",
+      "kind": "function",
+      "docs": "该路径是否为用户数据副本（运行态权威落点；签名巡检只对它告警）。"
+    },
+    {
+      "path": "ark::catalog::marker_text",
+      "kind": "function",
+      "docs": "标记文件文本（纯函数，与 parse_marker 对称；小写写入，读出一律大写）。"
+    },
+    {
+      "path": "ark::catalog::needs_check",
+      "kind": "function",
+      "docs": "是否需要联网比对（纯函数）：目标缺失、无标记、标记过期、或本地已被改写（标记锚与本地不符）。"
+    },
+    {
+      "path": "ark::catalog::parse_marker",
+      "kind": "function",
+      "docs": "标记文件解析（纯函数）：`<unix 秒>\\n<sha256>\\n`。"
+    },
+    {
+      "path": "ark::catalog::pin_key",
+      "kind": "function",
+      "docs": "当前平台 pin 字段的 TOML 键名（Windows 无前缀，Linux/mac 加平台前缀）。"
+    },
+    {
+      "path": "ark::catalog::resolve_catalog_path",
+      "kind": "function",
+      "docs": "catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\\tools.toml（仓库与旧自部署布局）\n> cwd\\catalog\\tools.toml > 用户数据目录 catalog\\tools.toml（新自部署布局，self-deploy 时同步）。\n> 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。"
+    },
+    {
+      "path": "ark::catalog::resolve_env_root",
+      "kind": "function",
+      "docs": "EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。\n对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。"
+    },
+    {
+      "path": "ark::catalog::resolve_ttl",
+      "kind": "function",
+      "docs": "TTL 解析（纯函数）：离线优先，其次显式秒数（0 关），非法值回落默认。"
+    },
+    {
+      "path": "ark::catalog::seq_gate",
+      "kind": "function",
+      "docs": "seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；\n大于即收（调用方落位后 write_seen_seq）。缺 seq 视 0。"
+    },
+    {
+      "path": "ark::catalog::signature_path",
+      "kind": "function",
+      "docs": "清单的分离签名路径（`<清单>.minisig`）。"
+    },
+    {
+      "path": "ark::catalog::sync_to",
+      "kind": "function",
+      "docs": "子功能 sync 的核心：刷新到指定目标（命令面与自动路径共用；target 独立解析，便于沙盒测试）。"
+    },
+    {
+      "path": "ark::catalog::toplevel_seq",
+      "kind": "function",
+      "docs": "顶层单调序号（回滚重放防护，S006 候选 B / D40）：签发侧每批 +1，\n端上记已见 seq，收到更低即拒收（防「重放旧但签名有效的清单对」与镜像桶回滚）。\n键位契约（omc 2026-09-11 落地）：tools.toml 与 manifest.toml 顶层 `seq = <int>`；\n`generated_at`（ISO8601Z）为信息性非安全边界。缺 seq 视为 0（兼容首发前的件）。"
+    },
+    {
+      "path": "ark::catalog::user_data_catalog_path",
+      "kind": "function",
+      "docs": "用户数据副本路径：`<metadata>\\catalog\\tools.toml`（self-deploy 同步位，运行态权威的落点）。"
+    },
+    {
+      "path": "ark::catalog::verify_with_embedded_keys",
+      "kind": "function",
+      "docs": "用内嵌公钥集合验签（任一公钥通过即可，供密钥轮换过渡期使用；纯函数可测）。"
+    },
+    {
+      "path": "ark::catalog::write_pin",
+      "kind": "function",
+      "docs": "pin 回写：用 toml_edit 直接改文档树，只动当前平台的 tag/version/asset/sha256 四个键\n（Windows 通用、Linux `linux_*`、mac `mac_*`，见 R001），保住字段顺序、缩进与注释。\n版本变化时删除 sha256 行（等 install 回填），同版本 re-pin 保留。"
+    },
+    {
+      "path": "ark::catalog::write_sha256",
+      "kind": "function",
+      "docs": "sha256 回填：只写当前平台的 sha256 一个键（install 成功后回填空 sha；统一大写）。"
+    },
+    {
+      "path": "ark::checksum",
+      "kind": "module",
+      "docs": "checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。\n优先级（R001 四、2）：pin 的 sha256 > 官方校验源三型——\n1) cdn_index_url 的 HashiCorp SHA256SUMS 清单（shasums_url 来自解析结果）；\n2) sums_asset 统一校验清单（{version}/{tag} 占位，按 sums_pattern 取行）；\n3) asset_sha_suffix 逐资产后缀文件（如 <asset>.sha256）。\n\n校验清单类资产每次强制重下（删旧再下），结果统一大写。"
+    },
+    {
+      "path": "ark::checksum::expected_sha256",
+      "kind": "function",
+      "docs": "本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**\n（资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。\n否则查官方校验源，都没有则 None。"
+    },
+    {
+      "path": "ark::checksum::extract_hex64",
+      "kind": "function",
+      "docs": "从一行文本提取第一个 64 位 hex 并大写（对齐 pwsh 的 ([0-9a-fA-F]{64}) + ToUpperInvariant）。"
+    },
+    {
+      "path": "ark::checksum::official_sha256",
+      "kind": "function",
+      "docs": "官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。"
+    },
+    {
+      "path": "ark::docker",
+      "kind": "module",
+      "docs": "docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。\n形态：官方 static zip（download.docker.com CDN 直链，pin 驱动，dotnet/oscdimg 同族）+\nWindows 服务注册 + daemon.json 合并 + docker-users 组 + compose 插件 + 机器级 PATH。\n需管理员：未提权且 gsudo 在位时经 gsudo 重跑 `ark install docker`（vsbuild 同模式）。\n与 vsbuild 的差异：docker 有版本与 pin（非 evergreen），resolve 走 cdn_url 分支。"
+    },
+    {
+      "path": "ark::docker::install",
+      "kind": "function",
+      "docs": "非 Windows 占位：docker-win 仅 Windows 语义。"
+    },
+    {
+      "path": "ark::docker::is_docker",
+      "kind": "function",
+      "docs": "是否 docker 专用安装条目（extract 标记分发）。"
+    },
+    {
+      "path": "ark::doctor",
+      "kind": "module",
+      "docs": "doctor：部署异常诊断（2026-09-02 用户需求：检测部署的错误异常）。\n与 verify 的分工：verify 答「部署域维度是否 PASS」（pin 对齐断言），doctor 答\n「环境里有哪些部署错误与异味」——版本漂移、探测失败、PATH 死链与重复、\npin/sha 缺失、缓存孤儿、EnvRoot 不可写等，输出 check=OK/WARN/FAIL 逐项行，\nFAIL 即 exit 1（WARN 不拦退出）。"
+    },
+    {
+      "path": "ark::doctor::DepGroupStat",
+      "kind": "struct",
+      "docs": "依赖层分组统计（九类 taxonomy 逐组：工具数、缺失数、漂移数）。"
+    },
+    {
+      "path": "ark::doctor::DoctorRow",
+      "kind": "struct",
+      "docs": "单项诊断结果。detail 为该项的明细（stderr 人称提示用）。"
+    },
+    {
+      "path": "ark::doctor::SysFacts",
+      "kind": "struct",
+      "docs": "系统层事实（非诊断，不占 OK/WARN/FAIL 三态）。"
+    },
+    {
+      "path": "ark::doctor::check_desc",
+      "kind": "function",
+      "docs": "check 项的人读描述（TTY 报告面用）：老十项 OK 时 detail 为空，名字本身意义不明，\n这里给每个检查名一句人话；新项（config/deploy/net）自带 detail 优先。"
+    },
+    {
+      "path": "ark::doctor::dep_group_stats",
+      "kind": "function",
+      "docs": "依赖层九类分组统计（逐组工具数、缺失数、漂移数）。"
+    },
+    {
+      "path": "ark::doctor::run_doctor",
+      "kind": "function",
+      "docs": "收集全量形态（run_doctor_with 的空回调兼容口）。"
+    },
+    {
+      "path": "ark::doctor::run_doctor_with",
+      "kind": "function",
+      "docs": "跑全部诊断项，流式形态：每项算完即经回调输出（三态采集期间先出 envroot 项，\n采集完成即连出五个派生项；返回全量行供汇总）。"
+    },
+    {
+      "path": "ark::doctor::run_doctor_with_status",
+      "kind": "function",
+      "docs": "同 run_doctor_with，但复用调用方已采集的三态行（cmd_doctor 三层诊断共用一次采集，\n避免 41 工具版本探针跑两遍）。"
+    },
+    {
+      "path": "ark::doctor::summarize",
+      "kind": "function",
+      "docs": "汇总：FAIL 与 WARN 计数。"
+    },
+    {
+      "path": "ark::doctor::system_facts",
+      "kind": "function",
+      "docs": "采集系统层事实（OS、架构、AVX 族指令集在位性）。"
+    },
+    {
+      "path": "ark::download",
+      "kind": "module",
+      "docs": "download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。\n缓存目录 <EnvRoot>\\cache\\<asset>：\n- 命中且 sha256 一致则复用；不符删除重下；无 sha 基准且文件非空则复用。\n- 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。\n- 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。\n- sha256 计算用 sha2，比较统一大写。"
+    },
+    {
+      "path": "ark::download::MIRROR_BASE",
+      "kind": "constant",
+      "docs": "自建分发镜像基址（种子终态 69/69，ohmycloud#2）。"
+    },
+    {
+      "path": "ark::download::cache_path",
+      "kind": "function",
+      "docs": "缓存路径：<EnvRoot>\\cache\\<asset>。"
+    },
+    {
+      "path": "ark::download::download_asset",
+      "kind": "function",
+      "docs": "下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。\nexpected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。"
+    },
+    {
+      "path": "ark::download::download_asset_with_mirror",
+      "kind": "function",
+      "docs": "带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：\n- 缓存三分支照常（命中即复用，与渠道无关）；\n- 镜像段**单次快速首试**（不退避不 curl：镜像未播该版本是常态而非异常，\n  404 须秒级回落官方，不能拖满重试链）；\n- 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；\n- 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，\n  CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。"
+    },
+    {
+      "path": "ark::download::download_fresh",
+      "kind": "function",
+      "docs": "强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。"
+    },
+    {
+      "path": "ark::download::download_latest_with_sidecar",
+      "kind": "function",
+      "docs": "带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：\n- 缓存三分支照常；\n- 镜像 latest 段**首试**：校验锚取同目录 `.sha256` 边车（先边车后资产，边车即当段\n  唯一信任锚，沙滚语义；资产单次快速下载），任一步失败回落官方；\n- 官方段完整链兜底（evergreen 无 pin 锚，官方段无锚裸下与反转前镜像段口径一致）；\n- 双链全败才报错，错误信息带两段。"
+    },
+    {
+      "path": "ark::download::fetch_text_short",
+      "kind": "function",
+      "docs": "单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。\n与 download_url 的重试链分离：自动路径要在网络异常时快速退化，不拖慢用户命令。"
+    },
+    {
+      "path": "ark::download::mirror_sidecar_sha",
+      "kind": "function",
+      "docs": "镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，\n镜像未播或不可达须秒级回落官方，完整重试链会让 evergreen 常态路径先赔数十秒）；\n时间戳 query 每次回源（latest 段沙滚，边车必须取新）。"
+    },
+    {
+      "path": "ark::download::mirror_sidecar_url",
+      "kind": "function",
+      "docs": "镜像 latest 段边车 URL：`{MIRROR_BASE}/{tool}/latest/{asset}.sha256`。"
+    },
+    {
+      "path": "ark::download::mirror_url",
+      "kind": "function",
+      "docs": "镜像段 URL：`{MIRROR_BASE}/{tool}/{version}/{asset}`。\nevergreen 引导器走 latest 段（`rust/latest/rustup-init.exe` 同构，version 传 \"latest\"）。"
+    },
+    {
+      "path": "ark::download::parse_sidecar_sha",
+      "kind": "function",
+      "docs": "边车文本解析 sha：标准清单行 `<sha>  <filename>`，取首 token 大写化（纯函数可测）。"
+    },
+    {
+      "path": "ark::download::sha256_file",
+      "kind": "function",
+      "docs": "计算文件 sha256，返回大写 hex（比较基准统一大写）。"
+    },
+    {
+      "path": "ark::download::with_query",
+      "kind": "function",
+      "docs": "URL 追加 query 参数（已含 query 用 `&` 连接）。\n镜像段缓存击穿用（ohmycloud#9 五端验收发现：CF 边缘缓存对 R2 覆写不失效，\n同 path 陈旧对象会被锚校验拦下；CF 缓存键含 query 而 R2 取对象只看 path）：\n边车带时间戳每次回源取新，资产带锚值（锚变缓存键变，锚同则缓存对象必与锚一致）。"
+    },
+    {
+      "path": "ark::envpath",
+      "kind": "module",
+      "docs": "envpath：Windows 用户 PATH 管理工具函数，对齐 helpers.ps1 的 Add-EnvPath/Remove-EnvPath（1321-1370 行）。\n具体平台实现（Windows 注册表 / Linux profile）集中在 `platform.rs`；本模块保留 Windows 语义纯函数供其调用。\n\n核心语义：读 PATH 原始值（不展开 %VAR%），比较时展开后去重（大小写不敏感），前置插入。"
+    },
+    {
+      "path": "ark::envpath::add_path_entry",
+      "kind": "function",
+      "docs": "向 PATH 文本追加目录（已含则 None，未变不重写）。"
+    },
+    {
+      "path": "ark::envpath::remove_path_entry",
+      "kind": "function",
+      "docs": "纯函数：从原始 PATH 串移除 dir（展开后相等者全部移除）。对齐 Remove-EnvPath。"
+    },
+    {
+      "path": "ark::extract",
+      "kind": "module",
+      "docs": "extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。\nzip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录；gsudo 只取 x64；\n7z-extra 用 bootstrap 7zr.exe 解压并 shim 7za.exe 成 7z.exe 后清空目录其余文件；\n7zsfx 同步等待退出码；msi 走 msiexec /qn；rmux 跑资产内官方 install.ps1；"
+    },
+    {
+      "path": "ark::extract::extract_asset",
+      "kind": "function",
+      "docs": "解压/安装主分派（对齐 pwsh switch ($d.Extract)）。\ncache_path 为已下载资产，install_dir 为目标目录（msi/official 类由调用方另行处理）。"
+    },
+    {
+      "path": "ark::extract::extract_targz",
+      "kind": "function",
+      "docs": "tar.gz 解压（flate2 + tar crate）。"
+    },
+    {
+      "path": "ark::extract::extract_tarxz",
+      "kind": "function",
+      "docs": "tar.xz 解压（xz2 + tar crate）。"
+    },
+    {
+      "path": "ark::extract::extract_zip",
+      "kind": "function",
+      "docs": "zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。"
+    },
+    {
+      "path": "ark::extract::flatten_single_wrapper",
+      "kind": "function",
+      "docs": "展平顶层单包裹目录（如 age zip 的 age/、python 的 python/ 包裹层）：\n只有一个子目录时，把子目录内容上提一层，并递归继续展平。\n`allow_root_files`：为 true 时允许根目录已有其他文件（Linux ~/.local/bin 多工具共享场景）；\n递归调用传 false，避免把 legitimate 子目录也展平。\n先把子目录重命名为临时目录再移动，避免子目录名与其中文件同名时产生自覆盖冲突（如 age/age）。\n\n平台口径（2026-09-01，gh 2.98.0 布局变更踩坑，M102 M004）：\nWindows 安装目录均为专属目录（EnvRoot\\<dir>，安装前已清空），一律严格判定——\n「唯一子目录且零文件」才算包裹层；gh 2.98.0 起 zip 无包裹层、顶层即 bin/ 与 LICENSE，\n宽松模式会把业务目录 bin/ 误当包裹层上提。宽松模式仅供 Linux/mac 共享目录场景。"
+    },
+    {
+      "path": "ark::heal",
+      "kind": "module",
+      "docs": "heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。\n语义：verify 判 FAIL 的维度按本表得到幂等修复动作，`ark heal <dim|all> [--dry-run]` 执行；\n所有动作幂等、可无脑重跑、不破坏性（对齐 heal.ps1 原则）。\n42 键四类归宿（2026-09-01/02 裁决）：\n- install 类 16 行（toolRoot/aria2 按平台分列，dev-rust 已建 rustup 模型）→ ome 原生安装\n  （catalog pin 驱动，与 verify 断言一致；rust 为 evergreen 引导器稳定滚动）；\n- 密钥载体 dsKey/akKey 与镜像源 bunfig/goproxy → heal-keys.py / heal-mirror.py 原生移植；\n- agent 域 12 键休眠（四件套配置归 ohmyagents）；\n- 非 ome 域路由（secret-guard 密钥防护、POSIX 残留清零、compileMatrix 编译验收编排、\n  POSIX aria2 系统位——不在 ome 自愈范围，只提示不越界）。\n\nmac-* 四键为 ps1 远端路由时代的专列；ome 在 mac 本机原生运行，归一为别名指向普通键。"
+    },
+    {
+      "path": "ark::heal::HealRow",
+      "kind": "struct",
+      "docs": "单次自愈执行结果行。"
+    },
+    {
+      "path": "ark::heal::heal_bunfig",
+      "kind": "function",
+      "docs": "bunfig npmmirror：写语义单一权威在 manifest mirror 节（D42 收编，防双份漂移）。"
+    },
+    {
+      "path": "ark::heal::heal_keys_carrier",
+      "kind": "function",
+      "docs": "密钥载体/端点补齐（heal-keys.py 移植）。\nPOSIX：确保 ~/.config/ohmyenv-secrets/env.sh 存在且内容时效，并挂钩三个 rc；\nWindows：确保用户级 ANTHROPIC_BASE_URL 端点（密钥由 profile 惰性注入，本动作只补端点）。\n返回 (是否有变更, 明细行)。"
+    },
+    {
+      "path": "ark::heal::run_heal_with",
+      "kind": "function",
+      "docs": "跑自愈（流式）：维度动作完成即经 emit 回调输出。\ndim 为 `all` 或单维度名；dry_run 只打印计划不执行。\n返回全部结果行；fail/partial 行由调用方汇总退出码。"
+    },
+    {
+      "path": "ark::install",
+      "kind": "module",
+      "docs": "install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。\n流程：防穿越校验 → 幂等跳过（顺带补 PATH/sha 回填/滞后锁定）→ sha 基准（pin > 官方源）\n→ 下载（含 bootstrap 资产与 MZ 头校验）→ 删旧目录全量重建 → extract 分派\n→ 装后验版本（5 次递增重试）→ 回写 lock（write_pin / write_sha256）。"
+    },
+    {
+      "path": "ark::install::InstallAction",
+      "kind": "enum",
+      "docs": "安装结果动作。"
+    },
+    {
+      "path": "ark::install::InstallOptions",
+      "kind": "struct",
+      "docs": "安装选项（对齐 Install-ToolVersion 的 -RegisterPath / -UpdateLock / -Force）。\n`configure` 为 deploy 侧：PATH、用户环境变量、注册表与配置；download 为 false。"
+    },
+    {
+      "path": "ark::install::InstallOutcome",
+      "kind": "struct",
+      "docs": "安装结果：动作、版本、安装目录（msi 无绿色目录，为 None）。"
+    },
+    {
+      "path": "ark::install::install_tool",
+      "kind": "function",
+      "docs": "安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。"
+    },
+    {
+      "path": "ark::install::is_safe_under_root",
+      "kind": "function",
+      "docs": "防穿越：path 必须在允许的安全根之下。\nWindows：在 EnvRoot 之下（大小写不敏感）；\nLinux / macOS：在 $HOME 之下，或显式在 EnvRoot 之下。"
+    },
+    {
+      "path": "ark::manifest",
+      "kind": "module",
+      "docs": "manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。\n\n结构：`schema_version` 加每工具一节 `[manifest.<tool>]`，含 L1 声明原语\n（`env_set` 用户级键值表、`shims` 别名表、`mirror` 镜像源节 D42）与 L2 受控命令\n（`post_install` 分平台 argv 数组——每条是参数数组非 shell 字符串，无元字符解释）。\n\n生命周期：与 tools.toml 同目录（catalog sync 顺带拉取三件套，同锚同签）；\n文件或工具节缺失时零原语、零动作（内建双轨已于 2026-09-11 撤除，omc 数据面为唯一来源）。\n高 `schema_version` 拒载并提示升级 ome（R016 前进兼容红线）。\nmirror 节不升 schema（serde 容忍未知字段，旧引擎静默忽略零动作，前向兼容同红线）。"
+    },
+    {
+      "path": "ark::manifest::ManifestFile",
+      "kind": "struct",
+      "docs": "manifest.toml 根结构。"
+    },
+    {
+      "path": "ark::manifest::Mirror",
+      "kind": "struct",
+      "docs": "L1 镜像源节（D42，全集对齐 ohmypwsh set-mirror.ps1 / P0017 五端统一口径）。\n键全可选、按需声明；幂等：各键内容一致零重写。\n- `env`：用户级镜像变量（通道同 env_set：win=注册表、POSIX=profile env 块即 shell rc）；\n- `env_unset`：旧通道变量撤除（防旧 env 值盖过文件配置，如 UV_INDEX_URL 盖 uv.toml）；\n- `npm_registry`：`~/.npmrc` 行级 upsert `registry=<url>`（认证行等其他行原样保留）；\n- `bunfig_registry`：`~/.bunfig.toml` 整文件（含本 URL 即不重写，heal_bunfig 同语义）；\n- `uv_index`：uv.toml 整文件 `[[index]]` default（POSIX `~/.config/uv/`、win `%APPDATA%\\uv\\`）；\n- `pip_index`：pip.conf（POSIX `~/.config/pip/pip.conf`、win `%APPDATA%\\pip\\pip.ini`）；\n- `cargo_config`：CARGO_HOME 解析位 config.toml 整文件（rsproxy 全量形态等内容比对）；\n- `goproxy`：go 代理语义键（D44 补位，值如 `https://goproxy.cn,direct`）：GOENV 文件\n  行级 upsert（win `%APPDATA%\\go\\env`、POSIX `~/.config/go/env`，即 `go env -w` 持久位，\n  直写不依赖 go 在位），配套 GOSUMDB=sum.golang.google.cn。"
+    },
+    {
+      "path": "ark::manifest::PostInstall",
+      "kind": "struct",
+      "docs": "L2 受控命令：每平台一组 argv 数组；`skip` 显式声明「该平台无命令」（三键齐备 lint 依据）。"
+    },
+    {
+      "path": "ark::manifest::SUPPORTED_SCHEMA_VERSION",
+      "kind": "constant",
+      "docs": "引擎支持的 manifest schema 大版本（R016 v0.2 定稿）。"
+    },
+    {
+      "path": "ark::manifest::ToolManifest",
+      "kind": "struct",
+      "docs": "单工具节：L1 声明原语加 L2 受控命令（未识别字段由 serde default 容忍，lint 白名单把关）。"
+    },
+    {
+      "path": "ark::manifest::apply_env_set",
+      "kind": "function",
+      "docs": "L1：应用用户级环境变量（逐键幂等）。键值先过形态校验（与 mirror 同一红线：\n本地面无签名门，换行/双引号值拼进 export 行即注入面，对线 R5 确认轮收口 env_set）。"
+    },
+    {
+      "path": "ark::manifest::apply_mirror",
+      "kind": "function",
+      "docs": "L1：镜像源节落源（幂等）。env 先行（post_install 子进程继承，FNM_NODE_DIST_MIRROR\n对 fnm install 即时生效）；`env_unset` 进程面无条件先清（「只在当前 shell 导出」的旧变量\n不在持久面，不清则 post_install 子进程照样继承并盖过文件配置，对线 R2）；\n整面受测试隔离闸门（用户环境写入面第五面，M002 同型防漏）。\n失败语义同 L1 硬错：写不进就是没配上。"
+    },
+    {
+      "path": "ark::manifest::apply_shims",
+      "kind": "function",
+      "docs": "L1：生成别名（win=硬链接加 `.cmd` 兜底、POSIX=符号链接；目标已存在即跳过，幂等）。\n`bin_dir` 必须是**目标二进制所在目录**（源与别名同目录；调用方传 exe 父目录而非工具根）。\nwin 硬链接要求同卷同 NTFS：跨卷或 exFAT 等不支持时自动回落到 `.cmd`。"
+    },
+    {
+      "path": "ark::manifest::cargo_home_path",
+      "kind": "function",
+      "docs": "CARGO_HOME 解析：进程环境变量 > 用户级变量（win 注册表 / POSIX profile 块，\nark Windows 接管模型重定位 EnvRoot 位由此生效）> 默认 `~/.cargo`。"
+    },
+    {
+      "path": "ark::manifest::ensure_bunfig",
+      "kind": "function",
+      "docs": "bunfig registry 落 `~/.bunfig.toml`（整文件；含本 URL 即不重写，heal-mirror 同语义；\nURL 比对去尾斜杠——npmmirror 两种写法等价不应来回重写）。"
+    },
+    {
+      "path": "ark::manifest::ensure_cargo_config",
+      "kind": "function",
+      "docs": "生产入口（cargo）。"
+    },
+    {
+      "path": "ark::manifest::ensure_cargo_config_in",
+      "kind": "function",
+      "docs": "cargo 镜像配置落 CARGO_HOME/config.toml（整文件内容比对；rsproxy 全量形态等内容即零重写；\n目录注入便于测）。返回是否写入。"
+    },
+    {
+      "path": "ark::manifest::ensure_go_env",
+      "kind": "function",
+      "docs": "生产入口（go）。GOENV 尊重（对线 F7）：进程/用户级 `GOENV` 设 `off` 时跳过文件面\n（不落默认位不误报已写）；设自定义路径时写该路径；缺省走 config_dir 平台位。\nGOSUMDB 配套为引擎统一目标态（会覆盖用户自定义值，与 heal 同款权衡，R016 已注）。"
+    },
+    {
+      "path": "ark::manifest::ensure_go_env_file",
+      "kind": "function",
+      "docs": "GOENV 文件直写（对线 G1）：path 即目标文件本身（GOENV 自定义值就是文件路径，\n不得再拼目录层级）；内容比对幂等。"
+    },
+    {
+      "path": "ark::manifest::ensure_go_env_in",
+      "kind": "function",
+      "docs": "go 代理落 GOENV 文件（win `%APPDATA%\\go\\env`、POSIX `~/.config/go/env`，\n即 `go env -w` 的持久位，直写文件不依赖 go 二进制在位；目录注入便于测）。"
+    },
+    {
+      "path": "ark::manifest::ensure_npmrc",
+      "kind": "function",
+      "docs": "npm registry 落 `~/.npmrc`（UTF-8 无 BOM）。返回是否写入。"
+    },
+    {
+      "path": "ark::manifest::ensure_pip_conf",
+      "kind": "function",
+      "docs": "生产入口（pip）。"
+    },
+    {
+      "path": "ark::manifest::ensure_pip_conf_in",
+      "kind": "function",
+      "docs": "pip index 落用户配置目录下 `pip/`（目录注入便于测）。返回是否写入。"
+    },
+    {
+      "path": "ark::manifest::ensure_uv_toml",
+      "kind": "function",
+      "docs": "生产入口（uv）：用户配置目录解析（dirs 同源，POSIX=XDG ~/.config、win=%APPDATA%）。"
+    },
+    {
+      "path": "ark::manifest::ensure_uv_toml_in",
+      "kind": "function",
+      "docs": "uv index 落用户配置目录下 `uv/uv.toml`（POSIX `~/.config/uv/`、win `%APPDATA%\\uv\\`，\nuv 各平台原生发现位；目录注入便于测）。返回是否写入。"
+    },
+    {
+      "path": "ark::manifest::env_key_sane",
+      "kind": "function",
+      "docs": "环境写入面键形态校验：标识符形态（防键里带 `=` 或元字符破坏 export 行）。lint 同规则复用。"
+    },
+    {
+      "path": "ark::manifest::env_value_sane",
+      "kind": "function",
+      "docs": "环境写入面值形态校验（对线 R5，注入面；env_set 与 mirror 单值键共用）：值拒绝换行与\n双引号——TOML 转义可产出真实换行，拼进 npmrc/bunfig/uv.toml/bashrc/export 行即注入\n额外行（rc 注入即命令执行）；本地面（ARK_CATALOG 指目录）无签名门，写入前必须自拒。\nlint 同规则复用（单一权威）。"
+    },
+    {
+      "path": "ark::manifest::go_env_upsert",
+      "kind": "function",
+      "docs": "GOENV 文件的行级 upsert（纯函数）：GOPROXY 与 GOSUMDB 两键原位替换或追加，\n其余行（GOTOOLCHAIN 等用户配置）逐字保留——go env 文件常载用户键，整写会毁。"
+    },
+    {
+      "path": "ark::manifest::load",
+      "kind": "function",
+      "docs": "载入 manifest.toml（传 catalog 路径，落位与消费同一推导）；缺文件返回空（零原语）；\n高 schema 版本拒载（报错由调用方传导）。"
+    },
+    {
+      "path": "ark::manifest::npmrc_upsert",
+      "kind": "function",
+      "docs": "npmrc 的 registry 行 upsert（纯函数）：有 registry 行原位替换（键名大小写与空白容忍），\n无则追加文末；**其余行（认证 token、scope 配置等）逐字保留**——npmrc 常载凭据，整文件重写会毁数据。"
+    },
+    {
+      "path": "ark::manifest::parse",
+      "kind": "function",
+      "docs": "解析（纯函数可测；反序列化走 toml_edit serde feature，零新增依赖）。"
+    },
+    {
+      "path": "ark::manifest::path_for",
+      "kind": "function",
+      "docs": "manifest.toml 路径：与 catalog（tools.toml）同目录（R016 两件分离同批落位）。\n唯一推导，sync 落位、status 诊断与 install 消费共用，避免三处各拼一次漂移。"
+    },
+    {
+      "path": "ark::manifest::pip_conf_content",
+      "kind": "function",
+      "docs": "pip.conf 目标内容（纯函数）。"
+    },
+    {
+      "path": "ark::manifest::pip_conf_name",
+      "kind": "function",
+      "docs": "pip 配置文件名（win=pip.ini、POSIX=pip.conf；pip 各平台原生发现位）。"
+    },
+    {
+      "path": "ark::manifest::platform_commands",
+      "kind": "function",
+      "docs": "当前平台键选 L2 命令（纯函数可测）。"
+    },
+    {
+      "path": "ark::manifest::platform_covered",
+      "kind": "function",
+      "docs": "平台是否被显式跳过（三键齐备语义：有命令或进 skip 即齐备）。"
+    },
+    {
+      "path": "ark::manifest::run_post_install",
+      "kind": "function",
+      "docs": "L2：逐条执行受控命令；超时 300s 杀进程；失败只报不回滚，报告含退出码与输出尾行（R016 三节）。"
+    },
+    {
+      "path": "ark::manifest::shim_cmd_content",
+      "kind": "function",
+      "docs": "win `.cmd` 兜底内容（纯函数可测）：`%~dp0` 相对定位（\n目录含空格时整体加引号即可，路径不落进内容、无转义面），纯 ASCII 无 BOM（cmd 不认 BOM）。"
+    },
+    {
+      "path": "ark::manifest::uv_toml_content",
+      "kind": "function",
+      "docs": "uv.toml 目标内容（纯函数）：`[[index]]` default 形态（uv 0.4.23+ 数组表）。"
+    },
+    {
+      "path": "ark::omerr",
+      "kind": "module",
+      "docs": "omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。\n内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 OmeError，\nmain 按 exit_code 退出。"
+    },
+    {
+      "path": "ark::omerr::OmeError",
+      "kind": "struct",
+      "docs": "机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。"
+    },
+    {
+      "path": "ark::platform",
+      "kind": "module",
+      "docs": "platform：跨平台抽象层。\n\nWindows：EnvRoot 为 `D:\\ohmyenv` 或 `C:\\ohmyenv`，工具集中安装；PATH 通过注册表管理。\nLinux / macOS：各软件按系统标准目录安装；PATH 通过当前 shell 的 profile 文件（如 `~/.bashrc`）管理。\nark 自身与 EnvRoot 解耦：二进制进用户程序目录（Windows `%LOCALAPPDATA%\\Programs\\ark`）、\n元数据进用户数据目录（Windows `%LOCALAPPDATA%\\ark`；Linux `~/.local/share/ark`；\nmacOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目录在而新目录未建时读回旧位。"
+    },
+    {
+      "path": "ark::platform::METADATA_MIGRATION_FILES",
+      "kind": "constant",
+      "docs": "元数据七件套（D41 C 搬迁清单：catalog 域运行态全套）。"
+    },
+    {
+      "path": "ark::platform::absorb_legacy_env_block",
+      "kind": "function",
+      "docs": "D41：旧 ome env 块收口迁移（值不变的块体搬迁；无旧标记时原样返回）。纯函数。"
+    },
+    {
+      "path": "ark::platform::add_user_path",
+      "kind": "function",
+      "docs": "将 dir 注册进用户 PATH；返回是否实际新增。"
+    },
+    {
+      "path": "ark::platform::default_env_root",
+      "kind": "function",
+      "docs": "默认 EnvRoot：显式参数与环境变量已在 `catalog::resolve_env_root` 处理，此处仅返回平台默认值。"
+    },
+    {
+      "path": "ark::platform::ensure_profile_hook",
+      "kind": "function",
+      "docs": "设置用户级环境变量（幂等）。Windows 写 HKCU\\Environment 并同步当前进程；\nO3（S017）：写 profile 自定义钩子块（POSIX；Windows no-op）。幂等且块体感知：\n块体与目标不一致时原位重写（存量旧钩子自愈升级）。"
+    },
+    {
+      "path": "ark::platform::env_var_or",
+      "kind": "function",
+      "docs": "读环境变量（D41 更名 Ark）：主名优先，主名未设或纯空白时读回旧名；都未设返回 None。\n同设时主名胜（旧名只作过渡期读回，不参与合并）。"
+    },
+    {
+      "path": "ark::platform::exe_suffix",
+      "kind": "function",
+      "docs": "可执行文件后缀。"
+    },
+    {
+      "path": "ark::platform::expand_env_vars",
+      "kind": "function",
+      "docs": "展开环境变量引用。\nWindows：`%VAR%`；Linux / macOS：`$VAR` 与 `${VAR}`。"
+    },
+    {
+      "path": "ark::platform::expand_install_path",
+      "kind": "function",
+      "docs": "展开安装路径中的 `~` 与环境变量引用。"
+    },
+    {
+      "path": "ark::platform::get_user_env_var",
+      "kind": "function",
+      "docs": "读用户级环境变量（未设置返回 None）。Windows 读 HKCU\\Environment；\nLinux/macOS 读 profile 的 ome 标记块。heal 判 OK/HEALED 用。"
+    },
+    {
+      "path": "ark::platform::is_elevated",
+      "kind": "function",
+      "docs": "当前进程是否管理员（以写权限打开 HKLM Environment 判定；非 Windows 恒 false）。"
+    },
+    {
+      "path": "ark::platform::is_official_exe",
+      "kind": "function",
+      "docs": "判定 exe 字段是否表示 official 布局（使用环境变量展开 / 绝对路径，不纳入 EnvRoot 管理）。\nWindows：含 `%`；Linux / macOS：含 `$` 或为绝对路径。"
+    },
+    {
+      "path": "ark::platform::join_if_relative",
+      "kind": "function",
+      "docs": "展开后的路径若为相对路径则拼到 EnvRoot 下（Windows 名录是相对 dir/bin；Linux/macOS 多为 ~/ 绝对）。"
+    },
+    {
+      "path": "ark::platform::legacy_deploy_dir",
+      "kind": "function",
+      "docs": "旧 ome 部署位（D41 C 接管清单：Windows `Programs\\ome`，在位时 Some）。\nPOSIX 旧位 `~/.local/bin/ome` 即别名落点，由 `remove_ome_alias` 清理。"
+    },
+    {
+      "path": "ark::platform::legacy_metadata_dir",
+      "kind": "function",
+      "docs": "旧元数据目录（D41 迁移源 `<data>\\ohmyenv`；只在存在时 Some，旧目录始终只读保留）。"
+    },
+    {
+      "path": "ark::platform::machine_path_add",
+      "kind": "function",
+      "docs": "把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。"
+    },
+    {
+      "path": "ark::platform::machine_path_contains",
+      "kind": "function",
+      "docs": "机器 PATH 是否已含 dir（非 Windows 恒 false）。"
+    },
+    {
+      "path": "ark::platform::merge_env_exports",
+      "kind": "function",
+      "docs": "向 profile env 块合并 export 行（已有键行级 upsert，无则追加；幂等不重写）。"
+    },
+    {
+      "path": "ark::platform::merge_hook_block",
+      "kind": "function",
+      "docs": "O3（S017）：自定义钩子块 upsert（fnm 等；纯函数）。幂等且块体感知：\n块在位而块体与目标不一致时原位重写（存量旧块体自愈升级，M027 防再犯），\n同标记重复块收敛为一块，旧 ome 标记块迁移为 ark 标记，块外原文与顺序不动。\n起标记未闭合（有头无尾）按既有家族语义截断收口：该行之后的原文一并丢弃。"
+    },
+    {
+      "path": "ark::platform::merge_path_entries",
+      "kind": "function",
+      "docs": "PATH 条目合并（纯函数）：把缺失目录追加到 raw 尾部（大小写不敏感、忽略尾反斜杠比较）。\n返回新值与是否变化；供用户级与机器级 PATH 写入共用。"
+    },
+    {
+      "path": "ark::platform::metadata_dir",
+      "kind": "function",
+      "docs": "ark 自身元数据目录（独立 app 数据目录，与 EnvRoot 解耦）：\nWindows `%LOCALAPPDATA%\\ark`；Linux `~/.local/share/ark`；macOS `~/Library/Application Support/ark`。\nD41 迁移过渡：新 `ark` 目录未建而旧 `ohmyenv` 目录在（旧二进制所写）时读回旧位，\n令新旧二进制共享同一份 catalog 与 seq 记录；C 阶段搬迁七件套后自然归位主名。"
+    },
+    {
+      "path": "ark::platform::migrate_legacy_env_block_once",
+      "kind": "function",
+      "docs": "D41：检测旧 ome env 标记即收口迁移一次（init 与 self update 收尾钩子；\nPOSIX 写 profile，Windows 注册表面无块概念、no-op）。"
+    },
+    {
+      "path": "ark::platform::migrate_legacy_metadata",
+      "kind": "function",
+      "docs": "元数据七件套搬迁（D41 C）：旧 `ohmyenv\\catalog` 在而新 `ark\\catalog` 缺件时逐件复制\n（copy 不 move：旧目录只读保留，旧二进制并行期仍读旧位；幂等：新位在即跳过）。\n返回是否有搬迁动作。init 与 self update 后接（搬迁后 metadata_dir 自然归位主名）。"
+    },
+    {
+      "path": "ark::platform::migrate_legacy_metadata_in",
+      "kind": "function",
+      "docs": "搬迁核心（传新旧根便于测）。"
+    },
+    {
+      "path": "ark::platform::ome_alias_target",
+      "kind": "function",
+      "docs": "`ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；\n落点保留供 `remove_ome_alias` 定位清理既有副本）。"
+    },
+    {
+      "path": "ark::platform::path_entries_eq",
+      "kind": "function",
+      "docs": "标准化 PATH 条目比较：展开环境变量、大小写不敏感（Windows）/ 敏感（Unix）。"
+    },
+    {
+      "path": "ark::platform::path_separator",
+      "kind": "function",
+      "docs": "PATH 环境变量条目分隔符。"
+    },
+    {
+      "path": "ark::platform::remove_env_export",
+      "kind": "function",
+      "docs": "env 块摘除单键（纯函数，D42 env_unset 通道）：**全文件撤变量不分写入者**——\n托管块内（读序双块合并体）摘行、体空则两块整撤不残留空标记；托管块之外\n的同名 `export KEY=` 行（遗产脚本或用户手写形态）同样摘除，\n否则旧变量继续生效而日志已报「已撤」（对线 R1）。\n快速路径：全文件无该键的 export 行时**原样返回**——重建本身会重排块位\n（env 块不在文末时后续 install 追加 PATH 块即此常态），恒等才能让\n「文本变化」等价「真撤了」（对线 R1 复审残留）。"
+    },
+    {
+      "path": "ark::platform::remove_ome_alias",
+      "kind": "function",
+      "docs": "清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，\nWindows 文件占用时留待下次 init / self update 再收）。"
+    },
+    {
+      "path": "ark::platform::remove_user_env_var",
+      "kind": "function",
+      "docs": "撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。\nWindows 删 HKCU\\Environment 值并同步当前进程；POSIX 摘 profile env 标记块内行。"
+    },
+    {
+      "path": "ark::platform::remove_user_path",
+      "kind": "function",
+      "docs": "从用户 PATH 移除 dir；返回是否实际移除。"
+    },
+    {
+      "path": "ark::platform::self_deploy_target",
+      "kind": "function",
+      "docs": "自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。\nWindows：`%LOCALAPPDATA%\\Programs\\ark\\ark.exe`\nLinux / macOS：`~/.local/bin/ark`"
+    },
+    {
+      "path": "ark::platform::set_user_env_var",
+      "kind": "function",
+      "docs": "Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。"
+    },
+    {
+      "path": "ark::platform::user_env_write_blocked",
+      "kind": "function",
+      "docs": "用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1`（读回 `OME_TEST_NO_PATH_REG`）时，**所有**用户环境写入面\n一律跳过（PATH 注册、用户级变量、profile 钩子、用户 bin 直链）。变量名沿历史（PATH 注册\n是最早的那面），覆盖面已扩到四面——只守一面会让沙盒测试从别的门漏进真实环境。"
+    },
+    {
+      "path": "ark::platform::user_path_contains",
+      "kind": "function",
+      "docs": "用户 PATH 是否已含 dir。"
+    },
+    {
+      "path": "ark::platform::user_path_entries",
+      "kind": "function",
+      "docs": "用户 PATH 原始条目（保序不去空；Windows 读 HKCU\\Environment，非 Windows 读 profile 标记块）。\ndoctor 诊断死链与重复条目用。"
+    },
+    {
+      "path": "ark::render",
+      "kind": "module",
+      "docs": "render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。\n纪律：stdout 只走数据，人称提示（[INFO]/[OK]/[WARN]/[HINT]）一律 stderr。\n命令产出统一收敛为 Vec<(key, value)> 块交本层输出，不在命令里散写 println!。\n\n格式三态（`--format`，`--json` 为 json 简写）：\n- kv（默认）：key=value 逐行，块间空行，分组走 `#` 注释行（header）；\n- json：块累积为对象数组，命令收尾 finish 一次性输出（stdout 恒为合法 JSON 文档）；\n- jsonl：每块立即输出一行 JSON 对象（流式与结构化兼得，status 逐工具即出）。\n\n值一律字符串：kv 行直转 JSON 值，类型不伪装（gh 的字段类型化留待需要时再做）。"
+    },
+    {
+      "path": "ark::render::Format",
+      "kind": "enum",
+      "docs": "输出格式。"
+    },
+    {
+      "path": "ark::render::blank",
+      "kind": "function",
+      "docs": "工具组分隔（多工具输出之间的空行；结构化模式下为空操作）。"
+    },
+    {
+      "path": "ark::render::block_value",
+      "kind": "function",
+      "docs": "把一组 key=value 转为 JSON 对象（纯函数，便于测试；值一律字符串）。"
+    },
+    {
+      "path": "ark::render::current_format",
+      "kind": "function",
+      "docs": "当前格式。"
+    },
+    {
+      "path": "ark::render::emit",
+      "kind": "function",
+      "docs": "输出一组 key=value 到 stdout：kv 逐行打印；jsonl 立即单行 JSON；json 累积待 finish。"
+    },
+    {
+      "path": "ark::render::finish",
+      "kind": "function",
+      "docs": "json 模式收尾：把累积的块输出为一个 JSON 数组（空批输出 []，与 gh 空列表语义一致）。\nkv/jsonl 模式无操作。main 的成功与错误出口都调用（错误前已产出的数据块照常上 stdout）。"
+    },
+    {
+      "path": "ark::render::format_rows",
+      "kind": "function",
+      "docs": "把一组 key=value 格式化为文本块（纯函数，便于测试）。"
+    },
+    {
+      "path": "ark::render::header",
+      "kind": "function",
+      "docs": "组标题：以 `# ` 前缀注释行输出到 stdout（机器可滤，人可读分组）；结构化模式下为空操作。"
+    },
+    {
+      "path": "ark::render::is_structured",
+      "kind": "function",
+      "docs": "是否结构化输出（json/jsonl）：错误出口据此切换 stderr 单行 JSON。"
+    },
+    {
+      "path": "ark::render::set_format",
+      "kind": "function",
+      "docs": "设定输出格式（main 解析完全局 --format/--json 后调用一次）。"
+    },
+    {
+      "path": "ark::resolve",
+      "kind": "module",
+      "docs": "resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），\n语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。\n本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），\napi.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。"
+    },
+    {
+      "path": "ark::resolve::Resolution",
+      "kind": "struct",
+      "docs": "解析结果：与 pwsh Resolve-ToolVersion 的返回字段对应（Release/Shasums 等运行时对象除外）。\nshasums_url 仅 cdn_index_url 分支有值（HashiCorp SHA256SUMS 清单地址），供 checksum 用。"
+    },
+    {
+      "path": "ark::resolve::ResolveOptions",
+      "kind": "struct",
+      "docs": "版本选择：--latest / --tag / --version 三选一（都不给则用 pin 的锁定版本）。"
+    },
+    {
+      "path": "ark::resolve::extract_version_by_pattern",
+      "kind": "function",
+      "docs": "用 version_pattern 正则从资产名提取版本（取第 1 捕获组）。"
+    },
+    {
+      "path": "ark::resolve::pick_max_semver",
+      "kind": "function",
+      "docs": "从版本名列表里按语义版本取最大（对齐 pwsh Get-HashiCorpIndex 的\nSort-Object { [System.Version]($_ -replace '[^0-9.].*$', '') }：剥尾后按数值段比较）。"
+    },
+    {
+      "path": "ark::resolve::resolve_tool",
+      "kind": "function",
+      "docs": "解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。"
+    },
+    {
+      "path": "ark::resolve::strip_tag_prefix",
+      "kind": "function",
+      "docs": "tag_prefix 剥离（大小写不敏感，对齐 pwsh 的 OrdinalIgnoreCase）。"
+    },
+    {
+      "path": "ark::rustup",
+      "kind": "module",
+      "docs": "rustup：Rust 接管（自 ohmypwsh `scripts\\set-rust.ps1` 平移，2026-09-02；POSIX 接管 D42，2026-09-13）。\nrsproxy 引导器直链（无版本无 sha，evergreen 语义）：rustup-init 引导 stable 工具链，\n无 pin（`rustup update stable` 即更新语义，官方 6 周滚动，stable 只收安全补丁）。\n安装根双形态：Windows 重定位 EnvRoot（RUSTUP_HOME=`<EnvRoot>\\rustup`、CARGO_HOME=`<EnvRoot>\\cargo`，\n用户环境变量）；POSIX 尊重既有（进程 env > 用户级 > 默认 `~/.rustup` 与 `~/.cargo`，\n不持久化两 HOME 变量、进程内钉解析值供引导器）。\nrsproxy 双镜像：rustup 分发（RUSTUP_DIST_SERVER/RUSTUP_UPDATE_ROOT，win 注册表 / POSIX profile env 块）\n加 cargo sparse（config.toml，Windows 落 EnvRoot 重定位位、POSIX 落 `~/.cargo`，rsproxy 全量形态）；\ncargo bin 进用户 PATH（ome 惯例尾部追加；set-rust 为前置，已装机器由 ps1 前置位保持不变）。\n幂等：rustc 在位不重跑 init（update stable 照跑保最新）；config.toml 内容一致不重写。"
+    },
+    {
+      "path": "ark::rustup::INIT_EXE",
+      "kind": "constant",
+      "docs": "引导器缓存文件名（平台各异）。"
+    },
+    {
+      "path": "ark::rustup::cargo_home",
+      "kind": "function",
+      "docs": "CARGO_HOME：Windows `<EnvRoot>\\cargo`；POSIX 与 manifest `cargo_home_path` 同一解析序\n（进程 env > 用户级 > 默认 `~/.cargo`，对线 R3：单一解析序防双目录）。"
+    },
+    {
+      "path": "ark::rustup::init_args",
+      "kind": "function",
+      "docs": "rustup-init 引导参数（纯函数可测）。Windows 对齐 set-rust.ps1（stable + msvc host + 不动 PATH）；\nPOSIX host 三元组由 rustup-init 自检（x86_64/aarch64 不写死）。"
+    },
+    {
+      "path": "ark::rustup::install",
+      "kind": "function",
+      "docs": "安装（幂等）：download 只落二进制（进程内重定位供 rustup-init 写入安装根）；\ndeploy（configure）才持久化用户环境变量、cargo 镜像与 PATH。"
+    },
+    {
+      "path": "ark::rustup::is_rustup",
+      "kind": "function",
+      "docs": "是否 rustup 引导器型条目（extract = \"rustup\"）。"
+    },
+    {
+      "path": "ark::rustup::rustc_exe",
+      "kind": "function",
+      "docs": "rustc 可执行（`<cargo home>\\bin\\rustc[.exe]`，verify dev-rust 维度断言位）。"
+    },
+    {
+      "path": "ark::rustup::rustup_home",
+      "kind": "function",
+      "docs": "RUSTUP_HOME：Windows `<EnvRoot>\\rustup`；POSIX 尊重既有（进程 env > 用户级 > 默认 `~/.rustup`）。"
+    },
+    {
+      "path": "ark::selfdeploy",
+      "kind": "module",
+      "docs": "selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\\Programs\\ome`，\nLinux / macOS `~/.local/bin`），同步 catalog 到用户数据目录，并注册用户 PATH（幂等）。\nWindows 顺带清理旧自部署位 `<EnvRoot>\\ome\\bin` 的 PATH 残留。\n幂等：目标与当前 exe 同路径则跳过复制；sha256 一致则跳过复制；PATH 注册由 envpath 幂等处理。"
+    },
+    {
+      "path": "ark::selfdeploy::SelfDeployOutcome",
+      "kind": "struct",
+      "docs": "自部署结果。"
+    },
+    {
+      "path": "ark::selfdeploy::deploy_copy",
+      "kind": "function",
+      "docs": "复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。\n返回是否实际复制。"
+    },
+    {
+      "path": "ark::selfdeploy::deploy_skill",
+      "kind": "function",
+      "docs": "同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与\n使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。"
+    },
+    {
+      "path": "ark::selfdeploy::render_skill",
+      "kind": "function",
+      "docs": "自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、\n命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。"
+    },
+    {
+      "path": "ark::selfdeploy::self_deploy",
+      "kind": "function",
+      "docs": "Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。"
+    },
+    {
+      "path": "ark::selfdeploy::write_skill",
+      "kind": "function",
+      "docs": "落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。"
+    },
+    {
+      "path": "ark::selfupdate",
+      "kind": "module",
+      "docs": "selfupdate：ome 自身升级（`ark self update`），三通道：\n- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；\n- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；\n- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。\n\n升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；\n不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。\nWindows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。"
+    },
+    {
+      "path": "ark::selfupdate::Channel",
+      "kind": "enum",
+      "docs": "升级通道。"
+    },
+    {
+      "path": "ark::selfupdate::REPO",
+      "kind": "constant",
+      "docs": "自升级源仓库（D41 更名；旧 ohmyenv-rs 名 GitHub 301 兜底，官方路径不断）。\ndoctor 网络探针同源引用（自测 7 机检）。"
+    },
+    {
+      "path": "ark::selfupdate::SelfUpdateOutcome",
+      "kind": "struct",
+      "docs": "升级结果。"
+    },
+    {
+      "path": "ark::selfupdate::asset_compat_for_this_platform",
+      "kind": "function",
+      "docs": "兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史\nrelease 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在\n（历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，\n仅非 Windows 平台有效。"
+    },
+    {
+      "path": "ark::selfupdate::asset_for_this_platform",
+      "kind": "function",
+      "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。"
+    },
+    {
+      "path": "ark::selfupdate::is_ome_self",
+      "kind": "function",
+      "docs": "是否自管条目（extract = \"ome-self\"；D41 起双接受 \"ark-self\"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。"
+    },
+    {
+      "path": "ark::selfupdate::self_update",
+      "kind": "function",
+      "docs": "自升级主流程。"
+    },
+    {
+      "path": "ark::status",
+      "kind": "module",
+      "docs": "status：三态对照（locked/installed/path）。\n语义：\nmsi 与 official（exe 含 %）走环境展开，其余 Join EnvRoot；installed 实跑 exe 探测；\npath 查用户 PATH 原始值（不展开比较，大小写不敏感）。"
+    },
+    {
+      "path": "ark::status::GROUPS",
+      "kind": "static",
+      "docs": "七类 taxonomy（catalog category 值 → 中文组名，展示序即数组序）。\n2026-09-02 用户裁决归类定稿（统一「依赖」后缀）：操作编排依赖（ome/oma/herdr 编排类 CLI，\noma 待 ohmyagents 集成）、运行时依赖（语言与子系统运行时及其管理器）、编译器依赖（语言工具链）、\n运行时衍生依赖（经运行时包管理器安装，如 uv tool 的 browser-harness；omcf 待 ohmycloud 集成）、\n多路复用依赖（rmux）、远程服务依赖（openssh/vault 客户端加服务端常驻）、命令工具依赖。"
+    },
+    {
+      "path": "ark::status::StatusRow",
+      "kind": "struct",
+      "docs": "status 三态行：locked=pin version，installed=实跑探测，path=用户 PATH 是否含 bin。"
+    },
+    {
+      "path": "ark::status::category_label",
+      "kind": "function",
+      "docs": "分类中文组名（九类为主，D07 起 agent 与运行时管理器入册；旧值兜底转换期防炸，未知值为空串）。"
+    },
+    {
+      "path": "ark::status::collect_status",
+      "kind": "function",
+      "docs": "收集全部工具三态（按 catalog 书写顺序）。"
+    },
+    {
+      "path": "ark::status::collect_status_with",
+      "kind": "function",
+      "docs": "流式收集：每探完一个工具立即回调 on_row（status 命令逐行输出的关键——\n探测要逐工具拉起 `--version` 子进程，整批探完才打印会被感知为卡顿）；\nverify 等纯数据消费方传空回调走 collect_status。"
+    },
+    {
+      "path": "ark::toolver",
+      "kind": "module",
+      "docs": "toolver：已装版本探测，移植 helpers.ps1 的 Get-InstalledVersion（888-935 行）。\n探测参数与输出版本正则自源码硬编码表迁 catalog 字段（D28 入册清单化：每工具\n`probe_args` 缺省 `[\"--version\"]`、`probe_pattern` 取第 1 捕获组；字段契约见 R001），\n新工具入册漏带由 tests/catalog_lint.rs 结构机检拦下，不再靠装后实测暴露。\nexe 路径解析：official 工具 exe 字段含 %VAR% 环境变量（展开为绝对路径），\n其余相对 EnvRoot 拼接。装后读版本带 5 次递增重试（500ms * i，对齐 Install-ToolVersion 末尾）。"
+    },
+    {
+      "path": "ark::toolver::PinDrift",
+      "kind": "enum",
+      "docs": "update 的锁定漂移三态（D49）：installed 探针值对 catalog pin 的对照。\n解析失败保守按 Behind（补装 pin 版自愈，不静默跳过）。"
+    },
+    {
+      "path": "ark::toolver::exe_path",
+      "kind": "function",
+      "docs": "exe 路径解析：official（exe 使用环境变量或绝对路径）展开为绝对路径；\n其余 Windows 下相对 EnvRoot；Linux / macOS 下有平台专属 exe（`linux_exe`/`mac_exe`，\n相对 install_dir）走 dir 展开，回退通用 exe（Windows 风格，自带 dir 段）时相对 EnvRoot。\n布局含 `{version}` 占位（D43 zig 版本目录型）：无版本上下文时 glob 扫描占位段取\n**semver 最大**的在位版本（探测语义；字典序会把 0.9 排 0.16 前，M025 同型）；\n无在位版本返回占位填充 0.0.0 的路径（探测 Command 失败即 None=未装）。"
+    },
+    {
+      "path": "ark::toolver::exe_path_for_version",
+      "kind": "function",
+      "docs": "定版形态（D43）：占位以给定版本直替换（装后验证锚定刚装版本，glob 取 max 在\n降级场景会锚错）；无占位时与 `exe_path` 等价。"
+    },
+    {
+      "path": "ark::toolver::expand_env_vars",
+      "kind": "function",
+      "docs": "环境变量展开（Windows `%VAR%`；Linux / macOS `$VAR` / `${VAR}`）。\n未定义的变量原样保留。"
+    },
+    {
+      "path": "ark::toolver::find_on_path",
+      "kind": "function",
+      "docs": "PATH 上查找命令（D07 agent 存量纳管判定）：返回首个命中位的完整路径，未命中 None。\nWindows 依次试 `名.exe` 与裸名；POSIX 无扩展名直试裸名。"
+    },
+    {
+      "path": "ark::toolver::installed_version",
+      "kind": "function",
+      "docs": "探测已装版本：exe 不存在直接 None；运行 exe 取首行非空输出按 probe_pattern 解析。"
+    },
+    {
+      "path": "ark::toolver::installed_version_retried",
+      "kind": "function",
+      "docs": "装后版本读取：5 次递增重试（500ms * i），对齐 Install-ToolVersion 末尾的重试循环\n（7zsfx 等解包后文件/杀软可能瞬态未就绪）。"
+    },
+    {
+      "path": "ark::toolver::is_official",
+      "kind": "function",
+      "docs": "工具是否 official 布局（exe 使用环境变量或绝对路径，installDir/bin 走官方目录，不进 EnvRoot）。"
+    },
+    {
+      "path": "ark::toolver::parse_version",
+      "kind": "function",
+      "docs": "解析版本（纯函数）：正则取 catalog `probe_pattern` 字段（第 1 捕获组）；\n逐个非空行找首个命中（多数工具首行即中；shellcheck 类首行是无版本横幅、\n版本在次行「version: 0.11.0」——2026-09-01 WSL 实证）。无字段返回 None。"
+    },
+    {
+      "path": "ark::toolver::pin_drift",
+      "kind": "function",
+      "docs": "漂移判定（纯函数）：None 探针（未装）按 Behind 处理（补装自愈）。"
+    },
+    {
+      "path": "ark::toolver::platform_managed",
+      "kind": "function",
+      "docs": "当前平台是否管理该工具（平台不适用时 status 出空态行、install/update/pin/query 跳过）：\n- Windows：通用 `exe` 存在。\n- Linux/macOS：平台专属 exe（`linux_exe`/`mac_exe`）存在——布局类通用字段是 Windows\n  语义（如 `git\\cmd\\git.exe`），非 Windows 回退它们会把 Windows-only 工具误判在管\n  （2026-09-01 WSL install all 实证：git/aria2/7z 等走到 resolve 才报未 pin）。"
+    },
+    {
+      "path": "ark::toolver::probe_args",
+      "kind": "function",
+      "docs": "版本探测参数（D28 自源码表迁 catalog `probe_args` 字段；对齐 Get-InstalledVersion 的 switch）。\n缺省 `[\"--version\"]`；特例在 catalog 各节：7z `--help`、rmux/openssh `-V`、oscdimg 无参读横幅、\nvsbuild `-version`、zig/go/lightpanda 子命令 `version`。"
+    },
+    {
+      "path": "ark::toolver::status_drift_hint",
+      "kind": "function",
+      "docs": "status 的 drift 判定（D49 尾统一口径）：npm-tgz 类不列（版本真源在 npm registry\n端上自管，catalog pin 不构成 drift 判据——omc 恒挂形态）；其余走 pin_drift 数值段\n口径（git 的 .windows.N 后缀形态数值等，旧字符串比较恒列的口径差）。"
+    },
+    {
+      "path": "ark::verify",
+      "kind": "module",
+      "docs": "verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。\n维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、\n文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。\n输出 `dim=PASS/FAIL/NA` 收割行（NA 不参与收割）。\n密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。"
+    },
+    {
+      "path": "ark::verify::Verdict",
+      "kind": "enum",
+      "docs": "维度判定结果。"
+    },
+    {
+      "path": "ark::verify::dim_names",
+      "kind": "function",
+      "docs": "全部维度名（含跨平台分列重复；heal 注册表对齐校验用）。"
+    },
+    {
+      "path": "ark::verify::run_verify",
+      "kind": "function",
+      "docs": "跑部署域验收（非流式兼容口）：内部走空回调。"
+    },
+    {
+      "path": "ark::verify::run_verify_with",
+      "kind": "function",
+      "docs": "跑部署域验收（流式）：维度所需工具探完即经 emit 回调输出（保持注册表顺序中的可出即出），\n返回全部 (维度名, 判定)。filter 为空跑全部，否则只跑指定维度（未知维度报错）。\n探测逐工具拉起 --version 子进程，批量探完才输出会被感知为卡顿——与 status 同理走流式。"
+    },
+    {
+      "path": "ark::verify::summarize",
+      "kind": "function",
+      "docs": "汇总（--json 用）。"
+    },
+    {
+      "path": "ark::vsbuild",
+      "kind": "module",
+      "docs": "vsbuild：VS Build Tools 接管（自 ohmypwsh `scripts\\set-vsbuild.ps1` 平移，2026-09-01）。\n永续引导器（aka.ms 直链，无版本无 sha 可 pin，属 evergreen 语义）；\n组件三件套 VCTools、VC.Tools.x86.x64、VC.CMake.Project（不带 --includeRecommended；\nWindows SDK 走 ISO 分离装 Windows Kits，不进 VS 组件，见 set-windows-sdk.ps1）。\n需管理员：未提权且 gsudo 可用时经 gsudo 重跑 `ark install vsbuild`（退出码透传）；\nPATH 写机器级（MSBuild 与 cl.exe 目录），非用户级。\n幂等：cl.exe 在位只补机器 PATH（PATH 齐备则完全无操作，无需管理员）。"
+    },
+    {
+      "path": "ark::vsbuild::BOOTSTRAPPER",
+      "kind": "constant",
+      "docs": "引导器缓存文件名。"
+    },
+    {
+      "path": "ark::vsbuild::COMPONENTS",
+      "kind": "constant",
+      "docs": "安装组件（VCTools/x86.x64/CMake）。"
+    },
+    {
+      "path": "ark::vsbuild::bootstrapper_args",
+      "kind": "function",
+      "docs": "引导器安装参数（纯函数可测；--wait 等安装器完成，3010 = 成功需重启）。"
+    },
+    {
+      "path": "ark::vsbuild::find_cl_exe",
+      "kind": "function",
+      "docs": "最新 MSVC 工具集的 cl.exe（存在即视为已安装）。"
+    },
+    {
+      "path": "ark::vsbuild::install",
+      "kind": "function",
+      "docs": "安装（幂等）。download 只跑引导器落二进制；deploy（configure）才写机器 PATH。"
+    },
+    {
+      "path": "ark::vsbuild::install_root",
+      "kind": "function",
+      "docs": "安装根：`<EnvRoot>\\vsbuild`。"
+    },
+    {
+      "path": "ark::vsbuild::is_vsbuild",
+      "kind": "function",
+      "docs": "是否 vsbuild 型条目（extract = \"vsbuild\"）。"
+    },
+    {
+      "path": "ark::vsbuild::machine_path_dirs",
+      "kind": "function",
+      "docs": "机器 PATH 应包含的目录（MSBuild 与 cl.exe 目录，存在才返回）。"
+    },
+    {
+      "path": "ark::vsbuild::msbuild_exe",
+      "kind": "function",
+      "docs": "MSBuild.exe（路径跨版本稳定，版本探测用：`MSBuild -version` stdout 首行裸版本号）。"
+    }
+  ]
+}

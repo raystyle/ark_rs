@@ -1,0 +1,616 @@
+<!-- ark/index.md -->
+# ark 1.2.2
+
+ark：Ark（Agent Runtime Kit）本机跨平台环境部署管理 CLI。
+三原语 doctor / install / status；派生 query、update、pin、verify、heal、
+init、skill、self update。catalog 为唯一 pin 源。
+下载镜像主通道 env.ohmygh.com、官方兜底（D44）；锁定归云端数据面（D37）。
+公开契约双面：命令输出走黄金文件 oracle，lib 公开项走 docs/aidoc/ 投影。
+
+## Modules
+
+- [`catalog`](catalog.md): catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
+- [`checksum`](checksum.md): checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。
+- [`docker`](docker.md): docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。
+- [`doctor`](doctor.md): doctor：部署异常诊断（2026-09-02 用户需求：检测部署的错误异常）。
+- [`download`](download.md): download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。
+- [`envpath`](envpath.md): envpath：Windows 用户 PATH 管理工具函数，对齐 helpers.ps1 的 Add-EnvPath/Remove-EnvPath（1321-1370 行）。
+- [`extract`](extract.md): extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。
+- [`heal`](heal.md): heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。
+- [`install`](install.md): install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
+- [`manifest`](manifest.md): manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
+- [`omerr`](omerr.md): omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
+- [`platform`](platform.md): platform：跨平台抽象层。
+- [`render`](render.md): render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。
+- [`resolve`](resolve.md): resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
+- [`rustup`](rustup.md): rustup：Rust 接管（自 ohmypwsh `scripts\set-rust.ps1` 平移，2026-09-02；POSIX 接管 D42，2026-09-13）。
+- [`selfdeploy`](selfdeploy.md): selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ome`，
+- [`selfupdate`](selfupdate.md): selfupdate：ome 自身升级（`ark self update`），三通道：
+- [`status`](status.md): status：三态对照（locked/installed/path）。
+- [`toolver`](toolver.md): toolver：已装版本探测，移植 helpers.ps1 的 Get-InstalledVersion（888-935 行）。
+- [`verify`](verify.md): verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。
+- [`vsbuild`](vsbuild.md): vsbuild：VS Build Tools 接管（自 ohmypwsh `scripts\set-vsbuild.ps1` 平移，2026-09-01）。
+
+
+<!-- ark/catalog.md -->
+# ark::catalog
+
+catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
+`ark catalog status`（看解析面与云端同步态）与 `ark catalog sync`（从云端刷新用户数据副本，D33）。
+
+数据契约见 `docs/references/R001`：读用 serde（字段同 R001），
+写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。
+路径解析优先级：
+- EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
+- catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
+  > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）
+  > 用户数据目录 catalog\tools.toml（自部署布局）
+
+## Functions
+
+- `auto_refresh` — 自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，
+- `auto_refresh_if_user_data` — 命令入口接线：解析面**就是**用户数据副本时按 TTL 刷新；跳过与失败都不拦命令。
+- `auto_ttl` — 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。
+- `catalog_state` — 子功能 status 采集（云端不可达时如实标注 error 字段，不报错退出）。
+- `check_signature` — 校验磁盘清单与其分离签名（`<清单>.minisig`）。
+- `classify_origin` — 解析面来源分类（纯函数，供 status 子功能报告）：userdata / repo / env / other。
+- `cloud_sha` — 云端清单锚（边车首 token，大写；走下载链重试与 curl 兜底，命令面用）。
+- `fetch_cloud` — 取锚后拉取（sync 子功能用；锚与键同源解析）。
+- `fetch_with_anchor` — 按给定锚拉取云端清单到缓存（键读序：主键先、兼容键回落；任一键全链通过即返回），
+- `is_user_data_catalog` — 该路径是否为用户数据副本（运行态权威落点；签名巡检只对它告警）。
+- `marker_text` — 标记文件文本（纯函数，与 parse_marker 对称；小写写入，读出一律大写）。
+- `needs_check` — 是否需要联网比对（纯函数）：目标缺失、无标记、标记过期、或本地已被改写（标记锚与本地不符）。
+- `parse_marker` — 标记文件解析（纯函数）：`<unix 秒>\n<sha256>\n`。
+- `pin_key` — 当前平台 pin 字段的 TOML 键名（Windows 无前缀，Linux/mac 加平台前缀）。
+- `resolve_catalog_path` — catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
+- `resolve_env_root` — EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。
+- `resolve_ttl` — TTL 解析（纯函数）：离线优先，其次显式秒数（0 关），非法值回落默认。
+- `seq_gate` — seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；
+- `signature_path` — 清单的分离签名路径（`<清单>.minisig`）。
+- `sync_to` — 子功能 sync 的核心：刷新到指定目标（命令面与自动路径共用；target 独立解析，便于沙盒测试）。
+- `toplevel_seq` — 顶层单调序号（回滚重放防护，S006 候选 B / D40）：签发侧每批 +1，
+- `user_data_catalog_path` — 用户数据副本路径：`<metadata>\catalog\tools.toml`（self-deploy 同步位，运行态权威的落点）。
+- `verify_with_embedded_keys` — 用内嵌公钥集合验签（任一公钥通过即可，供密钥轮换过渡期使用；纯函数可测）。
+- `write_pin` — pin 回写：用 toml_edit 直接改文档树，只动当前平台的 tag/version/asset/sha256 四个键
+- `write_sha256` — sha256 回填：只写当前平台的 sha256 一个键（install 成功后回填空 sha；统一大写）。
+
+## Types
+
+- `Catalog` — 已加载的 catalog：order 保工具书写顺序（即安装/更新顺序），tools 按键查值。
+- `CatalogState` — 子功能 status 的数据面：解析面路径与来源、本地与云端锚、检查年龄、TTL 与离线态。
+- `CloudCatalog` — 已拉到缓存的云端清单（含分离签名件路径）。
+- `ManifestState` — manifest 面状态：在位与本地锚、年龄、云端锚对比与签名态（两件各自可诊断）。
+- `Outcome` — 刷新结果。
+- `SignatureState` — 清单签名状态（D34）：valid 通过内嵌公钥验签；invalid 有签名但验不过；missing 无签名件。
+- `Tool` — 工具条目：字段与 R001 一一对应；可选字段为空时整行省略，故全部 Option。
+
+## Constants
+
+- `CLOUD_CATALOG_KEY` — 云端清单在镜像里的键（D41 C：主键 `ark/catalog/`；兼容键 `ome/catalog/` 为 omc 铺段前
+- `CLOUD_CATALOG_PUBKEY_ID` — 内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出）。
+- `CLOUD_MANIFEST_KEY` — 云端 manifest 键（R016 两件分离：与 tools.toml 同批同签；双键读序同上）。
+- `DEFAULT_TTL_SECS` — 自动刷新默认 TTL（秒）：一天一次锚比对。
+
+
+<!-- ark/checksum.md -->
+# ark::checksum
+
+checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。
+优先级（R001 四、2）：pin 的 sha256 > 官方校验源三型——
+1) cdn_index_url 的 HashiCorp SHA256SUMS 清单（shasums_url 来自解析结果）；
+2) sums_asset 统一校验清单（{version}/{tag} 占位，按 sums_pattern 取行）；
+3) asset_sha_suffix 逐资产后缀文件（如 <asset>.sha256）。
+
+校验清单类资产每次强制重下（删旧再下），结果统一大写。
+
+## Functions
+
+- `expected_sha256` — 本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**
+- `extract_hex64` — 从一行文本提取第一个 64 位 hex 并大写（对齐 pwsh 的 ([0-9a-fA-F]{64}) + ToUpperInvariant）。
+- `official_sha256` — 官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。
+
+
+<!-- ark/docker.md -->
+# ark::docker
+
+docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。
+形态：官方 static zip（download.docker.com CDN 直链，pin 驱动，dotnet/oscdimg 同族）+
+Windows 服务注册 + daemon.json 合并 + docker-users 组 + compose 插件 + 机器级 PATH。
+需管理员：未提权且 gsudo 在位时经 gsudo 重跑 `ark install docker`（vsbuild 同模式）。
+与 vsbuild 的差异：docker 有版本与 pin（非 evergreen），resolve 走 cdn_url 分支。
+
+## Functions
+
+- `install` — 非 Windows 占位：docker-win 仅 Windows 语义。
+- `is_docker` — 是否 docker 专用安装条目（extract 标记分发）。
+
+
+<!-- ark/doctor.md -->
+# ark::doctor
+
+doctor：部署异常诊断（2026-09-02 用户需求：检测部署的错误异常）。
+与 verify 的分工：verify 答「部署域维度是否 PASS」（pin 对齐断言），doctor 答
+「环境里有哪些部署错误与异味」——版本漂移、探测失败、PATH 死链与重复、
+pin/sha 缺失、缓存孤儿、EnvRoot 不可写等，输出 check=OK/WARN/FAIL 逐项行，
+FAIL 即 exit 1（WARN 不拦退出）。
+
+## Functions
+
+- `check_desc` — check 项的人读描述（TTY 报告面用）：老十项 OK 时 detail 为空，名字本身意义不明，
+- `dep_group_stats` — 依赖层九类分组统计（逐组工具数、缺失数、漂移数）。
+- `run_doctor` — 收集全量形态（run_doctor_with 的空回调兼容口）。
+- `run_doctor_with` — 跑全部诊断项，流式形态：每项算完即经回调输出（三态采集期间先出 envroot 项，
+- `run_doctor_with_status` — 同 run_doctor_with，但复用调用方已采集的三态行（cmd_doctor 三层诊断共用一次采集，
+- `summarize` — 汇总：FAIL 与 WARN 计数。
+- `system_facts` — 采集系统层事实（OS、架构、AVX 族指令集在位性）。
+
+## Types
+
+- `DepGroupStat` — 依赖层分组统计（九类 taxonomy 逐组：工具数、缺失数、漂移数）。
+- `DoctorRow` — 单项诊断结果。detail 为该项的明细（stderr 人称提示用）。
+- `SysFacts` — 系统层事实（非诊断，不占 OK/WARN/FAIL 三态）。
+
+
+<!-- ark/download.md -->
+# ark::download
+
+download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。
+缓存目录 <EnvRoot>\cache\<asset>：
+- 命中且 sha256 一致则复用；不符删除重下；无 sha 基准且文件非空则复用。
+- 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。
+- 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。
+- sha256 计算用 sha2，比较统一大写。
+
+## Functions
+
+- `cache_path` — 缓存路径：<EnvRoot>\cache\<asset>。
+- `download_asset` — 下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。
+- `download_asset_with_mirror` — 带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：
+- `download_fresh` — 强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。
+- `download_latest_with_sidecar` — 带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：
+- `fetch_text_short` — 单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。
+- `mirror_sidecar_sha` — 镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，
+- `mirror_sidecar_url` — 镜像 latest 段边车 URL：`{MIRROR_BASE}/{tool}/latest/{asset}.sha256`。
+- `mirror_url` — 镜像段 URL：`{MIRROR_BASE}/{tool}/{version}/{asset}`。
+- `parse_sidecar_sha` — 边车文本解析 sha：标准清单行 `<sha>  <filename>`，取首 token 大写化（纯函数可测）。
+- `sha256_file` — 计算文件 sha256，返回大写 hex（比较基准统一大写）。
+- `with_query` — URL 追加 query 参数（已含 query 用 `&` 连接）。
+
+## Constants
+
+- `MIRROR_BASE` — 自建分发镜像基址（种子终态 69/69，ohmycloud#2）。
+
+
+<!-- ark/envpath.md -->
+# ark::envpath
+
+envpath：Windows 用户 PATH 管理工具函数，对齐 helpers.ps1 的 Add-EnvPath/Remove-EnvPath（1321-1370 行）。
+具体平台实现（Windows 注册表 / Linux profile）集中在 `platform.rs`；本模块保留 Windows 语义纯函数供其调用。
+
+核心语义：读 PATH 原始值（不展开 %VAR%），比较时展开后去重（大小写不敏感），前置插入。
+
+## Functions
+
+- `add_path_entry` — 向 PATH 文本追加目录（已含则 None，未变不重写）。
+- `remove_path_entry` — 纯函数：从原始 PATH 串移除 dir（展开后相等者全部移除）。对齐 Remove-EnvPath。
+
+
+<!-- ark/extract.md -->
+# ark::extract
+
+extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。
+zip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录；gsudo 只取 x64；
+7z-extra 用 bootstrap 7zr.exe 解压并 shim 7za.exe 成 7z.exe 后清空目录其余文件；
+7zsfx 同步等待退出码；msi 走 msiexec /qn；rmux 跑资产内官方 install.ps1；
+
+## Functions
+
+- `extract_asset` — 解压/安装主分派（对齐 pwsh switch ($d.Extract)）。
+- `extract_targz` — tar.gz 解压（flate2 + tar crate）。
+- `extract_tarxz` — tar.xz 解压（xz2 + tar crate）。
+- `extract_zip` — zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。
+- `flatten_single_wrapper` — 展平顶层单包裹目录（如 age zip 的 age/、python 的 python/ 包裹层）：
+
+
+<!-- ark/heal.md -->
+# ark::heal
+
+heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。
+语义：verify 判 FAIL 的维度按本表得到幂等修复动作，`ark heal <dim|all> [--dry-run]` 执行；
+所有动作幂等、可无脑重跑、不破坏性（对齐 heal.ps1 原则）。
+42 键四类归宿（2026-09-01/02 裁决）：
+- install 类 16 行（toolRoot/aria2 按平台分列，dev-rust 已建 rustup 模型）→ ome 原生安装
+  （catalog pin 驱动，与 verify 断言一致；rust 为 evergreen 引导器稳定滚动）；
+- 密钥载体 dsKey/akKey 与镜像源 bunfig/goproxy → heal-keys.py / heal-mirror.py 原生移植；
+- agent 域 12 键休眠（四件套配置归 ohmyagents）；
+- 非 ome 域路由（secret-guard 密钥防护、POSIX 残留清零、compileMatrix 编译验收编排、
+  POSIX aria2 系统位——不在 ome 自愈范围，只提示不越界）。
+
+mac-* 四键为 ps1 远端路由时代的专列；ome 在 mac 本机原生运行，归一为别名指向普通键。
+
+## Functions
+
+- `heal_bunfig` — bunfig npmmirror：写语义单一权威在 manifest mirror 节（D42 收编，防双份漂移）。
+- `heal_keys_carrier` — 密钥载体/端点补齐（heal-keys.py 移植）。
+- `run_heal_with` — 跑自愈（流式）：维度动作完成即经 emit 回调输出。
+
+## Types
+
+- `HealRow` — 单次自愈执行结果行。
+
+
+<!-- ark/install.md -->
+# ark::install
+
+install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
+流程：防穿越校验 → 幂等跳过（顺带补 PATH/sha 回填/滞后锁定）→ sha 基准（pin > 官方源）
+→ 下载（含 bootstrap 资产与 MZ 头校验）→ 删旧目录全量重建 → extract 分派
+→ 装后验版本（5 次递增重试）→ 回写 lock（write_pin / write_sha256）。
+
+## Functions
+
+- `install_tool` — 安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。
+- `is_safe_under_root` — 防穿越：path 必须在允许的安全根之下。
+
+## Types
+
+- `InstallAction` — 安装结果动作。
+- `InstallOptions` — 安装选项（对齐 Install-ToolVersion 的 -RegisterPath / -UpdateLock / -Force）。
+- `InstallOutcome` — 安装结果：动作、版本、安装目录（msi 无绿色目录，为 None）。
+
+
+<!-- ark/manifest.md -->
+# ark::manifest
+
+manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
+
+结构：`schema_version` 加每工具一节 `[manifest.<tool>]`，含 L1 声明原语
+（`env_set` 用户级键值表、`shims` 别名表、`mirror` 镜像源节 D42）与 L2 受控命令
+（`post_install` 分平台 argv 数组——每条是参数数组非 shell 字符串，无元字符解释）。
+
+生命周期：与 tools.toml 同目录（catalog sync 顺带拉取三件套，同锚同签）；
+文件或工具节缺失时零原语、零动作（内建双轨已于 2026-09-11 撤除，omc 数据面为唯一来源）。
+高 `schema_version` 拒载并提示升级 ome（R016 前进兼容红线）。
+mirror 节不升 schema（serde 容忍未知字段，旧引擎静默忽略零动作，前向兼容同红线）。
+
+## Functions
+
+- `apply_env_set` — L1：应用用户级环境变量（逐键幂等）。键值先过形态校验（与 mirror 同一红线：
+- `apply_mirror` — L1：镜像源节落源（幂等）。env 先行（post_install 子进程继承，FNM_NODE_DIST_MIRROR
+- `apply_shims` — L1：生成别名（win=硬链接加 `.cmd` 兜底、POSIX=符号链接；目标已存在即跳过，幂等）。
+- `cargo_home_path` — CARGO_HOME 解析：进程环境变量 > 用户级变量（win 注册表 / POSIX profile 块，
+- `ensure_bunfig` — bunfig registry 落 `~/.bunfig.toml`（整文件；含本 URL 即不重写，heal-mirror 同语义；
+- `ensure_cargo_config` — 生产入口（cargo）。
+- `ensure_cargo_config_in` — cargo 镜像配置落 CARGO_HOME/config.toml（整文件内容比对；rsproxy 全量形态等内容即零重写；
+- `ensure_go_env` — 生产入口（go）。GOENV 尊重（对线 F7）：进程/用户级 `GOENV` 设 `off` 时跳过文件面
+- `ensure_go_env_file` — GOENV 文件直写（对线 G1）：path 即目标文件本身（GOENV 自定义值就是文件路径，
+- `ensure_go_env_in` — go 代理落 GOENV 文件（win `%APPDATA%\go\env`、POSIX `~/.config/go/env`，
+- `ensure_npmrc` — npm registry 落 `~/.npmrc`（UTF-8 无 BOM）。返回是否写入。
+- `ensure_pip_conf` — 生产入口（pip）。
+- `ensure_pip_conf_in` — pip index 落用户配置目录下 `pip/`（目录注入便于测）。返回是否写入。
+- `ensure_uv_toml` — 生产入口（uv）：用户配置目录解析（dirs 同源，POSIX=XDG ~/.config、win=%APPDATA%）。
+- `ensure_uv_toml_in` — uv index 落用户配置目录下 `uv/uv.toml`（POSIX `~/.config/uv/`、win `%APPDATA%\uv\`，
+- `env_key_sane` — 环境写入面键形态校验：标识符形态（防键里带 `=` 或元字符破坏 export 行）。lint 同规则复用。
+- `env_value_sane` — 环境写入面值形态校验（对线 R5，注入面；env_set 与 mirror 单值键共用）：值拒绝换行与
+- `go_env_upsert` — GOENV 文件的行级 upsert（纯函数）：GOPROXY 与 GOSUMDB 两键原位替换或追加，
+- `load` — 载入 manifest.toml（传 catalog 路径，落位与消费同一推导）；缺文件返回空（零原语）；
+- `npmrc_upsert` — npmrc 的 registry 行 upsert（纯函数）：有 registry 行原位替换（键名大小写与空白容忍），
+- `parse` — 解析（纯函数可测；反序列化走 toml_edit serde feature，零新增依赖）。
+- `path_for` — manifest.toml 路径：与 catalog（tools.toml）同目录（R016 两件分离同批落位）。
+- `pip_conf_content` — pip.conf 目标内容（纯函数）。
+- `pip_conf_name` — pip 配置文件名（win=pip.ini、POSIX=pip.conf；pip 各平台原生发现位）。
+- `platform_commands` — 当前平台键选 L2 命令（纯函数可测）。
+- `platform_covered` — 平台是否被显式跳过（三键齐备语义：有命令或进 skip 即齐备）。
+- `run_post_install` — L2：逐条执行受控命令；超时 300s 杀进程；失败只报不回滚，报告含退出码与输出尾行（R016 三节）。
+- `shim_cmd_content` — win `.cmd` 兜底内容（纯函数可测）：`%~dp0` 相对定位（
+- `uv_toml_content` — uv.toml 目标内容（纯函数）：`[[index]]` default 形态（uv 0.4.23+ 数组表）。
+
+## Types
+
+- `ManifestFile` — manifest.toml 根结构。
+- `Mirror` — L1 镜像源节（D42，全集对齐 ohmypwsh set-mirror.ps1 / P0017 五端统一口径）。
+- `PostInstall` — L2 受控命令：每平台一组 argv 数组；`skip` 显式声明「该平台无命令」（三键齐备 lint 依据）。
+- `ToolManifest` — 单工具节：L1 声明原语加 L2 受控命令（未识别字段由 serde default 容忍，lint 白名单把关）。
+
+## Constants
+
+- `SUPPORTED_SCHEMA_VERSION` — 引擎支持的 manifest schema 大版本（R016 v0.2 定稿）。
+
+
+<!-- ark/omerr.md -->
+# ark::omerr
+
+omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
+内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 OmeError，
+main 按 exit_code 退出。
+
+## Types
+
+- `OmeError` — 机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。
+
+
+<!-- ark/platform.md -->
+# ark::platform
+
+platform：跨平台抽象层。
+
+Windows：EnvRoot 为 `D:\ohmyenv` 或 `C:\ohmyenv`，工具集中安装；PATH 通过注册表管理。
+Linux / macOS：各软件按系统标准目录安装；PATH 通过当前 shell 的 profile 文件（如 `~/.bashrc`）管理。
+ark 自身与 EnvRoot 解耦：二进制进用户程序目录（Windows `%LOCALAPPDATA%\Programs\ark`）、
+元数据进用户数据目录（Windows `%LOCALAPPDATA%\ark`；Linux `~/.local/share/ark`；
+macOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目录在而新目录未建时读回旧位。
+
+## Functions
+
+- `absorb_legacy_env_block` — D41：旧 ome env 块收口迁移（值不变的块体搬迁；无旧标记时原样返回）。纯函数。
+- `add_user_path` — 将 dir 注册进用户 PATH；返回是否实际新增。
+- `default_env_root` — 默认 EnvRoot：显式参数与环境变量已在 `catalog::resolve_env_root` 处理，此处仅返回平台默认值。
+- `ensure_profile_hook` — 设置用户级环境变量（幂等）。Windows 写 HKCU\Environment 并同步当前进程；
+- `env_var_or` — 读环境变量（D41 更名 Ark）：主名优先，主名未设或纯空白时读回旧名；都未设返回 None。
+- `exe_suffix` — 可执行文件后缀。
+- `expand_env_vars` — 展开环境变量引用。
+- `expand_install_path` — 展开安装路径中的 `~` 与环境变量引用。
+- `get_user_env_var` — 读用户级环境变量（未设置返回 None）。Windows 读 HKCU\Environment；
+- `is_elevated` — 当前进程是否管理员（以写权限打开 HKLM Environment 判定；非 Windows 恒 false）。
+- `is_official_exe` — 判定 exe 字段是否表示 official 布局（使用环境变量展开 / 绝对路径，不纳入 EnvRoot 管理）。
+- `join_if_relative` — 展开后的路径若为相对路径则拼到 EnvRoot 下（Windows 名录是相对 dir/bin；Linux/macOS 多为 ~/ 绝对）。
+- `legacy_deploy_dir` — 旧 ome 部署位（D41 C 接管清单：Windows `Programs\ome`，在位时 Some）。
+- `legacy_metadata_dir` — 旧元数据目录（D41 迁移源 `<data>\ohmyenv`；只在存在时 Some，旧目录始终只读保留）。
+- `machine_path_add` — 把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。
+- `machine_path_contains` — 机器 PATH 是否已含 dir（非 Windows 恒 false）。
+- `merge_env_exports` — 向 profile env 块合并 export 行（已有键行级 upsert，无则追加；幂等不重写）。
+- `merge_hook_block` — O3（S017）：自定义钩子块 upsert（fnm 等；纯函数）。幂等且块体感知：
+- `merge_path_entries` — PATH 条目合并（纯函数）：把缺失目录追加到 raw 尾部（大小写不敏感、忽略尾反斜杠比较）。
+- `metadata_dir` — ark 自身元数据目录（独立 app 数据目录，与 EnvRoot 解耦）：
+- `migrate_legacy_env_block_once` — D41：检测旧 ome env 标记即收口迁移一次（init 与 self update 收尾钩子；
+- `migrate_legacy_metadata` — 元数据七件套搬迁（D41 C）：旧 `ohmyenv\catalog` 在而新 `ark\catalog` 缺件时逐件复制
+- `migrate_legacy_metadata_in` — 搬迁核心（传新旧根便于测）。
+- `ome_alias_target` — `ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；
+- `path_entries_eq` — 标准化 PATH 条目比较：展开环境变量、大小写不敏感（Windows）/ 敏感（Unix）。
+- `path_separator` — PATH 环境变量条目分隔符。
+- `remove_env_export` — env 块摘除单键（纯函数，D42 env_unset 通道）：**全文件撤变量不分写入者**——
+- `remove_ome_alias` — 清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，
+- `remove_user_env_var` — 撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。
+- `remove_user_path` — 从用户 PATH 移除 dir；返回是否实际移除。
+- `self_deploy_target` — 自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。
+- `set_user_env_var` — Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。
+- `user_env_write_blocked` — 用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1`（读回 `OME_TEST_NO_PATH_REG`）时，**所有**用户环境写入面
+- `user_path_contains` — 用户 PATH 是否已含 dir。
+- `user_path_entries` — 用户 PATH 原始条目（保序不去空；Windows 读 HKCU\Environment，非 Windows 读 profile 标记块）。
+
+## Constants
+
+- `METADATA_MIGRATION_FILES` — 元数据七件套（D41 C 搬迁清单：catalog 域运行态全套）。
+
+
+<!-- ark/render.md -->
+# ark::render
+
+render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。
+纪律：stdout 只走数据，人称提示（[INFO]/[OK]/[WARN]/[HINT]）一律 stderr。
+命令产出统一收敛为 Vec<(key, value)> 块交本层输出，不在命令里散写 println!。
+
+格式三态（`--format`，`--json` 为 json 简写）：
+- kv（默认）：key=value 逐行，块间空行，分组走 `#` 注释行（header）；
+- json：块累积为对象数组，命令收尾 finish 一次性输出（stdout 恒为合法 JSON 文档）；
+- jsonl：每块立即输出一行 JSON 对象（流式与结构化兼得，status 逐工具即出）。
+
+值一律字符串：kv 行直转 JSON 值，类型不伪装（gh 的字段类型化留待需要时再做）。
+
+## Functions
+
+- `blank` — 工具组分隔（多工具输出之间的空行；结构化模式下为空操作）。
+- `block_value` — 把一组 key=value 转为 JSON 对象（纯函数，便于测试；值一律字符串）。
+- `current_format` — 当前格式。
+- `emit` — 输出一组 key=value 到 stdout：kv 逐行打印；jsonl 立即单行 JSON；json 累积待 finish。
+- `finish` — json 模式收尾：把累积的块输出为一个 JSON 数组（空批输出 []，与 gh 空列表语义一致）。
+- `format_rows` — 把一组 key=value 格式化为文本块（纯函数，便于测试）。
+- `header` — 组标题：以 `# ` 前缀注释行输出到 stdout（机器可滤，人可读分组）；结构化模式下为空操作。
+- `is_structured` — 是否结构化输出（json/jsonl）：错误出口据此切换 stderr 单行 JSON。
+- `set_format` — 设定输出格式（main 解析完全局 --format/--json 后调用一次）。
+
+## Types
+
+- `Format` — 输出格式。
+
+
+<!-- ark/resolve.md -->
+# ark::resolve
+
+resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
+语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。
+本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），
+api.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。
+
+## Functions
+
+- `extract_version_by_pattern` — 用 version_pattern 正则从资产名提取版本（取第 1 捕获组）。
+- `pick_max_semver` — 从版本名列表里按语义版本取最大（对齐 pwsh Get-HashiCorpIndex 的
+- `resolve_tool` — 解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。
+- `strip_tag_prefix` — tag_prefix 剥离（大小写不敏感，对齐 pwsh 的 OrdinalIgnoreCase）。
+
+## Types
+
+- `Resolution` — 解析结果：与 pwsh Resolve-ToolVersion 的返回字段对应（Release/Shasums 等运行时对象除外）。
+- `ResolveOptions` — 版本选择：--latest / --tag / --version 三选一（都不给则用 pin 的锁定版本）。
+
+
+<!-- ark/rustup.md -->
+# ark::rustup
+
+rustup：Rust 接管（自 ohmypwsh `scripts\set-rust.ps1` 平移，2026-09-02；POSIX 接管 D42，2026-09-13）。
+rsproxy 引导器直链（无版本无 sha，evergreen 语义）：rustup-init 引导 stable 工具链，
+无 pin（`rustup update stable` 即更新语义，官方 6 周滚动，stable 只收安全补丁）。
+安装根双形态：Windows 重定位 EnvRoot（RUSTUP_HOME=`<EnvRoot>\rustup`、CARGO_HOME=`<EnvRoot>\cargo`，
+用户环境变量）；POSIX 尊重既有（进程 env > 用户级 > 默认 `~/.rustup` 与 `~/.cargo`，
+不持久化两 HOME 变量、进程内钉解析值供引导器）。
+rsproxy 双镜像：rustup 分发（RUSTUP_DIST_SERVER/RUSTUP_UPDATE_ROOT，win 注册表 / POSIX profile env 块）
+加 cargo sparse（config.toml，Windows 落 EnvRoot 重定位位、POSIX 落 `~/.cargo`，rsproxy 全量形态）；
+cargo bin 进用户 PATH（ome 惯例尾部追加；set-rust 为前置，已装机器由 ps1 前置位保持不变）。
+幂等：rustc 在位不重跑 init（update stable 照跑保最新）；config.toml 内容一致不重写。
+
+## Functions
+
+- `cargo_home` — CARGO_HOME：Windows `<EnvRoot>\cargo`；POSIX 与 manifest `cargo_home_path` 同一解析序
+- `init_args` — rustup-init 引导参数（纯函数可测）。Windows 对齐 set-rust.ps1（stable + msvc host + 不动 PATH）；
+- `install` — 安装（幂等）：download 只落二进制（进程内重定位供 rustup-init 写入安装根）；
+- `is_rustup` — 是否 rustup 引导器型条目（extract = "rustup"）。
+- `rustc_exe` — rustc 可执行（`<cargo home>\bin\rustc[.exe]`，verify dev-rust 维度断言位）。
+- `rustup_home` — RUSTUP_HOME：Windows `<EnvRoot>\rustup`；POSIX 尊重既有（进程 env > 用户级 > 默认 `~/.rustup`）。
+
+## Constants
+
+- `INIT_EXE` — 引导器缓存文件名（平台各异）。
+
+
+<!-- ark/selfdeploy.md -->
+# ark::selfdeploy
+
+selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ome`，
+Linux / macOS `~/.local/bin`），同步 catalog 到用户数据目录，并注册用户 PATH（幂等）。
+Windows 顺带清理旧自部署位 `<EnvRoot>\ome\bin` 的 PATH 残留。
+幂等：目标与当前 exe 同路径则跳过复制；sha256 一致则跳过复制；PATH 注册由 envpath 幂等处理。
+
+## Functions
+
+- `deploy_copy` — 复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。
+- `deploy_skill` — 同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与
+- `render_skill` — 自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、
+- `self_deploy` — Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。
+- `write_skill` — 落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。
+
+## Types
+
+- `SelfDeployOutcome` — 自部署结果。
+
+
+<!-- ark/selfupdate.md -->
+# ark::selfupdate
+
+selfupdate：ome 自身升级（`ark self update`），三通道：
+- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；
+- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；
+- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。
+
+升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
+不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
+Windows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。
+
+## Functions
+
+- `asset_compat_for_this_platform` — 兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史
+- `asset_for_this_platform` — 编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。
+- `is_ome_self` — 是否自管条目（extract = "ome-self"；D41 起双接受 "ark-self"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。
+- `self_update` — 自升级主流程。
+
+## Types
+
+- `Channel` — 升级通道。
+- `SelfUpdateOutcome` — 升级结果。
+
+## Constants
+
+- `REPO` — 自升级源仓库（D41 更名；旧 ohmyenv-rs 名 GitHub 301 兜底，官方路径不断）。
+
+
+<!-- ark/status.md -->
+# ark::status
+
+status：三态对照（locked/installed/path）。
+语义：
+msi 与 official（exe 含 %）走环境展开，其余 Join EnvRoot；installed 实跑 exe 探测；
+path 查用户 PATH 原始值（不展开比较，大小写不敏感）。
+
+## Functions
+
+- `category_label` — 分类中文组名（九类为主，D07 起 agent 与运行时管理器入册；旧值兜底转换期防炸，未知值为空串）。
+- `collect_status` — 收集全部工具三态（按 catalog 书写顺序）。
+- `collect_status_with` — 流式收集：每探完一个工具立即回调 on_row（status 命令逐行输出的关键——
+
+## Types
+
+- `StatusRow` — status 三态行：locked=pin version，installed=实跑探测，path=用户 PATH 是否含 bin。
+
+## Constants
+
+- `GROUPS` — 七类 taxonomy（catalog category 值 → 中文组名，展示序即数组序）。
+
+
+<!-- ark/toolver.md -->
+# ark::toolver
+
+toolver：已装版本探测，移植 helpers.ps1 的 Get-InstalledVersion（888-935 行）。
+探测参数与输出版本正则自源码硬编码表迁 catalog 字段（D28 入册清单化：每工具
+`probe_args` 缺省 `["--version"]`、`probe_pattern` 取第 1 捕获组；字段契约见 R001），
+新工具入册漏带由 tests/catalog_lint.rs 结构机检拦下，不再靠装后实测暴露。
+exe 路径解析：official 工具 exe 字段含 %VAR% 环境变量（展开为绝对路径），
+其余相对 EnvRoot 拼接。装后读版本带 5 次递增重试（500ms * i，对齐 Install-ToolVersion 末尾）。
+
+## Functions
+
+- `exe_path` — exe 路径解析：official（exe 使用环境变量或绝对路径）展开为绝对路径；
+- `exe_path_for_version` — 定版形态（D43）：占位以给定版本直替换（装后验证锚定刚装版本，glob 取 max 在
+- `expand_env_vars` — 环境变量展开（Windows `%VAR%`；Linux / macOS `$VAR` / `${VAR}`）。
+- `find_on_path` — PATH 上查找命令（D07 agent 存量纳管判定）：返回首个命中位的完整路径，未命中 None。
+- `installed_version` — 探测已装版本：exe 不存在直接 None；运行 exe 取首行非空输出按 probe_pattern 解析。
+- `installed_version_retried` — 装后版本读取：5 次递增重试（500ms * i），对齐 Install-ToolVersion 末尾的重试循环
+- `is_official` — 工具是否 official 布局（exe 使用环境变量或绝对路径，installDir/bin 走官方目录，不进 EnvRoot）。
+- `parse_version` — 解析版本（纯函数）：正则取 catalog `probe_pattern` 字段（第 1 捕获组）；
+- `pin_drift` — 漂移判定（纯函数）：None 探针（未装）按 Behind 处理（补装自愈）。
+- `platform_managed` — 当前平台是否管理该工具（平台不适用时 status 出空态行、install/update/pin/query 跳过）：
+- `probe_args` — 版本探测参数（D28 自源码表迁 catalog `probe_args` 字段；对齐 Get-InstalledVersion 的 switch）。
+- `status_drift_hint` — status 的 drift 判定（D49 尾统一口径）：npm-tgz 类不列（版本真源在 npm registry
+
+## Types
+
+- `PinDrift` — update 的锁定漂移三态（D49）：installed 探针值对 catalog pin 的对照。
+
+
+<!-- ark/verify.md -->
+# ark::verify
+
+verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。
+维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、
+文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。
+输出 `dim=PASS/FAIL/NA` 收割行（NA 不参与收割）。
+密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。
+
+## Functions
+
+- `dim_names` — 全部维度名（含跨平台分列重复；heal 注册表对齐校验用）。
+- `run_verify` — 跑部署域验收（非流式兼容口）：内部走空回调。
+- `run_verify_with` — 跑部署域验收（流式）：维度所需工具探完即经 emit 回调输出（保持注册表顺序中的可出即出），
+- `summarize` — 汇总（--json 用）。
+
+## Types
+
+- `Verdict` — 维度判定结果。
+
+
+<!-- ark/vsbuild.md -->
+# ark::vsbuild
+
+vsbuild：VS Build Tools 接管（自 ohmypwsh `scripts\set-vsbuild.ps1` 平移，2026-09-01）。
+永续引导器（aka.ms 直链，无版本无 sha 可 pin，属 evergreen 语义）；
+组件三件套 VCTools、VC.Tools.x86.x64、VC.CMake.Project（不带 --includeRecommended；
+Windows SDK 走 ISO 分离装 Windows Kits，不进 VS 组件，见 set-windows-sdk.ps1）。
+需管理员：未提权且 gsudo 可用时经 gsudo 重跑 `ark install vsbuild`（退出码透传）；
+PATH 写机器级（MSBuild 与 cl.exe 目录），非用户级。
+幂等：cl.exe 在位只补机器 PATH（PATH 齐备则完全无操作，无需管理员）。
+
+## Functions
+
+- `bootstrapper_args` — 引导器安装参数（纯函数可测；--wait 等安装器完成，3010 = 成功需重启）。
+- `find_cl_exe` — 最新 MSVC 工具集的 cl.exe（存在即视为已安装）。
+- `install` — 安装（幂等）。download 只跑引导器落二进制；deploy（configure）才写机器 PATH。
+- `install_root` — 安装根：`<EnvRoot>\vsbuild`。
+- `is_vsbuild` — 是否 vsbuild 型条目（extract = "vsbuild"）。
+- `machine_path_dirs` — 机器 PATH 应包含的目录（MSBuild 与 cl.exe 目录，存在才返回）。
+- `msbuild_exe` — MSBuild.exe（路径跨版本稳定，版本探测用：`MSBuild -version` stdout 首行裸版本号）。
+
+## Constants
+
+- `BOOTSTRAPPER` — 引导器缓存文件名。
+- `COMPONENTS` — 安装组件（VCTools/x86.x64/CMake）。
+
+

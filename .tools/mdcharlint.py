@@ -72,7 +72,7 @@ def main() -> int:
         help="连同历史归档（docs/diary、docs/proven）一起扫描；默认跳过（历史文档不回改惯例）",
     )
     args = ap.parse_args()
-    excluded = {"diary", "proven"}
+    excluded = {"diary", "proven", "aidoc"}
     targets: list[Path] = []
     for arg in args.paths:
         p = Path(arg)
@@ -82,7 +82,7 @@ def main() -> int:
             targets.append(p)
     hits = 0
     for path in targets:
-        if not args.all and len(path.parts) >= 2 and path.parts[-2] in excluded:
+        if not args.all and any(seg in excluded for seg in path.parts[:-1]):
             continue
         for no, col, name, ch in scan(path.read_text(encoding="utf-8")):
             print(f"{path}:{no}:{col}: {name} U+{ord(ch):04X} {ch!r}")

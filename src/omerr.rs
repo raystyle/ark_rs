@@ -7,9 +7,13 @@ use std::fmt;
 /// 机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。
 #[derive(Debug)]
 pub struct OmeError {
+    /// 机器可读错误码
     pub code: &'static str,
+    /// 人读错误信息
     pub message: String,
+    /// 修复提示（可选）
     pub hint: Option<String>,
+    /// 进程退出码
     pub exit_code: i32,
 }
 

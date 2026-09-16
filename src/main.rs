@@ -13,12 +13,12 @@ use std::path::Path;
 use clap::{Parser, Subcommand};
 
 use ark::catalog::{self, Catalog};
-use ark::toolver;
 use ark::install::{install_tool, InstallOptions, InstallOutcome};
 use ark::omerr::OmeError;
 use ark::render;
 use ark::resolve::{resolve_tool, Resolution, ResolveOptions};
 use ark::status;
+use ark::toolver;
 
 /// --llms 紧凑命令清单（D09 发现层；与根 SKILL.md 命令图同源，改动两处同步）。
 /// 三原语（PRD D10/D15）：doctor / install / status；其余派生面。
@@ -56,8 +56,7 @@ const EX_INIT: &str = "示例:\n  ark init";
 const EX_VERIFY: &str = "示例:\n  ark verify\n  ark verify --check toolRoot,localbin16 --json";
 const EX_HEAL: &str = "示例:\n  ark heal\n  ark heal aria2 --dry-run";
 const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
-const EX_CATALOG: &str =
-    "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
+const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
 const EX_SELF: &str =
     "示例:\n  ark self update\n  ark self update --stable\n  ark self update --git";
 

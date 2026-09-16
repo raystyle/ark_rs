@@ -12,8 +12,11 @@ use crate::toolver;
 
 /// 单项诊断结果。detail 为该项的明细（stderr 人称提示用）。
 pub struct DoctorRow {
+    /// 诊断行名（检查项标识）
     pub name: &'static str,
+    /// 行状态三态
     pub status: &'static str, // "OK" | "WARN" | "FAIL"
+    /// 行明细（多行事实陈述）
     pub detail: Vec<String>,
 }
 
@@ -28,13 +31,19 @@ pub struct DoctorRow {
 
 /// 系统层事实（非诊断，不占 OK/WARN/FAIL 三态）。
 pub struct SysFacts {
+    /// 操作系统名（std::env::consts）
     pub os: &'static str,
+    /// CPU 架构名
     pub arch: &'static str,
+    /// AVX 指令集在位
     pub avx: bool,
+    /// AVX2 指令集在位
     pub avx2: bool,
+    /// AVX-512F 指令集在位
     pub avx512f: bool,
 }
 
+/// 采集系统层事实（OS、架构、AVX 族指令集在位性）。
 pub fn system_facts() -> SysFacts {
     SysFacts {
         os: std::env::consts::OS,
@@ -61,13 +70,19 @@ fn x86_feature(_f: &str) -> bool {
 
 /// 依赖层分组统计（九类 taxonomy 逐组：工具数、缺失数、漂移数）。
 pub struct DepGroupStat {
+    /// 分类键（taxonomy 组键）
     pub category: String,
+    /// 分组显示名
     pub label: &'static str,
+    /// 组内工具数
     pub tools: usize,
+    /// 组内缺失数
     pub missing: usize,
+    /// 组内漂移数
     pub drift: usize,
 }
 
+/// 依赖层九类分组统计（逐组工具数、缺失数、漂移数）。
 pub fn dep_group_stats(srows: &[StatusRow]) -> Vec<DepGroupStat> {
     status::GROUPS
         .iter()

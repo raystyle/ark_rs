@@ -21,7 +21,9 @@ pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct ManifestFile {
+    /// manifest schema 版本（拒载面）
     pub schema_version: Option<u32>,
+    /// 工具名到安装逻辑节的映射
     pub manifest: HashMap<String, ToolManifest>,
 }
 
@@ -54,12 +56,19 @@ pub struct ToolManifest {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct Mirror {
+    /// 落 shell rc 的环境变量键值
     pub env: Option<HashMap<String, String>>,
+    /// 需撤除的环境变量键
     pub env_unset: Option<Vec<String>>,
+    /// npm registry 镜像源
     pub npm_registry: Option<String>,
+    /// bunfig.toml registry 镜像源
     pub bunfig_registry: Option<String>,
+    /// uv index 镜像源（uv.toml）
     pub uv_index: Option<String>,
+    /// pip index-url 镜像源（pip.conf）
     pub pip_index: Option<String>,
+    /// cargo sparse 镜像配置内容
     pub cargo_config: Option<String>,
     /// go 代理语义键（值如 `https://goproxy.cn,direct`）：行级 upsert 落 GOENV 文件
     /// （win `%APPDATA%\go\env`、POSIX `~/.config/go/env`，go 二进制无须在位），
@@ -85,9 +94,13 @@ impl Mirror {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct PostInstall {
+    /// Windows 受控命令表
     pub win: Option<Vec<Vec<String>>>,
+    /// Linux 受控命令表
     pub linux: Option<Vec<Vec<String>>>,
+    /// macOS 受控命令表
     pub mac: Option<Vec<Vec<String>>>,
+    /// 跳过命令名清单
     pub skip: Option<Vec<String>>,
 }
 

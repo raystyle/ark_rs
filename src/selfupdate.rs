@@ -41,10 +41,15 @@ pub fn is_ome_self(def: &crate::catalog::Tool) -> bool {
 pub struct SelfUpdateOutcome {
     /// updated：已替换；current：已是最新
     pub action: &'static str,
+    /// 升级通道（dev/stable/git）
     pub channel: &'static str,
+    /// 命中的资产名
     pub asset: String,
+    /// 远端构建 sha256（前 8 位展示）
     pub sha256: String,
+    /// 替换后的部署位 exe
     pub exe: PathBuf,
+    /// 升级后 catalog 同步是否成功
     pub catalog_synced: bool,
 }
 
@@ -282,7 +287,9 @@ fn official_asset_meta(
     // release JSON 单拉一次（G2：原每层各拉一遍，窗口期 stable 稳定 2 次 API GET），
     // 本地按名序匹配：gnu 主名先、msvc 回退名次、ome 兼容名殿后，全 miss 报主名错。
     let release = fetch_release(endpoint)?;
-    let names = [Some(asset_name), msvc_fallback, compat].into_iter().flatten();
+    let names = [Some(asset_name), msvc_fallback, compat]
+        .into_iter()
+        .flatten();
     let mut primary_err: Option<String> = None;
     for name in names {
         match asset_in_release(&release, name) {
@@ -292,15 +299,11 @@ fn official_asset_meta(
             }
         }
     }
-    Err(primary_err
-        .unwrap_or_else(|| format!("release 缺资产 {asset_name}（CI 是否已跑完？）")))
+    Err(primary_err.unwrap_or_else(|| format!("release 缺资产 {asset_name}（CI 是否已跑完？）")))
 }
 
 /// 在已拉取的 release JSON 内按名找资产（digest 大写 + 下载直链 + 名）。
-fn asset_in_release(
-    release: &Value,
-    asset_name: &str,
-) -> Result<(String, String, String), String> {
+fn asset_in_release(release: &Value, asset_name: &str) -> Result<(String, String, String), String> {
     let assets = release
         .get("assets")
         .and_then(Value::as_array)
@@ -367,7 +370,10 @@ fn self_update_git(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
         .join("release")
         .join(format!("{}.exe", env!("CARGO_PKG_NAME")));
     #[cfg(not(windows))]
-    let bin = work.join("target").join("release").join(env!("CARGO_PKG_NAME"));
+    let bin = work
+        .join("target")
+        .join("release")
+        .join(env!("CARGO_PKG_NAME"));
 
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let (mine, built) = (sha256_file(&exe)?, sha256_file(&bin)?);
@@ -476,14 +482,13 @@ fn replace_exe(exe: &Path, new_file: &Path) -> Result<(), String> {
 /// best-effort：失败只提示，用户可稍后 `ark catalog sync`；不再从已退役的仓库件取源。
 fn sync_catalog_from_cloud(env_root: &Path) -> bool {
     let target = crate::catalog::user_data_catalog_path();
-    match crate::catalog::sync_to(
-        env_root,
-        &target,
-        true,
-        crate::catalog::auto_ttl(),
-    ) {
+    match crate::catalog::sync_to(env_root, &target, true, crate::catalog::auto_ttl()) {
         Ok(outcome) => {
-            eprintln!("[OK] catalog 已同步（云端验签）: {} [{}]", target.display(), outcome.action());
+            eprintln!(
+                "[OK] catalog 已同步（云端验签）: {} [{}]",
+                target.display(),
+                outcome.action()
+            );
             true
         }
         Err(e) => {
@@ -573,7 +578,10 @@ mod tests {
         std::fs::write(&src, b"v2").expect("写二代");
         replace_exe(&dst, &src).expect("二次替换应成功");
         assert_eq!(std::fs::read(&dst).expect("读部署位"), b"v2");
-        assert!(dst.with_extension("exe.old").exists(), "旧件改名保留（下次升级起手清）");
+        assert!(
+            dst.with_extension("exe.old").exists(),
+            "旧件改名保留（下次升级起手清）"
+        );
         // 三次替换：起手清上次 .old 残留
         std::fs::write(&src, b"v3").expect("写三代");
         replace_exe(&dst, &src).expect("三次替换应成功");
@@ -601,9 +609,21 @@ mod tests {
     #[test]
     fn 段内回落裁定_三态() {
         // 镜像命中沿用其段；官方命中按资产族；默认主段
-        assert_eq!(fallback_seg("ome", "ome-x.exe"), "ome", "镜像命中的段直接沿用");
-        assert_eq!(fallback_seg("ark", "ark-x.exe"), "ark", "镜像命中的段直接沿用");
-        assert_eq!(fallback_seg("", "ome-x.exe"), "ome", "官方命中兼容名回落兼容段");
+        assert_eq!(
+            fallback_seg("ome", "ome-x.exe"),
+            "ome",
+            "镜像命中的段直接沿用"
+        );
+        assert_eq!(
+            fallback_seg("ark", "ark-x.exe"),
+            "ark",
+            "镜像命中的段直接沿用"
+        );
+        assert_eq!(
+            fallback_seg("", "ome-x.exe"),
+            "ome",
+            "官方命中兼容名回落兼容段"
+        );
         assert_eq!(fallback_seg("", "ark-x.exe"), "ark", "官方命中主名回落主段");
         // D46：msvc 回退名属 ark- 族，回落主段（gnu 主名 miss 后窗口期资产仍按 ark/ 段取）
         assert_eq!(
@@ -654,7 +674,10 @@ mod tests {
             extract: Some(e.to_string()),
             ..Default::default()
         };
-        assert!(is_ome_self(&mk("ome-self")), "旧标记仍受认（数据面未改名期）");
+        assert!(
+            is_ome_self(&mk("ome-self")),
+            "旧标记仍受认（数据面未改名期）"
+        );
         assert!(is_ome_self(&mk("ark-self")), "新标记受认");
         assert!(!is_ome_self(&mk("zip")), "非自管不误判");
         assert!(!is_ome_self(&mk("npm-tgz")), "npm 型不误判");
@@ -664,7 +687,10 @@ mod tests {
     #[test]
     fn msvc回退层_非windows无此层() {
         // G5 对线补：msvc 回退层仅 Windows 有（linux/mac 走单层主名读序）
-        assert!(asset_msvc_fallback().is_none(), "非 Windows 不应有 msvc 回退层");
+        assert!(
+            asset_msvc_fallback().is_none(),
+            "非 Windows 不应有 msvc 回退层"
+        );
     }
 
     #[test]

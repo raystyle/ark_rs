@@ -191,12 +191,16 @@ pub fn dim_names() -> Vec<&'static str> {
 /// 维度判定结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
+    /// 维度通过
     Pass,
+    /// 维度失败
     Fail,
+    /// 本平台不适用
     Na,
 }
 
 impl Verdict {
+    /// 判定短名（dim=PASS/FAIL/NA 收割行）。
     pub fn as_str(&self) -> &'static str {
         match self {
             Verdict::Pass => "PASS",

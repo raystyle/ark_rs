@@ -28,4 +28,4 @@
 ## 红线
 
 - `diary/` 与 `research/` 是保留核心结构，不可裁撤（用户裁定 2026-09-16）：diary 承载过程留痕与踩坑现场，research 承载六态研究档案，二者是六层模型过程面与知识面的实体承载。
-- 本仓无自有 API 面，公开契约走「无自有 API 面项目」范式（dev-evo base-projection，2026-09-16 增量）：对外字节确定性产物以黄金文件 oracle 的 regenerate-and-diff 门禁锁定（`tests/golden.rs` 与 `tests/expected/`，构建门禁 `cargo test` 已在 AGENTS Commands 在册），三栈 `missing_docs` 与 doctest 裁定见 AGENTS Commands。
+- 公开契约双面：命令输出面以黄金文件 oracle 的 regenerate-and-diff 锁定（`tests/golden.rs` 与 `tests/expected/`）；lib 公开项以 aidoc 投影承载（`docs/aidoc/`，ADR-0006 第五十九批强制口径，漂移门禁 `cargo aidoc --check --strict` 在 AGENTS Commands 在册）。
