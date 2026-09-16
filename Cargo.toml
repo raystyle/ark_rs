@@ -1,6 +1,6 @@
 [package]
 name = "ark"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 description = "Ark（Agent Runtime Kit）：全平台 Agent 工具及运行时依赖环境的部署、管理、验收与诊断 CLI"
 license = "MIT"

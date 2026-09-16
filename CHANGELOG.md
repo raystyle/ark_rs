@@ -2,6 +2,10 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [1.2.3] - 2026-09-16
+
+patch：舰队对线修复批加 dev-evo 治理对齐批（update 漂移三态、逗号串、status 口径、temp PATH 闸、契约注释 89 处与三 clippy lint、aidoc 投影、dev-evo 体系全量迁移）。
+
 ## [Unreleased]
 
 - **update 漂移收口**（D49，ohmycloud 舰队分型对线实锤）：`ark update` 的 skip 判据从「云端无新版（resolve==pin）」扩为锁定漂移三态：本机一致才 skip；落后或未装真装 pin 版（旧判据在此 skip，挡住一票 installed 落后 pin 的真装机）；领先如实报并指数据面滚锁。status 的 HINT 文案「版本落后锁定」改「版本与锁定不一致」（判据为双向不等）。尾修 bug4：工具参数收逗号串（status HINT 的 join 逗号串此前整串被当单名拒收，自产提示不可执行；cat.select 一处改，update/install/query/pin/heal 统一，保序去重滤空段）。尾二修：status 的 drift 判据从字符串等值统一为 pin_drift 数值段口径（git for windows 的 .windows.N 后缀形态数值等不再恒列）；npm-tgz 类条目不进 HINT（版本真源在 npm registry，端上自管）。
