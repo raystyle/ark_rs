@@ -62,4 +62,5 @@
 - 编码：Markdown 与 Rust 源码 UTF-8；兼容 5.1 的 ps1 用 UTF-8 BOM
 - 分支模型：GitHub Flow 单干变体（直推 main 为基线，2026-09-08 裁）；并行会话或危险大改开短命分支，验证后 squash 进 main 并删
 - 门禁：dev-evo check.py（PE-01 至 PE-12）加本仓四件套（rumdl 加 md 三扫描）并存
+- 全平台直测：WSL 内 ssh lan-mac（Darwin）与 lan-ubuntu（Linux）直通可实测；宿主 lan-win sshd 未监听（refused），宿主面走舰队或本地；各端归 ohmycloud 舰队管理，装拆前对齐
 - 当前阶段：v1.2.2 已发（D46 gnu 交叉）；Unreleased 窗攒 D49 与 bug4；D41 ome 兼容面与 D46/D47/D48 fork 分发链均已闭环
