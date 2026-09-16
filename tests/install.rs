@@ -241,6 +241,7 @@ linux_cdn_url = "https://example.invalid/selftool-linux.exe"
 tag = "v1.0.0"
 version = "1.0.0"
 linux_version = "1.0.0"
+mac_version = "1.0.0"
 asset = "selftool.exe"
 "#
     );
@@ -307,6 +308,7 @@ linux_cdn_url = "https://example.invalid/selftool-linux.exe"
 tag = "v1.0.0"
 version = "1.0.0"
 linux_version = "1.0.0"
+mac_version = "1.0.0"
 asset = "selftool.exe"
 "#
     );
