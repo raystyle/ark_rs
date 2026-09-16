@@ -1,9 +1,9 @@
 ---
 id: REQ-0005
 title: skill面撤除与llms唯一发现通道
-status: draft
+status: implemented
 priority: must
-trace: null
+trace: cargo test --release --locked 全绿；CLI 冒烟（--llms 新头两行与 ark skill 零残留、ark skill 退出码 2、隔离 HOME init 清理 SKILL.md 幂等二连）；五端旧 SKILL.md 清扫回执（lan-win 双位、lan-ubuntu、lan-linux各一，WSL 与 lan-mac 本无）
 ---
 
 # REQ-0005:skill面撤除与llms唯一发现通道
@@ -16,13 +16,13 @@ agent 发现通道三件并存（根 SKILL.md 静态件、`ark skill` 自适应�
 
 验收判据，可检验、可勾选：
 
-- [ ] `ark skill` 子命令撤除（Commands 变体、分派臂、cmd_skill），调用报 clap unrecognized subcommand 形态退出码 2
-- [ ] selfdeploy 三函数撤除（deploy_skill 与 write_skill 与 render_skill），根 SKILL.md 删除，编译零残留
-- [ ] init 幂等清理数据目录旧 SKILL.md（remove_legacy_skill，在则删不在静默，失败降级 WARN 不拦部署）
-- [ ] `--llms` 头部吸收何时用纪律行（一律走 ark、幂等检测安装、镜像优先回落官方、有锚必校验），manifest 变单源自持
-- [ ] guide 四字段（desc 与 guide_env 与 guide_dirs 与 guide_notes）schema 与访问器保留为数据面，注释改口径，代码零改动
-- [ ] tests/cli.rs llms 断言改何时用纪律行并加 not contains；tests/real.rs 缺席名单加 ark skill
-- [ ] 文档同步：README 与 llms.txt 与 R013 与 R001 与 lib.rs crate doc；PRD D50 行；CHANGELOG Unreleased；diary 记钩子；cargo aidoc 再生成同提交
-- [ ] 门禁全绿：fmt 与 clippy 与 test --release --locked、aidoc --check --strict、md 四件套、check.py
+- [x] `ark skill` 子命令撤除（Commands 变体、分派臂、cmd_skill），调用报 clap unrecognized subcommand 形态退出码 2
+- [x] selfdeploy 三函数撤除（deploy_skill 与 write_skill 与 render_skill），根 SKILL.md 删除，编译零残留
+- [x] init 幂等清理数据目录旧 SKILL.md（remove_legacy_skill，在则删不在静默，失败降级 WARN 不拦部署）
+- [x] `--llms` 头部吸收何时用纪律行（一律走 ark、幂等检测安装、镜像优先回落官方、有锚必校验），manifest 变单源自持
+- [x] guide 四字段（desc 与 guide_env 与 guide_dirs 与 guide_notes）schema 与访问器保留为数据面，注释改口径，代码零改动
+- [x] tests/cli.rs llms 断言改何时用纪律行并加 not contains；tests/real.rs 缺席名单加 ark skill
+- [x] 文档同步：README 与 llms.txt 与 R013 与 R001 与 lib.rs crate doc；PRD D50 行；CHANGELOG Unreleased；diary 记钩子；cargo aidoc 再生成同提交
+- [x] 门禁全绿：fmt 与 clippy 与 test --release --locked、aidoc --check --strict、md 四件套、check.py
 
 实现后回填 frontmatter 的 trace（测试路径或验收命令），状态改 implemented。

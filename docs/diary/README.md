@@ -36,3 +36,6 @@
 | 2026-09-14 | `docs/diary/2026-09-14-临时envroot注册PATH闸.md` | 舰队报障修复：add_user_path 设 temp 闸，探测与沙盒装不落用户持久 PATH |
 | 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批一.md` | ADR-0001 批一：AGENTS 五节合同、ADR/REQ 骨架、PRD 冻结、PE 12 全 PASS |
 | 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批二.md` | ADR-0001 批二：GOAL 与 TODO 冻结档案化、REQ-0001 回填六判据 |
+| 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批四.md` | ADR-0001 批四：aidoc 投影强制化、v1.2.3 封版、开发仓位迁移（索引欠账补行） |
+| 2026-09-16 | `docs/diary/2026-09-16-终态对齐与门禁收口.md` | dev-evo 终态自审、v1.2.3 封版尾巴收口、五端产物验收轮（索引欠账补行） |
+| 2026-09-16 | `docs/diary/2026-09-16-skill面撤除.md` | D50/ADR-0007/REQ-0005：skill 整面撤除、--llms 吸收纪律行唯一发现通道、五端旧 SKILL.md 清扫 |

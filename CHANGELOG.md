@@ -2,6 +2,10 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [Unreleased]
+
+- **skill 面撤除与 `--llms` 唯一发现通道**（D50/ADR-0007，REQ-0005）：`ark skill` 子命令、根 SKILL.md 静态件与 D25 自适应渲染退役；`ark --llms` 头部新增何时用与下载两行纪律行（一律走 ark、幂等检测安装、镜像优先回落官方、有锚必校验），成为唯一 agent 发现通道；`ark init` 幂等清理数据目录旧 SKILL.md（remove_legacy_skill）；catalog guide 四字段（desc 与 guide_env 与 guide_dirs 与 guide_notes）转数据面保留，schema 与真源（云端 ohmycloud）不动。
+
 ## [1.2.3] - 2026-09-16
 
 patch：舰队对线修复批加 dev-evo 治理对齐批（update 漂移三态、逗号串、status 口径、temp PATH 闸、契约注释 89 处与三 clippy lint、aidoc 投影、dev-evo 体系全量迁移）。
