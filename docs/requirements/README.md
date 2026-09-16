@@ -10,3 +10,4 @@
 | REQ-0003 | implemented | PATH 存量已达锁定版纳管 | cargo test 全绿 204 项 |
 | REQ-0004 | rejected | 权威边车拉取时间戳击穿 | 对线实证 fetch 层已穿双写撤除 |
 | REQ-0005 | implemented | skill面撤除与llms唯一发现通道 | cargo test 全绿加 CLI 冒烟三件加五端旧 SKILL.md 清扫回执 |
+| REQ-0006 | implemented | 封版v1.3.0 | 对线两轮 CONFIRM 加 tag run 与资产验收（回填 diary 封版篇） |

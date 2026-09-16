@@ -2,9 +2,12 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
-## [Unreleased]
+## [1.3.0] - 2026-09-16
+
+minor：D50 skill 面撤除批（命令面行为变化取 minor，判据与验收入壳见 REQ-0006）。
 
 - **skill 面撤除与 `--llms` 唯一发现通道**（D50/ADR-0007，REQ-0005）：`ark skill` 子命令、根 SKILL.md 静态件与 D25 自适应渲染退役；`ark --llms` 头部新增何时用与下载两行纪律行（一律走 ark、幂等检测安装、镜像优先回落官方、有锚必校验），成为唯一 agent 发现通道；`ark init` 幂等清理数据目录旧 SKILL.md（remove_legacy_skill）；catalog guide 四字段（desc 与 guide_env 与 guide_dirs 与 guide_notes）转数据面保留，schema 与真源（云端 ohmycloud）不动。
+- **对线修正批**（herdr codex 两轮终审 CONFIRM）：manifest 表行裸管道转义统一（pin 与 self update 行对齐 catalog 行口径）；remove_legacy_skill 换 symlink_metadata 三态（NotFound 静默、其余错误上抛，顺修悬空符号链接漏删旧漏）；抽 remove_legacy_skill_at 可测核加三态单测；manifest 头行去计数（摘静态数字，计数权威归云端 catalog）。
 
 ## [1.2.3] - 2026-09-16
 
