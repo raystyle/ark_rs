@@ -88,17 +88,28 @@ fn deploy_catalog() -> Result<Option<PathBuf>, String> {
 }
 
 /// 清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。
-/// 在则删返回 true；不在返回 false（幂等静默）。
+/// 在则删返回 true；不在返回 false（幂等静默；仅 NotFound 视为不在，其余元数据错误照常上抛）。
+/// 旧位语义：metadata_dir 读回规则（ark 位未建且 ohmyenv 位在则读回旧位）使「仅旧位」机器
+/// 删的是 ohmyenv/SKILL.md（与 deploy_catalog 同款收口先例）；ark 位在时旧位副本代码永不收，
+/// 归一次性清扫与旧二进制退役收敛。
 ///
 /// # Errors
-/// 返回 Err（人读原因串）当：删除失败（文件占用等） 等（完整失败面见函数体错误构造）。
+/// 返回 Err（人读原因串）当：读取元数据或删除失败（文件占用等） 等（完整失败面见函数体错误构造）。
 pub fn remove_legacy_skill() -> Result<bool, String> {
-    let dst = platform::metadata_dir().join("SKILL.md");
-    if !dst.exists() {
-        return Ok(false);
+    remove_legacy_skill_at(&platform::metadata_dir().join("SKILL.md"))
+}
+
+/// remove_legacy_skill 的可测核（传目标路径，便于 tmpdir 断言三态）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：读取元数据或删除失败 等（完整失败面见函数体错误构造）。
+pub fn remove_legacy_skill_at(dst: &Path) -> Result<bool, String> {
+    match std::fs::symlink_metadata(dst) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(format!("读取 SKILL.md 元数据失败: {}: {e}", dst.display())),
+        Ok(_) => {}
     }
-    std::fs::remove_file(&dst)
-        .map_err(|e| format!("删除 SKILL.md 失败: {}: {e}", dst.display()))?;
+    std::fs::remove_file(dst).map_err(|e| format!("删除 SKILL.md 失败: {}: {e}", dst.display()))?;
     Ok(true)
 }
 
@@ -239,6 +250,19 @@ mod tests {
         let exe = dir.path().join("ome.exe");
         std::fs::write(&exe, b"self").map_err(|e| e.to_string())?;
         assert!(!deploy_copy(&exe, &exe)?, "同路径应跳过（自复制）");
+        Ok(())
+    }
+
+    #[test]
+    fn remove_legacy_skill_三态() -> Result<(), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let f = dir.path().join("SKILL.md");
+        std::fs::write(&f, b"# old").map_err(|e| e.to_string())?;
+        assert!(remove_legacy_skill_at(&f)?, "在则删应返 true");
+        assert!(!remove_legacy_skill_at(&f)?, "不在应返 false（幂等静默）");
+        // 目录占名：symlink_metadata 可读但 remove_file 必败，应进 Err 而非静默 Ok(false)
+        std::fs::create_dir(&f).map_err(|e| e.to_string())?;
+        assert!(remove_legacy_skill_at(&f).is_err(), "目录占名应进 Err");
         Ok(())
     }
 }

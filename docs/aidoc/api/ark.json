@@ -965,7 +965,12 @@
     {
       "path": "ark::selfdeploy::remove_legacy_skill",
       "kind": "function",
-      "docs": "清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。\n在则删返回 true；不在返回 false（幂等静默）。\n\n# Errors\n返回 Err（人读原因串）当：删除失败（文件占用等） 等（完整失败面见函数体错误构造）。"
+      "docs": "清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。\n在则删返回 true；不在返回 false（幂等静默；仅 NotFound 视为不在，其余元数据错误照常上抛）。\n旧位语义：metadata_dir 读回规则（ark 位未建且 ohmyenv 位在则读回旧位）使「仅旧位」机器\n删的是 ohmyenv/SKILL.md（与 deploy_catalog 同款收口先例）；ark 位在时旧位副本代码永不收，\n归一次性清扫与旧二进制退役收敛。\n\n# Errors\n返回 Err（人读原因串）当：读取元数据或删除失败（文件占用等） 等（完整失败面见函数体错误构造）。"
+    },
+    {
+      "path": "ark::selfdeploy::remove_legacy_skill_at",
+      "kind": "function",
+      "docs": "remove_legacy_skill 的可测核（传目标路径，便于 tmpdir 断言三态）。\n\n# Errors\n返回 Err（人读原因串）当：读取元数据或删除失败 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::self_deploy",
