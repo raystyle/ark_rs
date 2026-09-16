@@ -40,4 +40,4 @@
 | 2026-09-16 | `docs/diary/2026-09-16-终态对齐与门禁收口.md` | dev-evo 终态自审、v1.2.3 封版尾巴收口、五端产物验收轮（索引欠账补行） |
 | 2026-09-16 | `docs/diary/2026-09-16-skill面撤除.md` | D50/ADR-0007/REQ-0005：skill 整面撤除、--llms 吸收纪律行唯一发现通道、五端旧 SKILL.md 清扫 |
 | 2026-09-16 | `docs/diary/2026-09-16-aria2五端验收REQ053.md` | 总台 REQ-053 回执：A 缺（fork 资产非自含，四端探针挂 mac 过）、B 锚全等过、C 门禁九项全 0 |
-| 2026-09-16 | `docs/diary/2026-09-16-lan双端agent环境补装.md` | 插队单先装批：两端四家加 hst 落面（lan-linux 版本对齐加 pwsh 补装）、token 面总台合流（3363ff6 核证）、kimi/grok 凭据 lan-linux 两件开放归总台 |
+| 2026-09-16 | `docs/diary/2026-09-16-lan双端agent环境补装.md` | 插队单先装批：两端四家加 hst 落面（lan-linux 版本对齐加 pwsh 补装）、token 面总台合流（3363ff6 核证）、开放项总台闭（kimi 舰队级 revoked tombstone 债另记） |
