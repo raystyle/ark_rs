@@ -26,9 +26,9 @@
 | `exe` | string | 版本探测 exe 路径，相对 EnvRoot；official 可含 `%VAR%` 环境变量 |
 | `extract` | string | 解压/安装方式：zip / targz / targz-bin / tarxz-bin / zip-bin / zip-dir（Windows 版本目录树不展平，zig 用）/ targz-dir / tarxz-dir / copy / gsudo / 7z-extra / 7zsfx / msi / rmux / single / vsbuild（见五） |
 | `repo` | string | GitHub 仓库 `owner/name`（纯 cdn 工具可省） |
-| `desc` | string | 一行用途说明（D25：`ark skill` 逐工具引导渲染） |
-| `guide_env` | string[] | skill 引导要实测展示的环境变量键（用户级优先、进程级兜底；含 TOKEN/KEY/SECRET/PASSWORD 的键只显在否不显值，凭据纪律） |
-| `guide_dirs` | string[] | skill 引导要实测展示的安装/数据目录（支持 `~` 与 `%VAR%` 展开，在位与否如实标） |
+| `desc` | string | 一行用途说明（D25 入册；D50 起数据面保留，真源云端 ohmycloud，ark 侧无渲染消费者） |
+| `guide_env` | string[] | 引导提示的环境变量键清单（用户级优先、进程级兜底；含 TOKEN/KEY/SECRET/PASSWORD 的键只显在否不显值，凭据纪律；D50 起数据面保留） |
+| `guide_dirs` | string[] | 引导提示的安装/数据目录清单（支持 `~` 与 `%VAR%` 展开；D50 起数据面保留） |
 | `guide_notes` | string | 使用注意事项多行（版本语义、升级例外、PATH 特性等静态知识） |
 | `tag_prefix` | string | tag 前缀，剥离后得 version（如 `v`、`release-`） |
 | `asset_pattern` | string | 资产名匹配正则（GitHub release 资产筛选） |
@@ -130,7 +130,7 @@ sha256 = "C56E8CE22F7E80CB85AD946CC82D198767B056366201D3E1A2B93D865BE38154"
 4. **sha 格式**：64 位 hex（机检红灯）；回填统一大写。
 5. **装后验证**：真机 `ark install` 幂等二连、`ark status` 三态齐；探测不过即查 probe 字段（不再需要查源码表）。
 6. **镜像对账**：pin 落库后跑 `uv run --script .tools/seed.py --plan` 域面 diff，sha-drift / sidecar-missing 即时暴露（M014 正解：机检替代人眼）。
-7. **计数同步**：AGENTS 两处、README 三处（含类表）、SKILL、INDEX、catalog 头注释。
+7. **计数同步**：AGENTS 两处、README 三处（含类表）、INDEX、catalog 头注释。
 8. **云端可见性**：pin 与节入仓库推 main 后由 seed-mirror 路线 B 自动入镜（无 sha 不入镜，D34 起同时发布 `.minisig` 签名件，缺密钥即拒发）；部署机随 TTL 自动取得，需立即生效跑 `ark catalog sync`，用 `ark catalog status` 核对 `synced=true` 与 `signature=valid`。
 
 ## 六、evergreen 条目

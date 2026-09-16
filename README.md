@@ -98,7 +98,7 @@ ark catalog sync   # 立即从云端刷新（默认 TTL 24h 自动刷新；ARK_C
 
 发现通道与输出契约现状与裁定（dev-evo tool-cli-agents 第十一节对照，2026-09-16）：
 
-- 发现通道：skill 面（`SKILL.md` 与 `ark skill` 自适应生成，D09）与 `--llms` 命令图两通道在位；mcp add 通道不适用（ark 是部署 CLI 非 MCP server，agent 编排归 ohmyagents）。
+- 发现通道：`--llms` 命令图唯一通道（D50 撤 skill 面：`ark skill` 与 SKILL.md 退役，头部含何时用与下载纪律行）；mcp add 通道不适用（ark 是部署 CLI 非 MCP server，agent 编排归 ohmyagents）。
 - 输出信封：key=value 数据面加结构化错误四元组加退出码，契约冻结于 R013（对外冻结面），不迁移 {ok,data,meta} 同构信封（改造破坏冻结契约，裁定不适用）。
 - CTA：status 漂移提示（D09-3）与 doctor verdict 面在位。
 - token 计量与分页与输出过滤：裁定不适用（输出体量为五十工具全量百行级，`--format` 与 `--llms` 已覆盖检索需求；体量增长再立项）。

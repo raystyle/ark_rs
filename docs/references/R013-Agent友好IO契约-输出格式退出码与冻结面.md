@@ -9,9 +9,10 @@
 
 三原语：doctor（检测诊断）、install（幂等安装：下载加 PATH、注册表与配置）、status（三态对照）。
 其余命令为派生面，语义挂靠原语：query 为 install 的解析前置、update 为 install 时变、
-pin 为锚操作（数据面）、verify 与 heal 为断言与自愈组合、init 与 self 与 skill 为
+pin 为锚操作（数据面）、verify 与 heal 为断言与自愈组合、init 与 self 为
 辅助通道。命令面演进（增减改名）以原语口径评估归属。`deploy` 已去掉并入 install（D15）；
-`daily` 已去掉，升级走 update（D16）；`package` 已去掉（D17）。
+`daily` 已去掉，升级走 update（D16）；`package` 已去掉（D17）；`skill` 已去掉（D50，2026-09-16：
+发现层归 `--llms` 唯一通道，头部含何时用与下载纪律行，SKILL.md 并行面退役）。
 `catalog`（D33，2026-09-10）为清单面单一入口：status 看运行态清单来源与云端锚（D39 双轨收口后连 manifest 面一起看：在位、本地锚、年龄、云端锚对比、签名）、sync 立即刷新两件，
 语义挂 query（解析前置的数据源）与 pin（锚操作）；自动刷新按 TTL 走，可用 `ARK_CATALOG_TTL`（秒，
 0 关）与 `ARK_OFFLINE=1` 关闭（旧名 `OME_*` 读回），只作用于用户数据副本（仓库与 `ARK_CATALOG` 指定面不动）。
@@ -47,9 +48,8 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | `heal` | dim, action, params, result, detail |
 | `query`（D38 注） | pin 锚在时 GitHub API 失败回落镜像直装（或 `ARK_MIRROR=1` 强制，旧名 `OME_MIRROR` 读回）：数据块字段不变，`url` 如实呈现镜像资产域地址 |
 | `doctor` | check, status, detail；两层节 sys.* / dep（D30 起原 agent 节移除，装态对账归 omc、token 归 oma diagnose）；收尾 verdict（ready/degraded/broken）。TTY 为人读面，数据面不变 |
-| `skill` | skill, path（结构化）；kv 默认 stdout 全文 Markdown |
 | `catalog` | status：path, origin, local_sha256, cloud_sha256, synced, age_secs, ttl_secs, offline, signature, pubkey, manifest_path, manifest_present, manifest_local_sha256, manifest_cloud_sha256, manifest_synced, manifest_age_secs, manifest_signature, manifest_cloud_error, cloud_error；sync：action, reason, sha256, path, origin |
-| `--llms` | Markdown 命令清单（不经 render，先于 catalog 加载） |
+| `--llms` | Markdown 命令清单（不经 render，先于 catalog 加载；D50 起唯一 agent 发现通道，头部含何时用与下载纪律行） |
 
 ## 四、退出码
 
