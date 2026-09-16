@@ -9,3 +9,4 @@
 | REQ-0002 | implemented | aidoc 投影强制化重构 | cargo aidoc --check --strict 加 missing_docs deny 加 cargo test 全绿 |
 | REQ-0003 | implemented | PATH 存量已达锁定版纳管 | cargo test 全绿 204 项 |
 | REQ-0004 | rejected | 权威边车拉取时间戳击穿 | 对线实证 fetch 层已穿双写撤除 |
+| REQ-0005 | draft | skill面撤除与llms唯一发现通道 | 待实现回填 |
