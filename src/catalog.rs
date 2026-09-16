@@ -440,6 +440,9 @@ struct RawCatalog {
 
 impl Catalog {
     /// 从磁盘加载 catalog。
+    ///
+    /// # Errors
+    /// 返回 Err（人读原因串）当：读取 catalog 失败 等（完整失败面见函数体错误构造）。
     pub fn load(path: &Path) -> Result<Self, String> {
         let text = fs::read_to_string(path)
             .map_err(|e| format!("读取 catalog 失败: {}: {e}", path.display()))?;
@@ -447,6 +450,9 @@ impl Catalog {
     }
 
     /// 解析 catalog 文本（顺序取文档树、取值走 serde）。
+    ///
+    /// # Errors
+    /// 返回 Err（人读原因串）当：未知工具: {seg}（catalog: {}） 等（完整失败面见函数体错误构造）。
     pub fn parse(text: &str, path: PathBuf) -> Result<Self, String> {
         // toml 0.8 风格 serde 序列化会丢字段顺序，故顺序另从 DocumentMut 取
         let doc: DocumentMut = text
@@ -474,6 +480,9 @@ impl Catalog {
     /// 子命令的工具选择：`all` 展开为全部（保序）；单工具校验存在性；逗号串
     /// 逐段拆分校验（D49 尾修：status HINT 教的「ark update a,b,c」此前整串被当
     /// 单名拒收，自产提示不可执行）。重复段保序去重，空段滤除。
+    ///
+    /// # Errors
+    /// 返回 Err（人读原因串）当：未知工具: {seg}（catalog: {}） 等（完整失败面见函数体错误构造）。
     pub fn select(&self, name: &str) -> Result<Vec<String>, String> {
         if name == "all" {
             return Ok(self.order.clone());
@@ -494,6 +503,9 @@ impl Catalog {
     }
 
     /// 按名取工具条目。
+    ///
+    /// # Errors
+    /// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
     pub fn tool(&self, name: &str) -> Result<&Tool, String> {
         self.tools
             .get(name)
@@ -503,6 +515,9 @@ impl Catalog {
 
 /// EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。
 /// 对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn resolve_env_root(cli: Option<&str>) -> Result<PathBuf, String> {
     if let Some(v) = cli {
         let v = v.trim().trim_end_matches(['/', '\\']);
@@ -522,6 +537,9 @@ pub fn resolve_env_root(cli: Option<&str>) -> Result<PathBuf, String> {
 /// catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
 /// > cwd\catalog\tools.toml > 用户数据目录 catalog\tools.toml（新自部署布局，self-deploy 时同步）。
 /// > 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn resolve_catalog_path() -> Result<PathBuf, String> {
     if let Some(v) = crate::platform::env_var_or("ARK_CATALOG", "OME_CATALOG") {
         return Ok(PathBuf::from(v));
@@ -590,6 +608,9 @@ fn catalog_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
 /// pin 回写：用 toml_edit 直接改文档树，只动当前平台的 tag/version/asset/sha256 四个键
 /// （Windows 通用、Linux `linux_*`、mac `mac_*`，见 R001），保住字段顺序、缩进与注释。
 /// 版本变化时删除 sha256 行（等 install 回填），同版本 re-pin 保留。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn write_pin(path: &Path, tool: &str, res: &Resolution) -> Result<bool, String> {
     let mut version_changed = false;
     let (k_tag, k_version, k_asset, k_sha) = (
@@ -616,6 +637,9 @@ pub fn write_pin(path: &Path, tool: &str, res: &Resolution) -> Result<bool, Stri
 }
 
 /// sha256 回填：只写当前平台的 sha256 一个键（install 成功后回填空 sha；统一大写）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn write_sha256(path: &Path, tool: &str, sha: &str) -> Result<(), String> {
     let k_sha = pin_key("sha256");
     update_tool_table(path, tool, |table| {
@@ -836,6 +860,9 @@ impl SignatureState {
 }
 
 /// 用内嵌公钥集合验签（任一公钥通过即可，供密钥轮换过渡期使用；纯函数可测）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：清单签名校验不过: {last} 等（完整失败面见函数体错误构造）。
 pub fn verify_with_embedded_keys(data: &[u8], sig_text: &str) -> Result<(), String> {
     let sig = minisign_verify::Signature::decode(sig_text)
         .map_err(|e| format!("签名件格式不合法: {e}"))?;
@@ -1014,6 +1041,9 @@ fn resolve_cloud_sha(env_root: &Path) -> Result<(&'static str, String), String> 
 }
 
 /// 云端清单锚（边车首 token，大写；走下载链重试与 curl 兜底，命令面用）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。
 pub fn cloud_sha(env_root: &Path) -> Result<String, String> {
     resolve_cloud_sha(env_root).map(|(_, sha)| sha)
 }
@@ -1032,6 +1062,9 @@ fn probe_manifest_sha() -> Result<(&'static str, String), String> {
 /// 端上记已见 seq，收到更低即拒收（防「重放旧但签名有效的清单对」与镜像桶回滚）。
 /// 键位契约（omc 2026-09-11 落地）：tools.toml 与 manifest.toml 顶层 `seq = <int>`；
 /// `generated_at`（ISO8601Z）为信息性非安全边界。缺 seq 视为 0（兼容首发前的件）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。
 pub fn toplevel_seq(path: &Path) -> Result<u64, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("读清单失败: {e}"))?;
     let doc: toml_edit::DocumentMut = text
@@ -1097,6 +1130,9 @@ fn record_seen_seq_from_local(target: &Path) {
 
 /// seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；
 /// 大于即收（调用方落位后 write_seen_seq）。缺 seq 视 0。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。
 pub fn seq_gate(pulled: u64, seen: u64, what: &str) -> Result<u64, String> {
     if pulled < seen {
         return Err(format!(
@@ -1120,6 +1156,9 @@ pub struct CloudCatalog {
 
 /// 按给定锚拉取云端清单到缓存（键读序：主键先、兼容键回落；任一键全链通过即返回），
 /// 过 sha、解析、内嵌公钥验签三重验证（任一不过即拒收）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：云端清单双键读序全败（锚 {sha}）: {last} 等（完整失败面见函数体错误构造）。
 pub fn fetch_with_anchor(env_root: &Path, sha: &str) -> Result<CloudCatalog, String> {
     // 短探定键先（404 短路不吃重试链，D41 C：过渡窗主键缺省防拖慢）；命中键单链拉取，
     // 失败落另一键自愈（锚不配即 sha 不符，同段成对不破）
@@ -1171,6 +1210,9 @@ fn fetch_with_anchor_keyed(env_root: &Path, key: &str, sha: &str) -> Result<Clou
 }
 
 /// 取锚后拉取（sync 子功能用；锚与键同源解析）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：云端 manifest 锚不符: 边车 {sha} 实拉 {got} 等（完整失败面见函数体错误构造）。
 pub fn fetch_cloud(env_root: &Path) -> Result<CloudCatalog, String> {
     let (_, sha) = resolve_cloud_sha(env_root)?;
     fetch_with_anchor(env_root, &sha)
@@ -1207,6 +1249,9 @@ fn is_current(local_sha: Option<&str>, cloud_sha: &str, cloud_seq: u64, seen: u6
 }
 
 /// 子功能 sync 的核心：刷新到指定目标（命令面与自动路径共用；target 独立解析，便于沙盒测试）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：云端 manifest 锚不符: 边车 {sha} 实拉 {got} 等（完整失败面见函数体错误构造）。
 pub fn sync_to(env_root: &Path, target: &Path, force: bool, ttl: u64) -> Result<Outcome, String> {
     if ttl == 0 && !force {
         return Ok(Outcome::Skipped("off"));
@@ -1304,6 +1349,9 @@ fn sync_manifest_if_present(env_root: &Path, tools_target: &Path) -> Result<(), 
 
 /// 自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，
 /// 失败记退避标记（锚取本地值），TTL 内不再重试，保证不拖慢用户命令。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn auto_refresh(env_root: &Path) -> Result<Outcome, String> {
     let ttl = auto_ttl();
     if ttl == 0 {

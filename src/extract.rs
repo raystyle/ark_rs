@@ -15,6 +15,9 @@ use crate::catalog::Tool;
 
 /// 解压/安装主分派（对齐 pwsh switch ($d.Extract)）。
 /// cache_path 为已下载资产，install_dir 为目标目录（msi/official 类由调用方另行处理）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} targz-bin 提取类型仅在 Linux / macOS 可用 等（完整失败面见函数体错误构造）。
 pub fn extract_asset(
     tool: &str,
     def: &Tool,
@@ -251,6 +254,9 @@ pub fn extract_asset(
 }
 
 /// zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
     let f =
         File::open(archive).map_err(|e| format!("打开 zip 失败: {}: {e}", archive.display()))?;
@@ -281,6 +287,9 @@ pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
 }
 
 /// tar.gz 解压（flate2 + tar crate）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。
 pub fn extract_targz(archive: &Path, dest: &Path) -> Result<(), String> {
     let f =
         File::open(archive).map_err(|e| format!("打开 tar.gz 失败: {}: {e}", archive.display()))?;
@@ -291,6 +300,9 @@ pub fn extract_targz(archive: &Path, dest: &Path) -> Result<(), String> {
 }
 
 /// tar.xz 解压（xz2 + tar crate）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。
 pub fn extract_tarxz(archive: &Path, dest: &Path) -> Result<(), String> {
     let f =
         File::open(archive).map_err(|e| format!("打开 tar.xz 失败: {}: {e}", archive.display()))?;
@@ -310,6 +322,9 @@ pub fn extract_tarxz(archive: &Path, dest: &Path) -> Result<(), String> {
 /// Windows 安装目录均为专属目录（EnvRoot\<dir>，安装前已清空），一律严格判定——
 /// 「唯一子目录且零文件」才算包裹层；gh 2.98.0 起 zip 无包裹层、顶层即 bin/ 与 LICENSE，
 /// 宽松模式会把业务目录 bin/ 误当包裹层上提。宽松模式仅供 Linux/mac 共享目录场景。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。
 pub fn flatten_single_wrapper(dir: &Path) -> Result<bool, String> {
     #[cfg(windows)]
     {

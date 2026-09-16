@@ -65,7 +65,7 @@
     {
       "path": "ark::catalog::auto_refresh",
       "kind": "function",
-      "docs": "自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，\n失败记退避标记（锚取本地值），TTL 内不再重试，保证不拖慢用户命令。"
+      "docs": "自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，\n失败记退避标记（锚取本地值），TTL 内不再重试，保证不拖慢用户命令。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::auto_refresh_if_user_data",
@@ -95,17 +95,17 @@
     {
       "path": "ark::catalog::cloud_sha",
       "kind": "function",
-      "docs": "云端清单锚（边车首 token，大写；走下载链重试与 curl 兜底，命令面用）。"
+      "docs": "云端清单锚（边车首 token，大写；走下载链重试与 curl 兜底，命令面用）。\n\n# Errors\n返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::fetch_cloud",
       "kind": "function",
-      "docs": "取锚后拉取（sync 子功能用；锚与键同源解析）。"
+      "docs": "取锚后拉取（sync 子功能用；锚与键同源解析）。\n\n# Errors\n返回 Err（人读原因串）当：云端 manifest 锚不符: 边车 {sha} 实拉 {got} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::fetch_with_anchor",
       "kind": "function",
-      "docs": "按给定锚拉取云端清单到缓存（键读序：主键先、兼容键回落；任一键全链通过即返回），\n过 sha、解析、内嵌公钥验签三重验证（任一不过即拒收）。"
+      "docs": "按给定锚拉取云端清单到缓存（键读序：主键先、兼容键回落；任一键全链通过即返回），\n过 sha、解析、内嵌公钥验签三重验证（任一不过即拒收）。\n\n# Errors\n返回 Err（人读原因串）当：云端清单双键读序全败（锚 {sha}）: {last} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::is_user_data_catalog",
@@ -135,12 +135,12 @@
     {
       "path": "ark::catalog::resolve_catalog_path",
       "kind": "function",
-      "docs": "catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\\tools.toml（仓库与旧自部署布局）\n> cwd\\catalog\\tools.toml > 用户数据目录 catalog\\tools.toml（新自部署布局，self-deploy 时同步）。\n> 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。"
+      "docs": "catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\\tools.toml（仓库与旧自部署布局）\n> cwd\\catalog\\tools.toml > 用户数据目录 catalog\\tools.toml（新自部署布局，self-deploy 时同步）。\n> 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::resolve_env_root",
       "kind": "function",
-      "docs": "EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。\n对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。"
+      "docs": "EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。\n对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::resolve_ttl",
@@ -150,7 +150,7 @@
     {
       "path": "ark::catalog::seq_gate",
       "kind": "function",
-      "docs": "seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；\n大于即收（调用方落位后 write_seen_seq）。缺 seq 视 0。"
+      "docs": "seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；\n大于即收（调用方落位后 write_seen_seq）。缺 seq 视 0。\n\n# Errors\n返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::signature_path",
@@ -160,12 +160,12 @@
     {
       "path": "ark::catalog::sync_to",
       "kind": "function",
-      "docs": "子功能 sync 的核心：刷新到指定目标（命令面与自动路径共用；target 独立解析，便于沙盒测试）。"
+      "docs": "子功能 sync 的核心：刷新到指定目标（命令面与自动路径共用；target 独立解析，便于沙盒测试）。\n\n# Errors\n返回 Err（人读原因串）当：云端 manifest 锚不符: 边车 {sha} 实拉 {got} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::toplevel_seq",
       "kind": "function",
-      "docs": "顶层单调序号（回滚重放防护，S006 候选 B / D40）：签发侧每批 +1，\n端上记已见 seq，收到更低即拒收（防「重放旧但签名有效的清单对」与镜像桶回滚）。\n键位契约（omc 2026-09-11 落地）：tools.toml 与 manifest.toml 顶层 `seq = <int>`；\n`generated_at`（ISO8601Z）为信息性非安全边界。缺 seq 视为 0（兼容首发前的件）。"
+      "docs": "顶层单调序号（回滚重放防护，S006 候选 B / D40）：签发侧每批 +1，\n端上记已见 seq，收到更低即拒收（防「重放旧但签名有效的清单对」与镜像桶回滚）。\n键位契约（omc 2026-09-11 落地）：tools.toml 与 manifest.toml 顶层 `seq = <int>`；\n`generated_at`（ISO8601Z）为信息性非安全边界。缺 seq 视为 0（兼容首发前的件）。\n\n# Errors\n返回 Err（人读原因串）当：{what} 回滚重放拒收: 拉到 seq {pulled} 低于已见 {seen}（镜像回滚或重放旧签名件；如确认回退请手动删 .{what}.seq 后重试） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::user_data_catalog_path",
@@ -175,17 +175,17 @@
     {
       "path": "ark::catalog::verify_with_embedded_keys",
       "kind": "function",
-      "docs": "用内嵌公钥集合验签（任一公钥通过即可，供密钥轮换过渡期使用；纯函数可测）。"
+      "docs": "用内嵌公钥集合验签（任一公钥通过即可，供密钥轮换过渡期使用；纯函数可测）。\n\n# Errors\n返回 Err（人读原因串）当：清单签名校验不过: {last} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::write_pin",
       "kind": "function",
-      "docs": "pin 回写：用 toml_edit 直接改文档树，只动当前平台的 tag/version/asset/sha256 四个键\n（Windows 通用、Linux `linux_*`、mac `mac_*`，见 R001），保住字段顺序、缩进与注释。\n版本变化时删除 sha256 行（等 install 回填），同版本 re-pin 保留。"
+      "docs": "pin 回写：用 toml_edit 直接改文档树，只动当前平台的 tag/version/asset/sha256 四个键\n（Windows 通用、Linux `linux_*`、mac `mac_*`，见 R001），保住字段顺序、缩进与注释。\n版本变化时删除 sha256 行（等 install 回填），同版本 re-pin 保留。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::write_sha256",
       "kind": "function",
-      "docs": "sha256 回填：只写当前平台的 sha256 一个键（install 成功后回填空 sha；统一大写）。"
+      "docs": "sha256 回填：只写当前平台的 sha256 一个键（install 成功后回填空 sha；统一大写）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::checksum",
@@ -195,7 +195,7 @@
     {
       "path": "ark::checksum::expected_sha256",
       "kind": "function",
-      "docs": "本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**\n（资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。\n否则查官方校验源，都没有则 None。"
+      "docs": "本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**\n（资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。\n否则查官方校验源，都没有则 None。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::checksum::extract_hex64",
@@ -205,7 +205,7 @@
     {
       "path": "ark::checksum::official_sha256",
       "kind": "function",
-      "docs": "官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。"
+      "docs": "官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::docker",
@@ -215,7 +215,7 @@
     {
       "path": "ark::docker::install",
       "kind": "function",
-      "docs": "非 Windows 占位：docker-win 仅 Windows 语义。"
+      "docs": "非 Windows 占位：docker-win 仅 Windows 语义。\n\n# Errors\n非 Windows 平台一律返回 Err（docker 接管仅 Windows）。"
     },
     {
       "path": "ark::docker::is_docker",
@@ -255,17 +255,17 @@
     {
       "path": "ark::doctor::run_doctor",
       "kind": "function",
-      "docs": "收集全量形态（run_doctor_with 的空回调兼容口）。"
+      "docs": "收集全量形态（run_doctor_with 的空回调兼容口）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::doctor::run_doctor_with",
       "kind": "function",
-      "docs": "跑全部诊断项，流式形态：每项算完即经回调输出（三态采集期间先出 envroot 项，\n采集完成即连出五个派生项；返回全量行供汇总）。"
+      "docs": "跑全部诊断项，流式形态：每项算完即经回调输出（三态采集期间先出 envroot 项，\n采集完成即连出五个派生项；返回全量行供汇总）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::doctor::run_doctor_with_status",
       "kind": "function",
-      "docs": "同 run_doctor_with，但复用调用方已采集的三态行（cmd_doctor 三层诊断共用一次采集，\n避免 41 工具版本探针跑两遍）。"
+      "docs": "同 run_doctor_with，但复用调用方已采集的三态行（cmd_doctor 三层诊断共用一次采集，\n避免 41 工具版本探针跑两遍）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::doctor::summarize",
@@ -295,32 +295,32 @@
     {
       "path": "ark::download::download_asset",
       "kind": "function",
-      "docs": "下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。\nexpected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。"
+      "docs": "下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。\nexpected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。\n\n# Errors\n返回 Err（人读原因串）当：sha256 校验失败: {}\\n期望 {}\\n实际 {} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::download_asset_with_mirror",
       "kind": "function",
-      "docs": "带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：\n- 缓存三分支照常（命中即复用，与渠道无关）；\n- 镜像段**单次快速首试**（不退避不 curl：镜像未播该版本是常态而非异常，\n  404 须秒级回落官方，不能拖满重试链）；\n- 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；\n- 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，\n  CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。"
+      "docs": "带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：\n- 缓存三分支照常（命中即复用，与渠道无关）；\n- 镜像段**单次快速首试**（不退避不 curl：镜像未播该版本是常态而非异常，\n  404 须秒级回落官方，不能拖满重试链）；\n- 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；\n- 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，\n  CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::download_fresh",
       "kind": "function",
-      "docs": "强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。"
+      "docs": "强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::download_latest_with_sidecar",
       "kind": "function",
-      "docs": "带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：\n- 缓存三分支照常；\n- 镜像 latest 段**首试**：校验锚取同目录 `.sha256` 边车（先边车后资产，边车即当段\n  唯一信任锚，沙滚语义；资产单次快速下载），任一步失败回落官方；\n- 官方段完整链兜底（evergreen 无 pin 锚，官方段无锚裸下与反转前镜像段口径一致）；\n- 双链全败才报错，错误信息带两段。"
+      "docs": "带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：\n- 缓存三分支照常；\n- 镜像 latest 段**首试**：校验锚取同目录 `.sha256` 边车（先边车后资产，边车即当段\n  唯一信任锚，沙滚语义；资产单次快速下载），任一步失败回落官方；\n- 官方段完整链兜底（evergreen 无 pin 锚，官方段无锚裸下与反转前镜像段口径一致）；\n- 双链全败才报错，错误信息带两段。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::fetch_text_short",
       "kind": "function",
-      "docs": "单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。\n与 download_url 的重试链分离：自动路径要在网络异常时快速退化，不拖慢用户命令。"
+      "docs": "单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。\n与 download_url 的重试链分离：自动路径要在网络异常时快速退化，不拖慢用户命令。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::mirror_sidecar_sha",
       "kind": "function",
-      "docs": "镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，\n镜像未播或不可达须秒级回落官方，完整重试链会让 evergreen 常态路径先赔数十秒）；\n时间戳 query 每次回源（latest 段沙滚，边车必须取新）。"
+      "docs": "镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，\n镜像未播或不可达须秒级回落官方，完整重试链会让 evergreen 常态路径先赔数十秒）；\n时间戳 query 每次回源（latest 段沙滚，边车必须取新）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::mirror_sidecar_url",
@@ -335,12 +335,12 @@
     {
       "path": "ark::download::parse_sidecar_sha",
       "kind": "function",
-      "docs": "边车文本解析 sha：标准清单行 `<sha>  <filename>`，取首 token 大写化（纯函数可测）。"
+      "docs": "边车文本解析 sha：标准清单行 `<sha>  <filename>`，取首 token 大写化（纯函数可测）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::sha256_file",
       "kind": "function",
-      "docs": "计算文件 sha256，返回大写 hex（比较基准统一大写）。"
+      "docs": "计算文件 sha256，返回大写 hex（比较基准统一大写）。\n\n# Errors\n返回 Err（人读原因串）当：sha256 校验失败: {}\\n期望 {}\\n实际 {} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::with_query",
@@ -370,27 +370,27 @@
     {
       "path": "ark::extract::extract_asset",
       "kind": "function",
-      "docs": "解压/安装主分派（对齐 pwsh switch ($d.Extract)）。\ncache_path 为已下载资产，install_dir 为目标目录（msi/official 类由调用方另行处理）。"
+      "docs": "解压/安装主分派（对齐 pwsh switch ($d.Extract)）。\ncache_path 为已下载资产，install_dir 为目标目录（msi/official 类由调用方另行处理）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} targz-bin 提取类型仅在 Linux / macOS 可用 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::extract_targz",
       "kind": "function",
-      "docs": "tar.gz 解压（flate2 + tar crate）。"
+      "docs": "tar.gz 解压（flate2 + tar crate）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::extract_tarxz",
       "kind": "function",
-      "docs": "tar.xz 解压（xz2 + tar crate）。"
+      "docs": "tar.xz 解压（xz2 + tar crate）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::extract_zip",
       "kind": "function",
-      "docs": "zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。"
+      "docs": "zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::flatten_single_wrapper",
       "kind": "function",
-      "docs": "展平顶层单包裹目录（如 age zip 的 age/、python 的 python/ 包裹层）：\n只有一个子目录时，把子目录内容上提一层，并递归继续展平。\n`allow_root_files`：为 true 时允许根目录已有其他文件（Linux ~/.local/bin 多工具共享场景）；\n递归调用传 false，避免把 legitimate 子目录也展平。\n先把子目录重命名为临时目录再移动，避免子目录名与其中文件同名时产生自覆盖冲突（如 age/age）。\n\n平台口径（2026-09-01，gh 2.98.0 布局变更踩坑，M102 M004）：\nWindows 安装目录均为专属目录（EnvRoot\\<dir>，安装前已清空），一律严格判定——\n「唯一子目录且零文件」才算包裹层；gh 2.98.0 起 zip 无包裹层、顶层即 bin/ 与 LICENSE，\n宽松模式会把业务目录 bin/ 误当包裹层上提。宽松模式仅供 Linux/mac 共享目录场景。"
+      "docs": "展平顶层单包裹目录（如 age zip 的 age/、python 的 python/ 包裹层）：\n只有一个子目录时，把子目录内容上提一层，并递归继续展平。\n`allow_root_files`：为 true 时允许根目录已有其他文件（Linux ~/.local/bin 多工具共享场景）；\n递归调用传 false，避免把 legitimate 子目录也展平。\n先把子目录重命名为临时目录再移动，避免子目录名与其中文件同名时产生自覆盖冲突（如 age/age）。\n\n平台口径（2026-09-01，gh 2.98.0 布局变更踩坑，M102 M004）：\nWindows 安装目录均为专属目录（EnvRoot\\<dir>，安装前已清空），一律严格判定——\n「唯一子目录且零文件」才算包裹层；gh 2.98.0 起 zip 无包裹层、顶层即 bin/ 与 LICENSE，\n宽松模式会把业务目录 bin/ 误当包裹层上提。宽松模式仅供 Linux/mac 共享目录场景。\n\n# Errors\n返回 Err（人读原因串）当：{tool} 缺少 BootstrapAsset: {bootstrap} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::heal",
@@ -405,17 +405,17 @@
     {
       "path": "ark::heal::heal_bunfig",
       "kind": "function",
-      "docs": "bunfig npmmirror：写语义单一权威在 manifest mirror 节（D42 收编，防双份漂移）。"
+      "docs": "bunfig npmmirror：写语义单一权威在 manifest mirror 节（D42 收编，防双份漂移）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::heal::heal_keys_carrier",
       "kind": "function",
-      "docs": "密钥载体/端点补齐（heal-keys.py 移植）。\nPOSIX：确保 ~/.config/ohmyenv-secrets/env.sh 存在且内容时效，并挂钩三个 rc；\nWindows：确保用户级 ANTHROPIC_BASE_URL 端点（密钥由 profile 惰性注入，本动作只补端点）。\n返回 (是否有变更, 明细行)。"
+      "docs": "密钥载体/端点补齐（heal-keys.py 移植）。\nPOSIX：确保 ~/.config/ohmyenv-secrets/env.sh 存在且内容时效，并挂钩三个 rc；\nWindows：确保用户级 ANTHROPIC_BASE_URL 端点（密钥由 profile 惰性注入，本动作只补端点）。\n返回 (是否有变更, 明细行)。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::heal::run_heal_with",
       "kind": "function",
-      "docs": "跑自愈（流式）：维度动作完成即经 emit 回调输出。\ndim 为 `all` 或单维度名；dry_run 只打印计划不执行。\n返回全部结果行；fail/partial 行由调用方汇总退出码。"
+      "docs": "跑自愈（流式）：维度动作完成即经 emit 回调输出。\ndim 为 `all` 或单维度名；dry_run 只打印计划不执行。\n返回全部结果行；fail/partial 行由调用方汇总退出码。\n\n# Errors\n返回 Err（人读原因串）当：未知自愈维度: {dim}（当前平台可用: {}；heal all 跑全部） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::install",
@@ -440,7 +440,7 @@
     {
       "path": "ark::install::install_tool",
       "kind": "function",
-      "docs": "安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。"
+      "docs": "安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。\n\n# Errors\n返回 Err（人读原因串）当：危险路径，拒绝操作: {} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::install::is_safe_under_root",
@@ -480,77 +480,77 @@
     {
       "path": "ark::manifest::apply_env_set",
       "kind": "function",
-      "docs": "L1：应用用户级环境变量（逐键幂等）。键值先过形态校验（与 mirror 同一红线：\n本地面无签名门，换行/双引号值拼进 export 行即注入面，对线 R5 确认轮收口 env_set）。"
+      "docs": "L1：应用用户级环境变量（逐键幂等）。键值先过形态校验（与 mirror 同一红线：\n本地面无签名门，换行/双引号值拼进 export 行即注入面，对线 R5 确认轮收口 env_set）。\n\n# Errors\n返回 Err（人读原因串）当：env_set 键形态非法: {k} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::apply_mirror",
       "kind": "function",
-      "docs": "L1：镜像源节落源（幂等）。env 先行（post_install 子进程继承，FNM_NODE_DIST_MIRROR\n对 fnm install 即时生效）；`env_unset` 进程面无条件先清（「只在当前 shell 导出」的旧变量\n不在持久面，不清则 post_install 子进程照样继承并盖过文件配置，对线 R2）；\n整面受测试隔离闸门（用户环境写入面第五面，M002 同型防漏）。\n失败语义同 L1 硬错：写不进就是没配上。"
+      "docs": "L1：镜像源节落源（幂等）。env 先行（post_install 子进程继承，FNM_NODE_DIST_MIRROR\n对 fnm install 即时生效）；`env_unset` 进程面无条件先清（「只在当前 shell 导出」的旧变量\n不在持久面，不清则 post_install 子进程照样继承并盖过文件配置，对线 R2）；\n整面受测试隔离闸门（用户环境写入面第五面，M002 同型防漏）。\n失败语义同 L1 硬错：写不进就是没配上。\n\n# Errors\n返回 Err（人读原因串）当：mirror env 键形态非法: {k} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::apply_shims",
       "kind": "function",
-      "docs": "L1：生成别名（win=硬链接加 `.cmd` 兜底、POSIX=符号链接；目标已存在即跳过，幂等）。\n`bin_dir` 必须是**目标二进制所在目录**（源与别名同目录；调用方传 exe 父目录而非工具根）。\nwin 硬链接要求同卷同 NTFS：跨卷或 exFAT 等不支持时自动回落到 `.cmd`。"
+      "docs": "L1：生成别名（win=硬链接加 `.cmd` 兜底、POSIX=符号链接；目标已存在即跳过，幂等）。\n`bin_dir` 必须是**目标二进制所在目录**（源与别名同目录；调用方传 exe 父目录而非工具根）。\nwin 硬链接要求同卷同 NTFS：跨卷或 exFAT 等不支持时自动回落到 `.cmd`。\n\n# Errors\n返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::cargo_home_path",
       "kind": "function",
-      "docs": "CARGO_HOME 解析：进程环境变量 > 用户级变量（win 注册表 / POSIX profile 块，\nark Windows 接管模型重定位 EnvRoot 位由此生效）> 默认 `~/.cargo`。"
+      "docs": "CARGO_HOME 解析：进程环境变量 > 用户级变量（win 注册表 / POSIX profile 块，\nark Windows 接管模型重定位 EnvRoot 位由此生效）> 默认 `~/.cargo`。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_bunfig",
       "kind": "function",
-      "docs": "bunfig registry 落 `~/.bunfig.toml`（整文件；含本 URL 即不重写，heal-mirror 同语义；\nURL 比对去尾斜杠——npmmirror 两种写法等价不应来回重写）。"
+      "docs": "bunfig registry 落 `~/.bunfig.toml`（整文件；含本 URL 即不重写，heal-mirror 同语义；\nURL 比对去尾斜杠——npmmirror 两种写法等价不应来回重写）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_cargo_config",
       "kind": "function",
-      "docs": "生产入口（cargo）。"
+      "docs": "生产入口（cargo）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_cargo_config_in",
       "kind": "function",
-      "docs": "cargo 镜像配置落 CARGO_HOME/config.toml（整文件内容比对；rsproxy 全量形态等内容即零重写；\n目录注入便于测）。返回是否写入。"
+      "docs": "cargo 镜像配置落 CARGO_HOME/config.toml（整文件内容比对；rsproxy 全量形态等内容即零重写；\n目录注入便于测）。返回是否写入。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_go_env",
       "kind": "function",
-      "docs": "生产入口（go）。GOENV 尊重（对线 F7）：进程/用户级 `GOENV` 设 `off` 时跳过文件面\n（不落默认位不误报已写）；设自定义路径时写该路径；缺省走 config_dir 平台位。\nGOSUMDB 配套为引擎统一目标态（会覆盖用户自定义值，与 heal 同款权衡，R016 已注）。"
+      "docs": "生产入口（go）。GOENV 尊重（对线 F7）：进程/用户级 `GOENV` 设 `off` 时跳过文件面\n（不落默认位不误报已写）；设自定义路径时写该路径；缺省走 config_dir 平台位。\nGOSUMDB 配套为引擎统一目标态（会覆盖用户自定义值，与 heal 同款权衡，R016 已注）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_go_env_file",
       "kind": "function",
-      "docs": "GOENV 文件直写（对线 G1）：path 即目标文件本身（GOENV 自定义值就是文件路径，\n不得再拼目录层级）；内容比对幂等。"
+      "docs": "GOENV 文件直写（对线 G1）：path 即目标文件本身（GOENV 自定义值就是文件路径，\n不得再拼目录层级）；内容比对幂等。\n\n# Errors\n返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_go_env_in",
       "kind": "function",
-      "docs": "go 代理落 GOENV 文件（win `%APPDATA%\\go\\env`、POSIX `~/.config/go/env`，\n即 `go env -w` 的持久位，直写文件不依赖 go 二进制在位；目录注入便于测）。"
+      "docs": "go 代理落 GOENV 文件（win `%APPDATA%\\go\\env`、POSIX `~/.config/go/env`，\n即 `go env -w` 的持久位，直写文件不依赖 go 二进制在位；目录注入便于测）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_npmrc",
       "kind": "function",
-      "docs": "npm registry 落 `~/.npmrc`（UTF-8 无 BOM）。返回是否写入。"
+      "docs": "npm registry 落 `~/.npmrc`（UTF-8 无 BOM）。返回是否写入。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_pip_conf",
       "kind": "function",
-      "docs": "生产入口（pip）。"
+      "docs": "生产入口（pip）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_pip_conf_in",
       "kind": "function",
-      "docs": "pip index 落用户配置目录下 `pip/`（目录注入便于测）。返回是否写入。"
+      "docs": "pip index 落用户配置目录下 `pip/`（目录注入便于测）。返回是否写入。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_uv_toml",
       "kind": "function",
-      "docs": "生产入口（uv）：用户配置目录解析（dirs 同源，POSIX=XDG ~/.config、win=%APPDATA%）。"
+      "docs": "生产入口（uv）：用户配置目录解析（dirs 同源，POSIX=XDG ~/.config、win=%APPDATA%）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::ensure_uv_toml_in",
       "kind": "function",
-      "docs": "uv index 落用户配置目录下 `uv/uv.toml`（POSIX `~/.config/uv/`、win `%APPDATA%\\uv\\`，\nuv 各平台原生发现位；目录注入便于测）。返回是否写入。"
+      "docs": "uv index 落用户配置目录下 `uv/uv.toml`（POSIX `~/.config/uv/`、win `%APPDATA%\\uv\\`，\nuv 各平台原生发现位；目录注入便于测）。返回是否写入。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::env_key_sane",
@@ -570,7 +570,7 @@
     {
       "path": "ark::manifest::load",
       "kind": "function",
-      "docs": "载入 manifest.toml（传 catalog 路径，落位与消费同一推导）；缺文件返回空（零原语）；\n高 schema 版本拒载（报错由调用方传导）。"
+      "docs": "载入 manifest.toml（传 catalog 路径，落位与消费同一推导）；缺文件返回空（零原语）；\n高 schema 版本拒载（报错由调用方传导）。\n\n# Errors\n返回 Err（人读原因串）当：manifest schema_version {v} 高于引擎支持 {SUPPORTED_SCHEMA_VERSION}：请 ark self update 后重试 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::npmrc_upsert",
@@ -580,7 +580,7 @@
     {
       "path": "ark::manifest::parse",
       "kind": "function",
-      "docs": "解析（纯函数可测；反序列化走 toml_edit serde feature，零新增依赖）。"
+      "docs": "解析（纯函数可测；反序列化走 toml_edit serde feature，零新增依赖）。\n\n# Errors\n返回 Err（人读原因串）当：manifest schema_version {v} 高于引擎支持 {SUPPORTED_SCHEMA_VERSION}：请 ark self update 后重试 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::path_for",
@@ -610,7 +610,7 @@
     {
       "path": "ark::manifest::run_post_install",
       "kind": "function",
-      "docs": "L2：逐条执行受控命令；超时 300s 杀进程；失败只报不回滚，报告含退出码与输出尾行（R016 三节）。"
+      "docs": "L2：逐条执行受控命令；超时 300s 杀进程；失败只报不回滚，报告含退出码与输出尾行（R016 三节）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::manifest::shim_cmd_content",
@@ -650,7 +650,7 @@
     {
       "path": "ark::platform::add_user_path",
       "kind": "function",
-      "docs": "将 dir 注册进用户 PATH；返回是否实际新增。"
+      "docs": "将 dir 注册进用户 PATH；返回是否实际新增。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::default_env_root",
@@ -675,7 +675,7 @@
     {
       "path": "ark::platform::expand_env_vars",
       "kind": "function",
-      "docs": "展开环境变量引用。\nWindows：`%VAR%`；Linux / macOS：`$VAR` 与 `${VAR}`。"
+      "docs": "展开环境变量引用。\nWindows：`%VAR%`；Linux / macOS：`$VAR` 与 `${VAR}`。\n\n# Panics\n内嵌正则以 `expect` 构造，仅当静态正则模式非法时 panic（常量模式，实践中不可达）。"
     },
     {
       "path": "ark::platform::expand_install_path",
@@ -685,7 +685,7 @@
     {
       "path": "ark::platform::get_user_env_var",
       "kind": "function",
-      "docs": "读用户级环境变量（未设置返回 None）。Windows 读 HKCU\\Environment；\nLinux/macOS 读 profile 的 ome 标记块。heal 判 OK/HEALED 用。"
+      "docs": "读用户级环境变量（未设置返回 None）。Windows 读 HKCU\\Environment；\nLinux/macOS 读 profile 的 ome 标记块。heal 判 OK/HEALED 用。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::is_elevated",
@@ -715,12 +715,12 @@
     {
       "path": "ark::platform::machine_path_add",
       "kind": "function",
-      "docs": "把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。"
+      "docs": "把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::machine_path_contains",
       "kind": "function",
-      "docs": "机器 PATH 是否已含 dir（非 Windows 恒 false）。"
+      "docs": "机器 PATH 是否已含 dir（非 Windows 恒 false）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::merge_env_exports",
@@ -750,17 +750,17 @@
     {
       "path": "ark::platform::migrate_legacy_metadata",
       "kind": "function",
-      "docs": "元数据七件套搬迁（D41 C）：旧 `ohmyenv\\catalog` 在而新 `ark\\catalog` 缺件时逐件复制\n（copy 不 move：旧目录只读保留，旧二进制并行期仍读旧位；幂等：新位在即跳过）。\n返回是否有搬迁动作。init 与 self update 后接（搬迁后 metadata_dir 自然归位主名）。"
+      "docs": "元数据七件套搬迁（D41 C）：旧 `ohmyenv\\catalog` 在而新 `ark\\catalog` 缺件时逐件复制\n（copy 不 move：旧目录只读保留，旧二进制并行期仍读旧位；幂等：新位在即跳过）。\n返回是否有搬迁动作。init 与 self update 后接（搬迁后 metadata_dir 自然归位主名）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::migrate_legacy_metadata_in",
       "kind": "function",
-      "docs": "搬迁核心（传新旧根便于测）。"
+      "docs": "搬迁核心（传新旧根便于测）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::ome_alias_target",
       "kind": "function",
-      "docs": "`ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；\n落点保留供 `remove_ome_alias` 定位清理既有副本）。"
+      "docs": "`ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；\n落点保留供 `remove_ome_alias` 定位清理既有副本）。\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::path_entries_eq",
@@ -780,27 +780,27 @@
     {
       "path": "ark::platform::remove_ome_alias",
       "kind": "function",
-      "docs": "清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，\nWindows 文件占用时留待下次 init / self update 再收）。"
+      "docs": "清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，\nWindows 文件占用时留待下次 init / self update 再收）。\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::remove_user_env_var",
       "kind": "function",
-      "docs": "撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。\nWindows 删 HKCU\\Environment 值并同步当前进程；POSIX 摘 profile env 标记块内行。"
+      "docs": "撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。\nWindows 删 HKCU\\Environment 值并同步当前进程；POSIX 摘 profile env 标记块内行。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::remove_user_path",
       "kind": "function",
-      "docs": "从用户 PATH 移除 dir；返回是否实际移除。"
+      "docs": "从用户 PATH 移除 dir；返回是否实际移除。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::self_deploy_target",
       "kind": "function",
-      "docs": "自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。\nWindows：`%LOCALAPPDATA%\\Programs\\ark\\ark.exe`\nLinux / macOS：`~/.local/bin/ark`"
+      "docs": "自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。\nWindows：`%LOCALAPPDATA%\\Programs\\ark\\ark.exe`\nLinux / macOS：`~/.local/bin/ark`\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::set_user_env_var",
       "kind": "function",
-      "docs": "Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。"
+      "docs": "Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::user_env_write_blocked",
@@ -810,12 +810,12 @@
     {
       "path": "ark::platform::user_path_contains",
       "kind": "function",
-      "docs": "用户 PATH 是否已含 dir。"
+      "docs": "用户 PATH 是否已含 dir。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::platform::user_path_entries",
       "kind": "function",
-      "docs": "用户 PATH 原始条目（保序不去空；Windows 读 HKCU\\Environment，非 Windows 读 profile 标记块）。\ndoctor 诊断死链与重复条目用。"
+      "docs": "用户 PATH 原始条目（保序不去空；Windows 读 HKCU\\Environment，非 Windows 读 profile 标记块）。\ndoctor 诊断死链与重复条目用。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::render",
@@ -900,7 +900,7 @@
     {
       "path": "ark::resolve::resolve_tool",
       "kind": "function",
-      "docs": "解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。"
+      "docs": "解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。\n\n# Errors\n返回 Err（人读原因串）当：四分支各自的解析失败（网络、无匹配资产、校验缺）等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::resolve::strip_tag_prefix",
@@ -930,7 +930,7 @@
     {
       "path": "ark::rustup::install",
       "kind": "function",
-      "docs": "安装（幂等）：download 只落二进制（进程内重定位供 rustup-init 写入安装根）；\ndeploy（configure）才持久化用户环境变量、cargo 镜像与 PATH。"
+      "docs": "安装（幂等）：download 只落二进制（进程内重定位供 rustup-init 写入安装根）；\ndeploy（configure）才持久化用户环境变量、cargo 镜像与 PATH。\n\n# Errors\n返回 Err（人读原因串）当：rustup-init 失败 exit={} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::rustup::is_rustup",
@@ -960,27 +960,27 @@
     {
       "path": "ark::selfdeploy::deploy_copy",
       "kind": "function",
-      "docs": "复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。\n返回是否实际复制。"
+      "docs": "复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。\n返回是否实际复制。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::deploy_skill",
       "kind": "function",
-      "docs": "同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与\n使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。"
+      "docs": "同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与\n使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::render_skill",
       "kind": "function",
-      "docs": "自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、\n命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。"
+      "docs": "自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、\n命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::self_deploy",
       "kind": "function",
-      "docs": "Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。"
+      "docs": "Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。\n\n# Errors\n返回 Err（人读原因串）当：获取当前二进制路径失败 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::write_skill",
       "kind": "function",
-      "docs": "落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。"
+      "docs": "落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfupdate",
@@ -1005,12 +1005,12 @@
     {
       "path": "ark::selfupdate::asset_compat_for_this_platform",
       "kind": "function",
-      "docs": "兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史\nrelease 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在\n（历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，\n仅非 Windows 平台有效。"
+      "docs": "兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史\nrelease 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在\n（历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，\n仅非 Windows 平台有效。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfupdate::asset_for_this_platform",
       "kind": "function",
-      "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。"
+      "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfupdate::is_ome_self",
@@ -1020,7 +1020,7 @@
     {
       "path": "ark::selfupdate::self_update",
       "kind": "function",
-      "docs": "自升级主流程。"
+      "docs": "自升级主流程。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::status",
@@ -1045,12 +1045,12 @@
     {
       "path": "ark::status::collect_status",
       "kind": "function",
-      "docs": "收集全部工具三态（按 catalog 书写顺序）。"
+      "docs": "收集全部工具三态（按 catalog 书写顺序）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::status::collect_status_with",
       "kind": "function",
-      "docs": "流式收集：每探完一个工具立即回调 on_row（status 命令逐行输出的关键——\n探测要逐工具拉起 `--version` 子进程，整批探完才打印会被感知为卡顿）；\nverify 等纯数据消费方传空回调走 collect_status。"
+      "docs": "流式收集：每探完一个工具立即回调 on_row（status 命令逐行输出的关键——\n探测要逐工具拉起 `--version` 子进程，整批探完才打印会被感知为卡顿）；\nverify 等纯数据消费方传空回调走 collect_status。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::toolver",
@@ -1065,12 +1065,12 @@
     {
       "path": "ark::toolver::exe_path",
       "kind": "function",
-      "docs": "exe 路径解析：official（exe 使用环境变量或绝对路径）展开为绝对路径；\n其余 Windows 下相对 EnvRoot；Linux / macOS 下有平台专属 exe（`linux_exe`/`mac_exe`，\n相对 install_dir）走 dir 展开，回退通用 exe（Windows 风格，自带 dir 段）时相对 EnvRoot。\n布局含 `{version}` 占位（D43 zig 版本目录型）：无版本上下文时 glob 扫描占位段取\n**semver 最大**的在位版本（探测语义；字典序会把 0.9 排 0.16 前，M025 同型）；\n无在位版本返回占位填充 0.0.0 的路径（探测 Command 失败即 None=未装）。"
+      "docs": "exe 路径解析：official（exe 使用环境变量或绝对路径）展开为绝对路径；\n其余 Windows 下相对 EnvRoot；Linux / macOS 下有平台专属 exe（`linux_exe`/`mac_exe`，\n相对 install_dir）走 dir 展开，回退通用 exe（Windows 风格，自带 dir 段）时相对 EnvRoot。\n布局含 `{version}` 占位（D43 zig 版本目录型）：无版本上下文时 glob 扫描占位段取\n**semver 最大**的在位版本（探测语义；字典序会把 0.9 排 0.16 前，M025 同型）；\n无在位版本返回占位填充 0.0.0 的路径（探测 Command 失败即 None=未装）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::toolver::exe_path_for_version",
       "kind": "function",
-      "docs": "定版形态（D43）：占位以给定版本直替换（装后验证锚定刚装版本，glob 取 max 在\n降级场景会锚错）；无占位时与 `exe_path` 等价。"
+      "docs": "定版形态（D43）：占位以给定版本直替换（装后验证锚定刚装版本，glob 取 max 在\n降级场景会锚错）；无占位时与 `exe_path` 等价。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::toolver::expand_env_vars",
@@ -1140,12 +1140,12 @@
     {
       "path": "ark::verify::run_verify",
       "kind": "function",
-      "docs": "跑部署域验收（非流式兼容口）：内部走空回调。"
+      "docs": "跑部署域验收（非流式兼容口）：内部走空回调。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::verify::run_verify_with",
       "kind": "function",
-      "docs": "跑部署域验收（流式）：维度所需工具探完即经 emit 回调输出（保持注册表顺序中的可出即出），\n返回全部 (维度名, 判定)。filter 为空跑全部，否则只跑指定维度（未知维度报错）。\n探测逐工具拉起 --version 子进程，批量探完才输出会被感知为卡顿——与 status 同理走流式。"
+      "docs": "跑部署域验收（流式）：维度所需工具探完即经 emit 回调输出（保持注册表顺序中的可出即出），\n返回全部 (维度名, 判定)。filter 为空跑全部，否则只跑指定维度（未知维度报错）。\n探测逐工具拉起 --version 子进程，批量探完才输出会被感知为卡顿——与 status 同理走流式。\n\n# Errors\n返回 Err（人读原因串）当：未知验收维度: {want}（当前平台注册表内不存在） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::verify::summarize",
@@ -1180,7 +1180,7 @@
     {
       "path": "ark::vsbuild::install",
       "kind": "function",
-      "docs": "安装（幂等）。download 只跑引导器落二进制；deploy（configure）才写机器 PATH。"
+      "docs": "安装（幂等）。download 只跑引导器落二进制；deploy（configure）才写机器 PATH。\n\n# Errors\n返回 Err（人读原因串）当：gsudo 提权执行失败 exit={} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::vsbuild::install_root",

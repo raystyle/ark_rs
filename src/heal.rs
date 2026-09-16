@@ -349,6 +349,9 @@ fn applicable(def: &HealDef) -> bool {
 /// 跑自愈（流式）：维度动作完成即经 emit 回调输出。
 /// dim 为 `all` 或单维度名；dry_run 只打印计划不执行。
 /// 返回全部结果行；fail/partial 行由调用方汇总退出码。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：未知自愈维度: {dim}（当前平台可用: {}；heal all 跑全部） 等（完整失败面见函数体错误构造）。
 pub fn run_heal_with<F: FnMut(&HealRow) -> Result<(), String>>(
     cat: &Catalog,
     env_root: &Path,
@@ -658,6 +661,9 @@ const SECRETS_REQUIRED_MARKERS: &[&str] = &[
 /// POSIX：确保 ~/.config/ohmyenv-secrets/env.sh 存在且内容时效，并挂钩三个 rc；
 /// Windows：确保用户级 ANTHROPIC_BASE_URL 端点（密钥由 profile 惰性注入，本动作只补端点）。
 /// 返回 (是否有变更, 明细行)。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn heal_keys_carrier(home: &Path) -> Result<(bool, Vec<String>), String> {
     #[cfg(windows)]
     {
@@ -726,6 +732,9 @@ pub fn heal_keys_carrier(home: &Path) -> Result<(bool, Vec<String>), String> {
 // ── heal-mirror.py 原生移植（镜像源）──
 
 /// bunfig npmmirror：写语义单一权威在 manifest mirror 节（D42 收编，防双份漂移）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn heal_bunfig(home: &Path) -> Result<bool, String> {
     crate::manifest::ensure_bunfig(home, "https://registry.npmmirror.com/")
 }

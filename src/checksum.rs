@@ -57,6 +57,9 @@ where
 /// 本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**
 /// （资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。
 /// 否则查官方校验源，都没有则 None。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn expected_sha256(
     tool: &Tool,
     res: &Resolution,
@@ -80,6 +83,9 @@ pub fn expected_sha256(
 }
 
 /// 官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn official_sha256(
     tool: &Tool,
     res: &Resolution,

@@ -110,6 +110,9 @@ pub fn install(
 }
 
 /// 非 Windows 占位：docker-win 仅 Windows 语义。
+///
+/// # Errors
+/// 非 Windows 平台一律返回 Err（docker 接管仅 Windows）。
 #[cfg(not(windows))]
 pub fn install(
     _def: &Tool,

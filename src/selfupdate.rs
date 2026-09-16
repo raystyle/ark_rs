@@ -73,6 +73,9 @@ fn platform_triple() -> Result<&'static str, String> {
 }
 
 /// 编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
 pub fn asset_for_this_platform() -> Result<String, String> {
     Ok(format!("ark-{}", platform_triple()?))
 }
@@ -81,6 +84,9 @@ pub fn asset_for_this_platform() -> Result<String, String> {
 /// release 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在
 /// （历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，
 /// 仅非 Windows 平台有效。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
 pub fn asset_compat_for_this_platform() -> Result<String, String> {
     Ok(format!("ome-{}", platform_triple()?))
 }
@@ -100,6 +106,9 @@ fn asset_msvc_fallback() -> Option<String> {
 }
 
 /// 自升级主流程。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
 pub fn self_update(env_root: &Path, channel: Channel) -> Result<SelfUpdateOutcome, String> {
     match channel {
         Channel::Git => self_update_git(env_root),

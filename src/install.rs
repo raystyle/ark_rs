@@ -135,6 +135,9 @@ fn bin_dir(
 }
 
 /// 安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：危险路径，拒绝操作: {} 等（完整失败面见函数体错误构造）。
 pub fn install_tool(
     cat: &Catalog,
     env_root: &Path,

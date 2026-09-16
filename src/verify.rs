@@ -219,6 +219,9 @@ fn expand_probe(raw: &str, env_root: &Path) -> std::path::PathBuf {
 /// 跑部署域验收（流式）：维度所需工具探完即经 emit 回调输出（保持注册表顺序中的可出即出），
 /// 返回全部 (维度名, 判定)。filter 为空跑全部，否则只跑指定维度（未知维度报错）。
 /// 探测逐工具拉起 --version 子进程，批量探完才输出会被感知为卡顿——与 status 同理走流式。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：未知验收维度: {want}（当前平台注册表内不存在） 等（完整失败面见函数体错误构造）。
 pub fn run_verify_with<F: FnMut(&str, Verdict) -> Result<(), String>>(
     cat: &Catalog,
     env_root: &Path,
@@ -281,6 +284,9 @@ pub fn run_verify_with<F: FnMut(&str, Verdict) -> Result<(), String>>(
 }
 
 /// 跑部署域验收（非流式兼容口）：内部走空回调。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn run_verify(
     cat: &Catalog,
     env_root: &Path,

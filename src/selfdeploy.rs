@@ -24,6 +24,9 @@ pub struct SelfDeployOutcome {
 
 /// 复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。
 /// 返回是否实际复制。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn deploy_copy(src: &Path, dst: &Path) -> Result<bool, String> {
     let abs = |p: &Path| {
         std::path::absolute(p)
@@ -86,6 +89,9 @@ fn deploy_catalog() -> Result<Option<PathBuf>, String> {
 
 /// 同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与
 /// 使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn deploy_skill() -> Result<PathBuf, String> {
     let dst = platform::metadata_dir().join("SKILL.md");
     std::fs::create_dir_all(dst.parent().unwrap_or(Path::new(".")))
@@ -101,6 +107,9 @@ pub fn deploy_skill() -> Result<PathBuf, String> {
 }
 
 /// 落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn write_skill(text: &str) -> Result<PathBuf, String> {
     let dst = platform::metadata_dir().join("SKILL.md");
     std::fs::create_dir_all(dst.parent().unwrap_or(Path::new(".")))
@@ -111,6 +120,9 @@ pub fn write_skill(text: &str) -> Result<PathBuf, String> {
 
 /// 自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、
 /// 命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn render_skill(cat: &crate::catalog::Catalog, env_root: &Path) -> Result<String, String> {
     let srows = crate::status::collect_status(cat, env_root)?;
     let mut out = String::new();
@@ -244,6 +256,9 @@ pub fn self_deploy(env_root: &Path) -> Result<SelfDeployOutcome, String> {
 }
 
 /// Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：获取当前二进制路径失败 等（完整失败面见函数体错误构造）。
 #[cfg(not(windows))]
 pub fn self_deploy(_env_root: &Path) -> Result<SelfDeployOutcome, String> {
     let src = std::env::current_exe().map_err(|e| format!("获取当前二进制路径失败: {e}"))?;

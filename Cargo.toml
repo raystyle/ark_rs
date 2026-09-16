@@ -43,3 +43,9 @@ tempfile = "3"
 [lints.rust]
 # dev-evo tool-rust 强制口径（ADR-0006 第五十九批）：lib 公开项契约注释全覆盖
 missing_docs = "deny"
+
+[lints.clippy]
+# dev-evo 第六十批契约注释格式纪律：章节纪律 lint 面
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+missing_safety_doc = "warn"

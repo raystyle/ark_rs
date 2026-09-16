@@ -21,6 +21,9 @@ pub fn cache_path(env_root: &Path, asset_name: &str) -> PathBuf {
 }
 
 /// 计算文件 sha256，返回大写 hex（比较基准统一大写）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：sha256 校验失败: {}\n期望 {}\n实际 {} 等（完整失败面见函数体错误构造）。
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let f = File::open(path).map_err(|e| format!("打开文件失败: {}: {e}", path.display()))?;
     let mut reader = BufReader::new(f);
@@ -40,6 +43,9 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
 
 /// 下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。
 /// expected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：sha256 校验失败: {}\n期望 {}\n实际 {} 等（完整失败面见函数体错误构造）。
 pub fn download_asset(
     env_root: &Path,
     asset_name: &str,
@@ -72,6 +78,9 @@ pub fn download_asset(
 }
 
 /// 强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn download_fresh(env_root: &Path, asset_name: &str, url: &str) -> Result<PathBuf, String> {
     let dest = cache_path(env_root, asset_name);
     if let Some(dir) = dest.parent() {
@@ -123,6 +132,9 @@ fn now_secs() -> u64 {
 /// - 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；
 /// - 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，
 ///   CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn download_asset_with_mirror(
     env_root: &Path,
     asset_name: &str,
@@ -265,6 +277,9 @@ fn mirror_fetch_once(dest: &Path, url: &str, expected_sha256: Option<&str>) -> R
 }
 
 /// 边车文本解析 sha：标准清单行 `<sha>  <filename>`，取首 token 大写化（纯函数可测）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn parse_sidecar_sha(text: &str, sidecar_url: &str) -> Result<String, String> {
     text.split_whitespace()
         .next()
@@ -276,6 +291,9 @@ pub fn parse_sidecar_sha(text: &str, sidecar_url: &str) -> Result<String, String
 /// 镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，
 /// 镜像未播或不可达须秒级回落官方，完整重试链会让 evergreen 常态路径先赔数十秒）；
 /// 时间戳 query 每次回源（latest 段沙滚，边车必须取新）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn mirror_sidecar_sha(_env_root: &Path, sidecar_url: &str) -> Result<String, String> {
     mirror_sidecar_anchor_fast(sidecar_url)
 }
@@ -286,6 +304,9 @@ pub fn mirror_sidecar_sha(_env_root: &Path, sidecar_url: &str) -> Result<String,
 ///   唯一信任锚，沙滚语义；资产单次快速下载），任一步失败回落官方；
 /// - 官方段完整链兜底（evergreen 无 pin 锚，官方段无锚裸下与反转前镜像段口径一致）；
 /// - 双链全败才报错，错误信息带两段。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn download_latest_with_sidecar(
     env_root: &Path,
     asset_name: &str,
@@ -414,6 +435,9 @@ fn download_url(url: &str, dest: &Path) -> Result<(), String> {
 
 /// 单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。
 /// 与 download_url 的重试链分离：自动路径要在网络异常时快速退化，不拖慢用户命令。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn fetch_text_short(url: &str, timeout: Duration) -> Result<String, String> {
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(timeout)

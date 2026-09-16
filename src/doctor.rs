@@ -112,6 +112,9 @@ pub fn dep_group_stats(srows: &[StatusRow]) -> Vec<DepGroupStat> {
 
 /// 跑全部诊断项，流式形态：每项算完即经回调输出（三态采集期间先出 envroot 项，
 /// 采集完成即连出五个派生项；返回全量行供汇总）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn run_doctor_with<F>(
     cat: &Catalog,
     env_root: &Path,
@@ -126,6 +129,9 @@ where
 
 /// 同 run_doctor_with，但复用调用方已采集的三态行（cmd_doctor 三层诊断共用一次采集，
 /// 避免 41 工具版本探针跑两遍）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn run_doctor_with_status<F>(
     cat: &Catalog,
     env_root: &Path,
@@ -505,6 +511,9 @@ fn row_cfg(name: &'static str, ok: bool, what: &str, fix: &str) -> DoctorRow {
 }
 
 /// 收集全量形态（run_doctor_with 的空回调兼容口）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn run_doctor(cat: &Catalog, env_root: &Path) -> Result<Vec<DoctorRow>, String> {
     run_doctor_with(cat, env_root, |_| {})
 }

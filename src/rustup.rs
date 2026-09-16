@@ -114,6 +114,9 @@ pub fn init_args() -> Vec<String> {
 
 /// 安装（幂等）：download 只落二进制（进程内重定位供 rustup-init 写入安装根）；
 /// deploy（configure）才持久化用户环境变量、cargo 镜像与 PATH。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：rustup-init 失败 exit={} 等（完整失败面见函数体错误构造）。
 pub fn install(def: &Tool, env_root: &Path, configure: bool) -> Result<InstallOutcome, String> {
     #[cfg(windows)]
     {

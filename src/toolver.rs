@@ -19,12 +19,18 @@ use crate::catalog::Tool;
 /// 布局含 `{version}` 占位（D43 zig 版本目录型）：无版本上下文时 glob 扫描占位段取
 /// **semver 最大**的在位版本（探测语义；字典序会把 0.9 排 0.16 前，M025 同型）；
 /// 无在位版本返回占位填充 0.0.0 的路径（探测 Command 失败即 None=未装）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn exe_path(tool: &Tool, env_root: &Path) -> Result<PathBuf, String> {
     exe_path_inner(tool, env_root, None)
 }
 
 /// 定版形态（D43）：占位以给定版本直替换（装后验证锚定刚装版本，glob 取 max 在
 /// 降级场景会锚错）；无占位时与 `exe_path` 等价。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn exe_path_for_version(
     tool: &Tool,
     env_root: &Path,

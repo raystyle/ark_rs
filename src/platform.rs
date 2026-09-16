@@ -64,6 +64,9 @@ pub const METADATA_MIGRATION_FILES: [&str; 7] = [
 /// 元数据七件套搬迁（D41 C）：旧 `ohmyenv\catalog` 在而新 `ark\catalog` 缺件时逐件复制
 /// （copy 不 move：旧目录只读保留，旧二进制并行期仍读旧位；幂等：新位在即跳过）。
 /// 返回是否有搬迁动作。init 与 self update 后接（搬迁后 metadata_dir 自然归位主名）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn migrate_legacy_metadata() -> Result<bool, String> {
     let Some(old) = legacy_metadata_dir() else {
         return Ok(false);
@@ -72,6 +75,9 @@ pub fn migrate_legacy_metadata() -> Result<bool, String> {
 }
 
 /// 搬迁核心（传新旧根便于测）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn migrate_legacy_metadata_in(old: &Path, new: &Path) -> Result<bool, String> {
     let from = old.join("catalog");
     let to = new.join("catalog");
@@ -152,6 +158,9 @@ fn data_dir() -> PathBuf {
 /// 自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。
 /// Windows：`%LOCALAPPDATA%\Programs\ark\ark.exe`
 /// Linux / macOS：`~/.local/bin/ark`
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。
 pub fn self_deploy_target() -> Result<PathBuf, String> {
     #[cfg(windows)]
     {
@@ -195,6 +204,9 @@ pub fn legacy_deploy_dir() -> Option<PathBuf> {
 
 /// `ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；
 /// 落点保留供 `remove_ome_alias` 定位清理既有副本）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。
 pub fn ome_alias_target() -> Result<PathBuf, String> {
     let t = self_deploy_target()?;
     let name = if cfg!(windows) { "ome.exe" } else { "ome" };
@@ -203,6 +215,9 @@ pub fn ome_alias_target() -> Result<PathBuf, String> {
 
 /// 清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，
 /// Windows 文件占用时留待下次 init / self update 再收）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。
 pub fn remove_ome_alias() -> Result<bool, String> {
     let alias = ome_alias_target()?;
     remove_file_if_exists(&alias)
@@ -257,6 +272,9 @@ fn normalize(p: &Path) -> PathBuf {
 }
 
 /// 将 dir 注册进用户 PATH；返回是否实际新增。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn add_user_path(dir: &Path) -> Result<bool, String> {
     // O5（S017）：测试隔离开关——沙盒 EnvRoot 的集成测试不得污染真实注册面/Profile
     // （M002「沙盒漏写面」同型回归的根治；与 ARK_TEST_REAL/MIRROR 同为闸门口径）
@@ -284,6 +302,9 @@ pub fn add_user_path(dir: &Path) -> Result<bool, String> {
 }
 
 /// 从用户 PATH 移除 dir；返回是否实际移除。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn remove_user_path(dir: &Path) -> Result<bool, String> {
     #[cfg(windows)]
     {
@@ -296,6 +317,9 @@ pub fn remove_user_path(dir: &Path) -> Result<bool, String> {
 }
 
 /// 用户 PATH 是否已含 dir。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn user_path_contains(dir: &Path) -> Result<bool, String> {
     #[cfg(windows)]
     {
@@ -309,6 +333,9 @@ pub fn user_path_contains(dir: &Path) -> Result<bool, String> {
 
 /// 用户 PATH 原始条目（保序不去空；Windows 读 HKCU\Environment，非 Windows 读 profile 标记块）。
 /// doctor 诊断死链与重复条目用。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn user_path_entries() -> Result<Vec<String>, String> {
     #[cfg(windows)]
     {
@@ -522,6 +549,9 @@ pub fn ensure_profile_hook(marker: &str, lines: &[&str]) {
 }
 
 /// Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn set_user_env_var(key: &str, value: &str) -> Result<(), String> {
     if user_env_write_blocked() {
         eprintln!("[INFO] ARK_TEST_NO_PATH_REG=1：跳过用户级变量写入（测试隔离）: {key}");
@@ -539,6 +569,9 @@ pub fn set_user_env_var(key: &str, value: &str) -> Result<(), String> {
 
 /// 读用户级环境变量（未设置返回 None）。Windows 读 HKCU\Environment；
 /// Linux/macOS 读 profile 的 ome 标记块。heal 判 OK/HEALED 用。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn get_user_env_var(key: &str) -> Result<Option<String>, String> {
     #[cfg(windows)]
     {
@@ -552,6 +585,9 @@ pub fn get_user_env_var(key: &str) -> Result<Option<String>, String> {
 
 /// 撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。
 /// Windows 删 HKCU\Environment 值并同步当前进程；POSIX 摘 profile env 标记块内行。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn remove_user_env_var(key: &str) -> Result<bool, String> {
     if user_env_write_blocked() {
         eprintln!("[INFO] ARK_TEST_NO_PATH_REG=1：跳过用户级变量撤除（测试隔离）: {key}");
@@ -622,6 +658,9 @@ pub fn is_elevated() -> bool {
 }
 
 /// 机器 PATH 是否已含 dir（非 Windows 恒 false）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn machine_path_contains(dir: &Path) -> Result<bool, String> {
     #[cfg(windows)]
     {
@@ -635,6 +674,9 @@ pub fn machine_path_contains(dir: &Path) -> Result<bool, String> {
 }
 
 /// 把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn machine_path_add(dirs: &[PathBuf]) -> Result<bool, String> {
     #[cfg(windows)]
     {
@@ -649,6 +691,9 @@ pub fn machine_path_add(dirs: &[PathBuf]) -> Result<bool, String> {
 
 /// 展开环境变量引用。
 /// Windows：`%VAR%`；Linux / macOS：`$VAR` 与 `${VAR}`。
+///
+/// # Panics
+/// 内嵌正则以 `expect` 构造，仅当静态正则模式非法时 panic（常量模式，实践中不可达）。
 pub fn expand_env_vars(s: &str) -> String {
     #[cfg(windows)]
     {

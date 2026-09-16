@@ -27,6 +27,9 @@ pub struct StatusRow {
 }
 
 /// 收集全部工具三态（按 catalog 书写顺序）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn collect_status(cat: &Catalog, env_root: &Path) -> Result<Vec<StatusRow>, String> {
     collect_status_with(cat, env_root, |_| Ok(()))
 }
@@ -34,6 +37,9 @@ pub fn collect_status(cat: &Catalog, env_root: &Path) -> Result<Vec<StatusRow>, 
 /// 流式收集：每探完一个工具立即回调 on_row（status 命令逐行输出的关键——
 /// 探测要逐工具拉起 `--version` 子进程，整批探完才打印会被感知为卡顿）；
 /// verify 等纯数据消费方传空回调走 collect_status。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn collect_status_with<F: FnMut(&StatusRow) -> Result<(), String>>(
     cat: &Catalog,
     env_root: &Path,

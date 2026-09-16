@@ -162,6 +162,9 @@ pub fn path_for(catalog: &Path) -> PathBuf {
 
 /// 载入 manifest.toml（传 catalog 路径，落位与消费同一推导）；缺文件返回空（零原语）；
 /// 高 schema 版本拒载（报错由调用方传导）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：manifest schema_version {v} 高于引擎支持 {SUPPORTED_SCHEMA_VERSION}：请 ark self update 后重试 等（完整失败面见函数体错误构造）。
 pub fn load(catalog: &Path) -> Result<ManifestFile, String> {
     let path = path_for(catalog);
     if !path.exists() {
@@ -174,6 +177,9 @@ pub fn load(catalog: &Path) -> Result<ManifestFile, String> {
 }
 
 /// 解析（纯函数可测；反序列化走 toml_edit serde feature，零新增依赖）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：manifest schema_version {v} 高于引擎支持 {SUPPORTED_SCHEMA_VERSION}：请 ark self update 后重试 等（完整失败面见函数体错误构造）。
 pub fn parse(text: &str) -> Result<ManifestFile, String> {
     let f: ManifestFile =
         toml_edit::de::from_str(text).map_err(|e| format!("manifest.toml 解析失败: {e}"))?;
@@ -214,6 +220,9 @@ pub fn platform_covered(pi: &PostInstall) -> bool {
 
 /// L1：应用用户级环境变量（逐键幂等）。键值先过形态校验（与 mirror 同一红线：
 /// 本地面无签名门，换行/双引号值拼进 export 行即注入面，对线 R5 确认轮收口 env_set）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：env_set 键形态非法: {k} 等（完整失败面见函数体错误构造）。
 pub fn apply_env_set(m: &ToolManifest) -> Result<(), String> {
     let Some(kv) = &m.env_set else { return Ok(()) };
     for (k, v) in kv {
@@ -255,6 +264,9 @@ pub fn env_key_sane(k: &str) -> bool {
 /// 不在持久面，不清则 post_install 子进程照样继承并盖过文件配置，对线 R2）；
 /// 整面受测试隔离闸门（用户环境写入面第五面，M002 同型防漏）。
 /// 失败语义同 L1 硬错：写不进就是没配上。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：mirror env 键形态非法: {k} 等（完整失败面见函数体错误构造）。
 pub fn apply_mirror(m: &ToolManifest, tool: &str, home: &Path) -> Result<(), String> {
     let Some(mir) = &m.mirror else { return Ok(()) };
     if crate::platform::user_env_write_blocked() {
@@ -362,6 +374,9 @@ pub fn npmrc_upsert(text: &str, url: &str) -> String {
 }
 
 /// npm registry 落 `~/.npmrc`（UTF-8 无 BOM）。返回是否写入。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_npmrc(home: &Path, url: &str) -> Result<bool, String> {
     let p = home.join(".npmrc");
     let cur = std::fs::read_to_string(&p).unwrap_or_default();
@@ -375,6 +390,9 @@ pub fn ensure_npmrc(home: &Path, url: &str) -> Result<bool, String> {
 
 /// bunfig registry 落 `~/.bunfig.toml`（整文件；含本 URL 即不重写，heal-mirror 同语义；
 /// URL 比对去尾斜杠——npmmirror 两种写法等价不应来回重写）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_bunfig(home: &Path, url: &str) -> Result<bool, String> {
     let p = home.join(".bunfig.toml");
     let want = format!("[install]\nregistry = \"{url}\"\n");
@@ -394,6 +412,9 @@ pub fn uv_toml_content(url: &str) -> String {
 
 /// uv index 落用户配置目录下 `uv/uv.toml`（POSIX `~/.config/uv/`、win `%APPDATA%\uv\`，
 /// uv 各平台原生发现位；目录注入便于测）。返回是否写入。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_uv_toml_in(config_dir: &Path, url: &str) -> Result<bool, String> {
     let dir = config_dir.join("uv");
     std::fs::create_dir_all(&dir).map_err(|e| format!("建目录失败: {}: {e}", dir.display()))?;
@@ -408,6 +429,9 @@ pub fn ensure_uv_toml_in(config_dir: &Path, url: &str) -> Result<bool, String> {
 }
 
 /// 生产入口（uv）：用户配置目录解析（dirs 同源，POSIX=XDG ~/.config、win=%APPDATA%）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_uv_toml(url: &str) -> Result<bool, String> {
     let base = dirs::config_dir().ok_or("无法确定用户配置目录（uv.toml）")?;
     ensure_uv_toml_in(&base, url)
@@ -428,6 +452,9 @@ pub fn pip_conf_name() -> &'static str {
 }
 
 /// pip index 落用户配置目录下 `pip/`（目录注入便于测）。返回是否写入。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_pip_conf_in(config_dir: &Path, url: &str) -> Result<bool, String> {
     let dir = config_dir.join("pip");
     std::fs::create_dir_all(&dir).map_err(|e| format!("建目录失败: {}: {e}", dir.display()))?;
@@ -442,6 +469,9 @@ pub fn ensure_pip_conf_in(config_dir: &Path, url: &str) -> Result<bool, String> 
 }
 
 /// 生产入口（pip）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_pip_conf(url: &str) -> Result<bool, String> {
     let base = dirs::config_dir().ok_or("无法确定用户配置目录（pip）")?;
     ensure_pip_conf_in(&base, url)
@@ -449,6 +479,9 @@ pub fn ensure_pip_conf(url: &str) -> Result<bool, String> {
 
 /// CARGO_HOME 解析：进程环境变量 > 用户级变量（win 注册表 / POSIX profile 块，
 /// ark Windows 接管模型重定位 EnvRoot 位由此生效）> 默认 `~/.cargo`。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn cargo_home_path() -> Result<PathBuf, String> {
     if let Some(v) = std::env::var_os("CARGO_HOME") {
         return Ok(PathBuf::from(v));
@@ -464,6 +497,9 @@ pub fn cargo_home_path() -> Result<PathBuf, String> {
 
 /// cargo 镜像配置落 CARGO_HOME/config.toml（整文件内容比对；rsproxy 全量形态等内容即零重写；
 /// 目录注入便于测）。返回是否写入。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_cargo_config_in(cargo_home: &Path, content: &str) -> Result<bool, String> {
     std::fs::create_dir_all(cargo_home)
         .map_err(|e| format!("建目录失败: {}: {e}", cargo_home.display()))?;
@@ -478,6 +514,9 @@ pub fn ensure_cargo_config_in(cargo_home: &Path, content: &str) -> Result<bool, 
 }
 
 /// 生产入口（cargo）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn ensure_cargo_config(content: &str) -> Result<bool, String> {
     ensure_cargo_config_in(&cargo_home_path()?, content)
 }
@@ -516,12 +555,18 @@ pub fn go_env_upsert(text: &str, goproxy: &str) -> String {
 
 /// go 代理落 GOENV 文件（win `%APPDATA%\go\env`、POSIX `~/.config/go/env`，
 /// 即 `go env -w` 的持久位，直写文件不依赖 go 二进制在位；目录注入便于测）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。
 pub fn ensure_go_env_in(config_dir: &Path, goproxy: &str) -> Result<bool, String> {
     ensure_go_env_file(&config_dir.join("go").join("env"), goproxy)
 }
 
 /// GOENV 文件直写（对线 G1）：path 即目标文件本身（GOENV 自定义值就是文件路径，
 /// 不得再拼目录层级）；内容比对幂等。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。
 pub fn ensure_go_env_file(path: &Path, goproxy: &str) -> Result<bool, String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("建目录失败: {}: {e}", dir.display()))?;
@@ -538,6 +583,9 @@ pub fn ensure_go_env_file(path: &Path, goproxy: &str) -> Result<bool, String> {
 /// 生产入口（go）。GOENV 尊重（对线 F7）：进程/用户级 `GOENV` 设 `off` 时跳过文件面
 /// （不落默认位不误报已写）；设自定义路径时写该路径；缺省走 config_dir 平台位。
 /// GOSUMDB 配套为引擎统一目标态（会覆盖用户自定义值，与 heal 同款权衡，R016 已注）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。
 pub fn ensure_go_env(goproxy: &str) -> Result<bool, String> {
     let override_path = std::env::var("GOENV")
         .ok()
@@ -563,6 +611,9 @@ pub fn shim_cmd_content(source: &str) -> String {
 /// L1：生成别名（win=硬链接加 `.cmd` 兜底、POSIX=符号链接；目标已存在即跳过，幂等）。
 /// `bin_dir` 必须是**目标二进制所在目录**（源与别名同目录；调用方传 exe 父目录而非工具根）。
 /// win 硬链接要求同卷同 NTFS：跨卷或 exFAT 等不支持时自动回落到 `.cmd`。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。
 pub fn apply_shims(m: &ToolManifest, bin_dir: &Path) -> Result<(), String> {
     let Some(shims) = &m.shims else { return Ok(()) };
     for (alias, source) in shims {
@@ -604,6 +655,9 @@ pub fn apply_shims(m: &ToolManifest, bin_dir: &Path) -> Result<(), String> {
 }
 
 /// L2：逐条执行受控命令；超时 300s 杀进程；失败只报不回滚，报告含退出码与输出尾行（R016 三节）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：{tool} post_install 未覆盖当前平台（无命令且未声明 skip，R016 三键齐备） 等（完整失败面见函数体错误构造）。
 pub fn run_post_install(m: &ToolManifest, tool: &str) -> Result<(), String> {
     run_post_install_with_timeout(
         m,

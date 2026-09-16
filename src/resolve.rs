@@ -50,6 +50,9 @@ pub struct Resolution {
 }
 
 /// 解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：四分支各自的解析失败（网络、无匹配资产、校验缺）等（完整失败面见函数体错误构造）。
 pub fn resolve_tool(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Resolution, String> {
     if tool.extract() == Some("uv-git") {
         resolve_uv_git(name, tool, opts)
