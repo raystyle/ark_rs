@@ -203,3 +203,122 @@ asset = "jq-windows-amd64.exe"
         // 接线可见：幂等分支进到 mirror 落源，被测试闸门拦下（真实 HOME 零写入）
         .stderr(contains("跳过 jq mirror 落源（测试隔离）"));
 }
+
+/// REQ-0003：PATH 存量已达锁定版纳管（update 面）——自管位假 exe（版本输出等于 pin）在 PATH、
+/// EnvRoot 未装时，update 视为已达态跳过；cdn_url 为无效域，若走装链必失败，跳过即证未触
+/// 下载（纳管分支在 resolve 之前，也不触解析网络）。
+#[test]
+fn update_自管位path达锁定版纳管跳过() {
+    let (exe_name, exe_content, exe_field) = if cfg!(windows) {
+        (
+            "selftool.cmd",
+            "@echo selftool 1.0.0\r\n",
+            r#"exe = 'selftool\selftool.exe'"#,
+        )
+    } else {
+        (
+            "selftool",
+            "#!/bin/sh\necho selftool 1.0.0\n",
+            r#"linux_exe = 'selftool/selftool'"#,
+        )
+    };
+    let catalog_text = format!(
+        r#"
+[tools.selftool]
+dir = "selftool"
+{exe_field}
+probe_pattern = '(\d+\.\d+\.\d+)'
+extract = "copy"
+cdn_url = "https://example.invalid/selftool.exe"
+linux_cdn_url = "https://example.invalid/selftool-linux.exe"
+tag = "v1.0.0"
+version = "1.0.0"
+linux_version = "1.0.0"
+asset = "selftool.exe"
+"#
+    );
+    let (guard, catalog, env_root) = sandbox(&catalog_text);
+    // PATH 假 bin：自管位形态（不在 EnvRoot 下）
+    let fake_bin = guard.path().join("fakebin");
+    fs::create_dir_all(&fake_bin).expect("创建假 bin 失败");
+    let fake_exe = fake_bin.join(exe_name);
+    fs::write(&fake_exe, exe_content).expect("写假 exe 失败");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_exe, fs::Permissions::from_mode(0o755))
+            .expect("假 exe 加执行位失败");
+    }
+    let path_env = std::env::join_paths(std::iter::once(fake_bin.clone()).chain(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+    ))
+    .expect("拼 PATH 失败");
+
+    ome(&catalog, &env_root)
+        .env("PATH", &path_env)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", "selftool"])
+        .assert()
+        .success()
+        .stdout(contains("action=skipped"))
+        .stderr(contains("纳管跳过"));
+}
+
+/// REQ-0003（收窄裁定）：install 是「显式装入管理面」意图，PATH 存量同版不拦；
+/// 走装链（无效域下载失败即证穿透，无纳管 INFO）。
+#[test]
+fn install_自管位path存量不拦显式装() {
+    let (exe_name, exe_content, exe_field) = if cfg!(windows) {
+        (
+            "selftool.cmd",
+            "@echo selftool 1.0.0\r\n",
+            r#"exe = 'selftool\selftool.exe'"#,
+        )
+    } else {
+        (
+            "selftool",
+            "#!/bin/sh\necho selftool 1.0.0\n",
+            r#"linux_exe = 'selftool/selftool'"#,
+        )
+    };
+    let catalog_text = format!(
+        r#"
+[tools.selftool]
+dir = "selftool"
+{exe_field}
+probe_pattern = '(\d+\.\d+\.\d+)'
+extract = "copy"
+cdn_url = "https://example.invalid/selftool.exe"
+linux_cdn_url = "https://example.invalid/selftool-linux.exe"
+tag = "v1.0.0"
+version = "1.0.0"
+linux_version = "1.0.0"
+asset = "selftool.exe"
+"#
+    );
+    let (guard, catalog, env_root) = sandbox(&catalog_text);
+    let fake_bin = guard.path().join("fakebin");
+    fs::create_dir_all(&fake_bin).expect("创建假 bin 失败");
+    let fake_exe = fake_bin.join(exe_name);
+    fs::write(&fake_exe, exe_content).expect("写假 exe 失败");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake_exe, fs::Permissions::from_mode(0o755))
+            .expect("假 exe 加执行位失败");
+    }
+    let path_env = std::env::join_paths(std::iter::once(fake_bin.clone()).chain(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+    ))
+    .expect("拼 PATH 失败");
+
+    ome(&catalog, &env_root)
+        .env("PATH", &path_env)
+        .env("ARK_OFFLINE", "1")
+        .args(["install", "selftool"])
+        .assert()
+        .failure()
+        .stderr(contains("纳管跳过").not())
+        // 失败点锚定在下载段（无效域），防失败点前移到 resolve 时用例空转
+        .stderr(contains("example.invalid"));
+}

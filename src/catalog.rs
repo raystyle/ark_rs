@@ -1033,7 +1033,8 @@ fn probe_keys_single_shot(
 }
 
 /// 云端清单锚解析（键读序：先单次短探定键（404 短路），命中键再走完整下载链取权威锚
-/// （重试加 curl 兜底）；命令面用）。
+/// （重试加 curl 兜底）；命令面用）。时间戳击穿在 fetch 层（mirror_sidecar_anchor_fast，
+/// 996d342 起）统一做，call-site 不双写（对线裁定：REQ-0004 原 RCA 不成立）。
 fn resolve_cloud_sha(env_root: &Path) -> Result<(&'static str, String), String> {
     let (key, _) = probe_cloud_sha()?;
     let sha = crate::download::mirror_sidecar_sha(env_root, &cloud_sidecar_url(key))?;

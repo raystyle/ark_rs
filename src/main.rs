@@ -1023,6 +1023,41 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             );
             continue;
         }
+        // PATH 存量已达锁定版纳管（REQ-0003，对线修正批）：自管位工具（hst 族
+        // self-update 通道等）PATH 版本已达 pin 而 EnvRoot 未装时，视为已达态跳过
+        // （避免 EnvRoot 双份副本与无谓的 resolve 网络调用）。位置在自管与 rustup 与
+        // vsbuild 与平台与 hold 判定之后（对线裁定：更早会截获 tools.ark 等自管条目，
+        // 翻转 version=self-managed 机读契约）；判据用 pin_drift 数值口径（与 D49 同尺，
+        // 防形态差异静默失效）；PATH 落后不纳管（D49 真装语义不变）；--force 走真装。
+        if !force {
+            if let Some(pin) = def.pin_version() {
+                if let Some(found) = ark::toolver::find_on_path(name) {
+                    let env_installed = toolver::exe_path(def, env_root)
+                        .map(|exe| exe.exists())
+                        .unwrap_or(false);
+                    if !env_installed
+                        && toolver::pin_drift(
+                            toolver::installed_version(&found, def).as_deref(),
+                            pin,
+                        ) == toolver::PinDrift::Current
+                    {
+                        eprintln!(
+                            "[INFO] {name} 已在 PATH 装锁定版 {pin}（{}），纳管跳过（--force 走真装）",
+                            found.display()
+                        );
+                        emit_block(
+                            &mut first,
+                            vec![
+                                kv("tool", name),
+                                kv("action", "skipped"),
+                                kv("version", pin),
+                            ],
+                        );
+                        continue;
+                    }
+                }
+            }
+        }
         let step = resolve_tool(name, def, &ropts).and_then(|r| {
             if def.pin_tag() == Some(r.tag.as_str()) {
                 // D49 漂移收口：云端无新版（resolve==pin）时再对照本机 installed 三态——

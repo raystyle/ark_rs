@@ -174,6 +174,8 @@ pub fn install_tool(
 
     // ── agent 类存量纳管（D07，2026-09-05 用户三裁延续）：PATH 任意位在位即跳过，
     //    不迁移不重装（对齐 oma agents install 的「已装任何来源即跳过」判定）；--force 才装 EnvRoot ──
+    //  注意：非 agent 工具不在此纳管（install 是「显式装入管理面」意图，PATH 同版不拦，
+    //  REQ-0003 收窄裁定：PATH 存量已达锁定版的纳管只在 update 面）。
     if def.category.as_deref() == Some("agent") && !opts.force {
         if let Some(found) = toolver::find_on_path(name) {
             eprintln!(

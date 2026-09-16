@@ -208,11 +208,11 @@ fn download_asset_with_mirror_urls(
 /// 镜像边车锚单次快取（对线 F1/F3）：单次短超时取文本（不退避不 curl——镜像未播属常态，
 /// 须秒级判明），解析首 token 64-hex 大写；`mirror_sidecar_sha` 的快速版。
 fn mirror_sidecar_anchor_fast(sidecar_url: &str) -> Result<String, String> {
-    let text = fetch_text_short(
-        &with_query(sidecar_url, &format!("t={}", now_secs())),
-        Duration::from_secs(20),
-    )?;
-    parse_sidecar_sha(&text, sidecar_url)
+    // 错误串印实际请求 URL（对线修正批）：入参是裸 URL、实际带 t 击穿 query，此前错误串
+    // 只印入参会造成「此跳没穿」的误判（REQ-0004 原 RCA 即源于此）。
+    let url = with_query(sidecar_url, &format!("t={}", now_secs()));
+    let text = fetch_text_short(&url, Duration::from_secs(20))?;
+    parse_sidecar_sha(&text, &url)
 }
 
 /// 缓存三分支（原 download_asset 前半，提取共用）：命中返回 Some(dest)。
