@@ -215,6 +215,13 @@ fn update_自管位path达锁定版纳管跳过() {
             "@echo selftool 1.0.0\r\n",
             r#"exe = 'selftool\selftool.exe'"#,
         )
+    } else if cfg!(target_os = "macos") {
+        // platform_managed 在 mac 只认 mac_exe（linux_exe 回退会把 Linux 资产当 mac 在管）
+        (
+            "selftool",
+            "#!/bin/sh\necho selftool 1.0.0\n",
+            r#"mac_exe = 'selftool/selftool'"#,
+        )
     } else {
         (
             "selftool",
@@ -273,6 +280,13 @@ fn install_自管位path存量不拦显式装() {
             "selftool.cmd",
             "@echo selftool 1.0.0\r\n",
             r#"exe = 'selftool\selftool.exe'"#,
+        )
+    } else if cfg!(target_os = "macos") {
+        // platform_managed 在 mac 只认 mac_exe（linux_exe 回退会把 Linux 资产当 mac 在管）
+        (
+            "selftool",
+            "#!/bin/sh\necho selftool 1.0.0\n",
+            r#"mac_exe = 'selftool/selftool'"#,
         )
     } else {
         (
