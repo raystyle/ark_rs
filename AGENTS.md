@@ -62,5 +62,5 @@
 - 编码：Markdown 与 Rust 源码 UTF-8；兼容 5.1 的 ps1 用 UTF-8 BOM
 - 分支模型：GitHub Flow 单干变体（直推 main 为基线，2026-09-08 裁）；并行会话或危险大改开短命分支，验证后 squash 进 main 并删
 - 门禁：dev-evo check.py（PE-01 至 PE-12）加本仓四件套（rumdl 加 md 三扫描）并存
-- 全平台直测：四端测试验收在局（2026-09-16），lan-mac 与 lan-ubuntu 与 lan-linux 走 ssh 直通，宿主 lan-win 走 PS 通道与 Interop；各端归 ohmycloud 舰队管理，装拆前对齐；验收按需向 ohmycloud 总台要端点支撑，结论 conclusion 自取
+- 全平台直测：四端测试验收在局（2026-09-16），lan-mac 与 lan-ubuntu 与 lan-linux mesh 随时随地；WSL 到宿主恒走 127.0.0.1 回环 ssh 加 interop 直调，不走宿主 mesh IP（口径全文见 dev-evo env-platform.md 第十节）；各端归 ohmycloud 舰队管理，装拆前对齐；验收按需向 ohmycloud 总台要端点支撑，结论 conclusion 自取；多仓飞轮协作协议见 dev-evo flow-flywheel.md（本仓派单回执实践即其实证源）
 - 当前阶段：v1.2.2 已发（D46 gnu 交叉）；Unreleased 窗攒 D49 与 bug4；D41 ome 兼容面与 D46/D47/D48 fork 分发链均已闭环
