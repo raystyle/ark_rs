@@ -18,7 +18,7 @@
 - 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL`（读回 `OME_TEST_REAL`）闸门 skip
 - 格式与静态检查：`cargo fmt --check` 与 `cargo clippy --release --locked`（改 Rust 必跑）；lib 面 `missing_docs` 为 deny（Cargo.toml lints，ADR-0006 第五十九批强制口径）
 - aidoc 投影：改 pub 项后 `cargo aidoc` 生成并同提交 `docs/aidoc/`（生成物手改被覆盖）；漂移门禁 `cargo aidoc --check --strict`
-- 文档骨架合规：`PEVO_CHECK_ALLOW="^docs/aidoc/" uv run /mnt/d/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .`（退出码 0；豁免在册，aidoc 条目分隔符 em dash 是渲染格式无开关，真门禁是 aidoc --check --strict）
+- 文档骨架合规：`PEVO_CHECK_ALLOW="^docs/aidoc/" uv run ~/repos/ProjectEvo/plugins/project-evo/skills/dev-evo/scripts/check.py .`（退出码 0；豁免在册，aidoc 条目分隔符 em dash 是渲染格式无开关，真门禁是 aidoc --check --strict）
 - 提交：`feat:` / `docs:` / `fix:` / `chore:` 前缀加中文描述；一次提交只做一件事；未经指示不推远端
 
 ## Must
