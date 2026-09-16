@@ -8,10 +8,8 @@ Windows 顺带清理旧自部署位 `<EnvRoot>\ome\bin` 的 PATH 残留。
 ## Functions
 
 - `deploy_copy` — 复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。
-- `deploy_skill` — 同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与
-- `render_skill` — 自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、
+- `remove_legacy_skill` — 清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。
 - `self_deploy` — Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。
-- `write_skill` — 落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。
 
 ## Types
 

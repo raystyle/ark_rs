@@ -87,123 +87,19 @@ fn deploy_catalog() -> Result<Option<PathBuf>, String> {
     Ok(Some(dst))
 }
 
-/// 同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与
-/// 使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。
+/// 清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。
+/// 在则删返回 true；不在返回 false（幂等静默）。
 ///
 /// # Errors
-/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
-pub fn deploy_skill() -> Result<PathBuf, String> {
+/// 返回 Err（人读原因串）当：删除失败（文件占用等） 等（完整失败面见函数体错误构造）。
+pub fn remove_legacy_skill() -> Result<bool, String> {
     let dst = platform::metadata_dir().join("SKILL.md");
-    std::fs::create_dir_all(dst.parent().unwrap_or(Path::new(".")))
-        .map_err(|e| format!("创建数据目录失败: {e}"))?;
-    // init 路径无现成渲染文本：写静态骨架（命令图与工作流），`ark skill` 再充实环境清单
-    let want = include_str!("../SKILL.md");
-    let cur = std::fs::read_to_string(&dst).unwrap_or_default();
-    if cur != want {
-        std::fs::write(&dst, want).map_err(|e| format!("写 SKILL.md 失败: {e}"))?;
-        eprintln!("[OK] 已同步 SKILL.md: {}", dst.display());
+    if !dst.exists() {
+        return Ok(false);
     }
-    Ok(dst)
-}
-
-/// 落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。
-///
-/// # Errors
-/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
-pub fn write_skill(text: &str) -> Result<PathBuf, String> {
-    let dst = platform::metadata_dir().join("SKILL.md");
-    std::fs::create_dir_all(dst.parent().unwrap_or(Path::new(".")))
-        .map_err(|e| format!("创建数据目录失败: {e}"))?;
-    std::fs::write(&dst, text).map_err(|e| format!("写 SKILL.md 失败: {e}"))?;
-    Ok(dst)
-}
-
-/// 自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、
-/// 命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。
-///
-/// # Errors
-/// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
-pub fn render_skill(cat: &crate::catalog::Catalog, env_root: &Path) -> Result<String, String> {
-    let srows = crate::status::collect_status(cat, env_root)?;
-    let mut out = String::new();
-    out.push_str("# SKILL.md：ark 环境自适应清单\n\n> 由 `ark skill` 生成（快照随环境变化，缺什么 `ark install` 补）。\n\n");
-    out.push_str("## 本机依赖与逐工具引导\n\n");
-    for (cat_key, label) in crate::status::GROUPS {
-        let group: Vec<&crate::status::StatusRow> =
-            srows.iter().filter(|r| &r.category == cat_key).collect();
-        if group.is_empty() {
-            continue;
-        }
-        out.push_str(&format!("### {label}\n\n"));
-        for r in &group {
-            let def = match cat.tool(&r.name) {
-                Ok(d) => d,
-                Err(_) => continue,
-            };
-            // 三态标记：已装带版本；未装区分可装与本平台不适用空态
-            let state = if let Some(v) = &r.installed {
-                format!("已装 {v}")
-            } else if crate::toolver::platform_managed(def) {
-                "未装（`ark install` 补）".to_string()
-            } else {
-                "本平台不适用（空态）".to_string()
-            };
-            out.push_str(&format!("#### {} · {}\n\n", r.name, state));
-            if !def.desc().is_empty() {
-                out.push_str(&format!("- 用途：{}\n", def.desc()));
-            }
-            if r.installed.is_some() {
-                if let Some(exe) = &r.exe {
-                    out.push_str(&format!("- exe：{}\n", exe.display()));
-                }
-            }
-            // env 实测（用户级优先、进程级兜底）；凭据类键只显在否不显值（doctor 同纪律）
-            if !def.guide_env().is_empty() {
-                let parts: Vec<String> = def
-                    .guide_env()
-                    .iter()
-                    .map(|k| {
-                        let up = k.to_uppercase();
-                        let secret = up.contains("TOKEN")
-                            || up.contains("KEY")
-                            || up.contains("SECRET")
-                            || up.contains("PASSWORD");
-                        let val = crate::platform::get_user_env_var(k)
-                            .ok()
-                            .flatten()
-                            .or_else(|| std::env::var(k).ok());
-                        match val {
-                            Some(_) if secret => format!("{k}=已设（值不显示）"),
-                            Some(v) => format!("{k}={v}"),
-                            None => format!("{k}=未设"),
-                        }
-                    })
-                    .collect();
-                out.push_str(&format!("- env：{}\n", parts.join("；")));
-            }
-            // 安装/数据目录实测（展开 ~ 与环境变量；在位与否如实标）
-            if !def.guide_dirs().is_empty() {
-                let parts: Vec<String> = def
-                    .guide_dirs()
-                    .iter()
-                    .map(|d| {
-                        let p = crate::platform::expand_install_path(
-                            &crate::platform::expand_env_vars(d),
-                        );
-                        let mark = if Path::new(&p).exists() { "在" } else { "无" };
-                        format!("{}（{mark}）", p.display())
-                    })
-                    .collect();
-                out.push_str(&format!("- 目录：{}\n", parts.join("；")));
-            }
-            for line in def.guide_notes().lines().filter(|l| !l.trim().is_empty()) {
-                out.push_str(&format!("- 注意：{}\n", line));
-            }
-            out.push('\n');
-        }
-    }
-    out.push_str("## ark 命令与工作流\n\n- 诊断环境：`ark doctor`（系统/依赖两层 + check 节 + verdict 一锤定音：ready/degraded/broken）\n- 缺什么装什么：`ark install`（省略则全量，幂等，默认走 env.ohmygh.com 镜像、未命中回落官方）\n- 看三态：`ark status`；升级：`ark update`（省略则全量；agent 类走自更新）\n- 清单来源与刷新：`ark catalog`（看解析面与云端同步态；`ark catalog sync` 立即从云端刷新，新增软件不必换二进制）\n- 命令全图：`ark --llms`\n\n> 环境变化后重跑 `ark skill` 刷新本清单。\n");
-    Ok(out)
+    std::fs::remove_file(&dst)
+        .map_err(|e| format!("删除 SKILL.md 失败: {}: {e}", dst.display()))?;
+    Ok(true)
 }
 
 /// 自部署：复制当前 exe 到用户程序目录，同步 catalog 到用户数据目录，注册 bin 目录进用户 PATH。
@@ -245,7 +141,12 @@ pub fn self_deploy(env_root: &Path) -> Result<SelfDeployOutcome, String> {
         }
     }
     let catalog = deploy_catalog()?;
-    let _skill = deploy_skill();
+    // D50 收口：skill 面撤除，顺带清理数据目录已部署的旧 SKILL.md（幂等 best-effort）
+    match remove_legacy_skill() {
+        Ok(true) => eprintln!("[OK] 已清理旧 SKILL.md（skill 面已撤，D50）"),
+        Ok(false) => {}
+        Err(e) => eprintln!("[WARN] 旧 SKILL.md 清理失败（不拦部署，下次再收）: {e}"),
+    }
     Ok(SelfDeployOutcome {
         copied,
         path_registered,
@@ -289,7 +190,12 @@ pub fn self_deploy(_env_root: &Path) -> Result<SelfDeployOutcome, String> {
         eprintln!("[WARN] ome 别名清理失败（不拦部署，下次再收）: {e}");
     }
     let catalog = deploy_catalog()?;
-    let _skill = deploy_skill();
+    // D50 收口：skill 面撤除，顺带清理数据目录已部署的旧 SKILL.md（幂等 best-effort）
+    match remove_legacy_skill() {
+        Ok(true) => eprintln!("[OK] 已清理旧 SKILL.md（skill 面已撤，D50）"),
+        Ok(false) => {}
+        Err(e) => eprintln!("[WARN] 旧 SKILL.md 清理失败（不拦部署，下次再收）: {e}"),
+    }
     Ok(SelfDeployOutcome {
         copied,
         path_registered,

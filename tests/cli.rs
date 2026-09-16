@@ -394,9 +394,10 @@ fn llms_打印命令清单无需catalog() {
         .assert()
         .success()
         .stdout(contains("ark doctor"))
-        .stdout(contains("ark skill"))
+        .stdout(contains("何时用"))
         .stdout(contains("ark install"))
-        .stdout(contains("省略则全量"));
+        .stdout(contains("省略则全量"))
+        .stdout(contains("ark skill").not());
 }
 
 #[test]

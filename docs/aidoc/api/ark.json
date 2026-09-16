@@ -963,24 +963,14 @@
       "docs": "复制 exe 到目标（纯文件逻辑，可测）：同路径跳过；sha256 一致跳过；否则覆盖复制。\n返回是否实际复制。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
-      "path": "ark::selfdeploy::deploy_skill",
+      "path": "ark::selfdeploy::remove_legacy_skill",
       "kind": "function",
-      "docs": "同步 SKILL.md 到用户数据目录（D09：agent 发现入口，自适应生成——本机实装清单与\n使用引导，非静态文件；生成快照随环境变化，`ark skill` 随时刷新，init 时顺带生成）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
-    },
-    {
-      "path": "ark::selfdeploy::render_skill",
-      "kind": "function",
-      "docs": "自适应渲染环境 SKILL（D09）：本机实装依赖（十类分组、名称与版本）、类级使用引导、\n命令图与检测驱动工作流。agent 直读 stdout 或数据目录落盘件。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+      "docs": "清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。\n在则删返回 true；不在返回 false（幂等静默）。\n\n# Errors\n返回 Err（人读原因串）当：删除失败（文件占用等） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfdeploy::self_deploy",
       "kind": "function",
       "docs": "Linux / macOS：复制当前二进制到 `~/.local/bin/ark`，同步 catalog，并确保 `~/.local/bin` 在用户 PATH 中。\n\n# Errors\n返回 Err（人读原因串）当：获取当前二进制路径失败 等（完整失败面见函数体错误构造）。"
-    },
-    {
-      "path": "ark::selfdeploy::write_skill",
-      "kind": "function",
-      "docs": "落盘自适应 SKILL 文本（cmd_skill 用；deploy_skill 的静态骨架仅作 init 兜底）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::selfupdate",

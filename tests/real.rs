@@ -168,4 +168,8 @@ fn real_llms_清单含三原语() {
     assert!(!text.contains("ome package"), "--llms 不应再含 package");
     assert!(!text.contains("ome deploy"), "--llms 不应再含 deploy");
     assert!(!text.contains("ome daily"), "--llms 不应再含 daily");
+    assert!(
+        !text.contains("ark skill"),
+        "--llms 不应再含 skill（D50 撤面）"
+    );
 }

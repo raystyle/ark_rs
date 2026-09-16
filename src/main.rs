@@ -20,13 +20,16 @@ use ark::resolve::{resolve_tool, Resolution, ResolveOptions};
 use ark::status;
 use ark::toolver;
 
-/// --llms 紧凑命令清单（D09 发现层；与根 SKILL.md 命令图同源，改动两处同步）。
+/// --llms 紧凑命令清单（D09 发现层；D50 起唯一 agent 发现通道：头部含何时用与下载
+/// 纪律行，单源自持，不再有 SKILL.md 并行面）。
 /// 三原语（PRD D10/D15）：doctor / install / status；其余派生面。
 const LLMS_MANIFEST: &str = "\
 # ark：命令清单（47 工具与 agent 二进制的部署管理诊断）
 
 原语三件：doctor 检测诊断、install 幂等安装、status 三态对照；其余为派生面。
 全局：--format kv|json|jsonl、--json、--env-root PATH、--llms。数据 stdout、提示 stderr、错误单行 JSON。
+何时用：装、查、管、诊断环境一律走 ark（不手拼官方 URL、不裸 curl release 资产、不手写 PATH 注册表）；install/update 幂等检测安装，重跑零副作用。
+下载：默认 env.ohmygh.com 镜像、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。
 
 | 命令 | 语义 | 关键输出 | 退出码 |
 | --- | --- | --- | --- |
@@ -39,7 +42,6 @@ const LLMS_MANIFEST: &str = "\
 | ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |
 | ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |
 | ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |
-| ark skill | 自适应生成环境 SKILL（本机依赖清单+使用引导+命令图，agent 发现入口） | 全文 | 0/1 |
 | ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新，旧名 OME_* 读回） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |
 | ark self update [--stable|--git] | 升级自身三通道（默认走镜像对应通道段、未命中回落官方，边车即锚；ARK_MIRROR=1 为解析面跳过官方 API） | exe,sha256 | 0/1 |
 
@@ -194,8 +196,6 @@ enum Commands {
     /// 诊断部署异常：版本漂移、PATH 死链重复、锁定缺失、缓存孤儿等，失败返回非零
     #[command(after_help = EX_DOCTOR)]
     Doctor,
-    /// 自适应生成环境 SKILL：本机可用依赖清单、使用引导与命令图（agent 发现入口）
-    Skill,
     /// 运行态软件清单：查看解析面与云端同步态，或立即从云端刷新（D33）
     #[command(after_help = EX_CATALOG)]
     Catalog {
@@ -260,7 +260,7 @@ fn main() {
 
 fn run() -> Result<(), OmeError> {
     let cli = Cli::parse();
-    // --llms：打印紧凑命令清单后退出（agent 零安装可用；与根 SKILL.md 命令图同源同步，
+    // --llms：打印紧凑命令清单后退出（agent 零安装可用；D50 起唯一 agent 发现通道，
     // R013 契约）。早于一切子命令与格式初始化。
     if cli.llms {
         print!("{}", LLMS_MANIFEST);
@@ -329,7 +329,6 @@ fn run() -> Result<(), OmeError> {
             cmd_heal(&cat, &env_root, &dim, dry_run).map_err(OmeError::from)
         }
         Commands::Doctor => cmd_doctor(&cat, &env_root).map_err(OmeError::from),
-        Commands::Skill => cmd_skill(&cat, &env_root).map_err(OmeError::from),
         Commands::Catalog { cmd } => cmd_catalog(&env_root, &cat_path, cmd).map_err(OmeError::from),
         Commands::OmeSelf {
             cmd: SelfCmd::Update { stable, git },
@@ -372,25 +371,6 @@ fn cmd_self_update(env_root: &Path, channel: ark::selfupdate::Channel) -> Result
 /// name=OK/WARN/FAIL（明细走 stderr）；结构化输出同序块。FAIL 即 exit 1（专属 check 节，
 /// 依赖缺口走 WARN 不拦退出，检测驱动安装）。agent 装态对账归 omc、token 检测归 oma
 /// diagnose（D30 削减；agent 单机三态走 `ark status`）。
-/// skill：自适应生成环境 SKILL（D09：agent 发现入口）——本机实装依赖清单（十类分组、
-/// 名称与版本）、类级使用引导、ome 命令图与检测驱动工作流。stdout 全文输出（agent 直读），
-/// 同时落盘数据目录 SKILL.md（与 init 同源同批）。
-fn cmd_skill(cat: &Catalog, env_root: &Path) -> Result<(), String> {
-    let text = ark::selfdeploy::render_skill(cat, env_root)?;
-    // 落盘自适应文本（静态骨架仅 init 兜底；此前 deploy_skill 会用静态版覆盖自适应件，D25 修）
-    let dst = ark::selfdeploy::write_skill(&text)?;
-    if render::is_structured() {
-        render::emit(&[
-            ("skill".into(), text),
-            ("path".into(), dst.display().to_string()),
-        ]);
-    } else {
-        println!("{text}");
-    }
-    eprintln!("[OK] 已刷新: {}", dst.display());
-    Ok(())
-}
-
 fn cmd_doctor(cat: &Catalog, env_root: &Path) -> Result<(), String> {
     use std::io::IsTerminal;
     // TTY 人读面：一条一条描述报告；非 TTY（管道/agent）走 kv 数据面（两副面孔，oma status 同款）

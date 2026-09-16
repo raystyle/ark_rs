@@ -53,8 +53,8 @@ pub struct Tool {
     // —— manifest 引用（R016 D39：声明该工具的安装逻辑在 manifest.toml 同名节；缺省同名语义）——
     /// manifest 面状态（两件分离各自诊断）
     pub manifest: Option<String>,
-    // —— guide 字段（D25：`ark skill` 自适应引导；静态内容 + 实测探测键）——
-    /// 一句话描述（skill 自适应引导用）
+    // —— guide 字段（D25 入册；D50 起数据面保留：真源云端 ohmycloud，ark 侧无渲染消费者）——
+    /// 一句话描述（D25 入册的数据面元数据）
     pub desc: Option<String>,
     /// 引导提示的环境变量键清单
     pub guide_env: Option<Vec<String>>,
@@ -164,17 +164,17 @@ impl Tool {
         self.hold.unwrap_or(false)
     }
 
-    /// 一行用途说明（D25 skill 引导）。
+    /// 一行用途说明（D25 入册；D50 起数据面保留，ark 侧暂无渲染消费者）。
     pub fn desc(&self) -> &str {
         self.desc.as_deref().unwrap_or("")
     }
 
-    /// skill 引导要实测展示的环境变量键（凭据类键只显在否不显值）。
+    /// 引导提示的环境变量键清单（凭据类键只显在否不显值；数据面保留）。
     pub fn guide_env(&self) -> &[String] {
         self.guide_env.as_deref().unwrap_or(&[])
     }
 
-    /// skill 引导要实测展示的安装/数据目录（支持 `~` 与环境变量展开）。
+    /// 引导提示的安装与数据目录清单（支持 `~` 与环境变量展开；数据面保留）。
     pub fn guide_dirs(&self) -> &[String] {
         self.guide_dirs.as_deref().unwrap_or(&[])
     }
