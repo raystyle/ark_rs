@@ -316,21 +316,21 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
             }
             eprintln!("[WARN] 镜像段下载失败（{mirror_dl_err}），回落官方 API 补官方链");
             match official_asset_meta(endpoint, &names) {
-                Ok((digest2, official_url, asset2)) => crate::download::download_asset(
-                    env_root,
-                    &asset2,
-                    &official_url,
-                    Some(&digest2),
-                    true,
-                )
-                .map(|p| {
+                Ok((digest2, official_url, asset2)) => {
+                    let p = crate::download::download_asset(
+                        env_root,
+                        &asset2,
+                        &official_url,
+                        Some(&digest2),
+                        true,
+                    )
+                    .map_err(|official_err| {
+                        format!("镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}")
+                    })?;
                     installed_digest = digest2;
                     installed_asset = asset2;
                     p
-                })
-                .map_err(|official_err| {
-                    format!("镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}")
-                })?,
+                }
                 Err(api_err) => {
                     return Err(format!(
                         "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {api_err}"
