@@ -24,6 +24,7 @@
 | `md-heading-scan.py` | 标题括号规范扫描（G001 标题干净的机检项；代码围栏内的注释不计） | `uv run --script .tools/md-heading-scan.py [--root docs]`；退出码 0/1 |
 | `mdcharlint.py` | 禁用字符机检（G001 v2 四类硬禁令：破折号、箭头、emoji、非法全角；豁免围栏/行内代码/链接目标/裸 URL；默认跳过 diary 与 proven 历史归档） | `uv run --script .tools/mdcharlint.py <文件或目录>... [--all]`；退出码 0/1 |
 | `md-replace.py` | 中文与反斜杠路径安全的字面批量替换（规避 sed 转义坑） | `uv run --script .tools/md-replace.py --glob 'docs/**/*.md' --map 映射.txt [--dry]` |
+| `release.ps1` | 本地编译打包发布命令面（REQ-0007 批二，build-release 标准三段式第一二段）：版本一致性闸加测试闸加 linux 本职与 win-gnu 交叉本地构建加 lan-mac 实机构建（rsync 源码树）加逐件 .sha256 边车加跨实机冒烟加 gh draft 传齐后 edit --draft=false --latest 直发；第三段自动播种归 r2-seed workflow（published 事件） | `pwsh -NoProfile -File .tools/release.ps1 -Tag <v*> [-DryRun] [-SkipTagCheck] [-SkipMac]` |
 
 ## 历史注记
 

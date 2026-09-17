@@ -1,6 +1,8 @@
-# ark 三平台构建与双通道发布：
-# - push main：构建测试后资产滚动挂 pre-release tag `dev`（本地测试期的滚动升级源，`ark self update`）；
-# - push v* tag：构建测试后资产挂正式 release（封版触发，`ark self update --stable`）。
+# ark dev 轻岗与测试门禁（REQ-0007 批二对齐 build-release 标准三段式）：
+# - push main：构建测试后资产滚动挂 pre-release tag `dev`（本地测试期的滚动升级源，
+#   `ark self update`）加 ark/dev 段 sync 灌段；dev 通道 CI 轻岗豁免（总台裁同 hst）。
+# - 正式发布不在 CI：本地 .tools/release.ps1 编译打包直发（版本闸加冒烟加 gh 直发），
+#   r2-seed workflow 于 release published 事件双段同灌（ark/<v>/ 加 ark/stable/）。
 # 资产名即编译目标（selfupdate 按目标三元组映射）；mac 只要 arm64 不要 intel（用户裁决）。
 name: build
 
@@ -9,7 +11,7 @@ on:
     branches:
       - main
     # docs-only 不触发构建与镜像灌段（win 构建非确定性白滚、路线 A 空转；2026-09-08 用户裁）。
-    # tag 推送不受 paths 过滤，v* 封版永远构建。workflow_dispatch 手动不受限。
+    # v* tag 不再触发本工作流（批二撤正式构建岗，发布归本地 release.ps1）。workflow_dispatch 手动不受限。
     paths:
       - 'src/**'
       - 'tests/**'
@@ -17,13 +19,7 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/build.yml'
-    tags: ['v*']
   workflow_dispatch:
-    inputs:
-      stable_tag:
-        description: '手动补推 ark/stable 的 v* tag（留空走 ark/dev 沙滚）'
-        default: ''
-        type: string
 
 permissions:
   contents: write
@@ -94,32 +90,26 @@ jobs:
         run: |
           cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "${{ matrix.asset }}"
       - name: 发布资产
+        # dev 轻岗豁免面：仅滚动挂 dev prerelease（正式发布归本地 release.ps1，批二撤岗）
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ASSET: ${{ matrix.asset }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # 正式版：tag 已存在，release 不在则建（正式 release 非 prerelease）
-            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-                   --title "$GITHUB_REF_NAME" --verify-tag
-            gh release upload "$GITHUB_REF_NAME" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
-          else
-            # dev 滚动源：tag dev 不存在则从 main 建 prerelease
-            gh release view dev --repo "$GITHUB_REPOSITORY" \
-              || gh release create dev --repo "$GITHUB_REPOSITORY" \
-                   --title dev --prerelease --target main
-            gh release upload dev "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
-          fi
+          # dev 滚动源：tag dev 不存在则从 main 建 prerelease
+          gh release view dev --repo "$GITHUB_REPOSITORY" \
+            || gh release create dev --repo "$GITHUB_REPOSITORY" \
+                 --title dev --prerelease --target main
+          gh release upload dev "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
 
   mirror-r2:
-    # D27/D41 路线 A：产物灌 R2 段（oma 同型，段名与 self update 通道同名）。
-    # push main 推 ark/dev；push v* tag 或 dispatch 补 ark/stable。
+    # D27/D41 路线 A（dev 轻岗豁免面）：main 推后资产灌 ark/dev 段（sync 形，seed.py）。
+    # 正式双段（ark/<v>/ 加 ark/stable/）归 r2-seed workflow（release published 触发，
+    # REQ-0007 批一）；stable_tag 补推口亦归 r2-seed dispatch。
     # ark/ 段配 ark-* 主名（ome/ 段与 ome-* 兼容名停写：全舰队 ome 水位清零，
     # 2026-09-14 用户裁定收口；桶内存量 ome/ 段对象由 ohmycloud 删）。资产过锚（本地 sha 自算）后
     # rclone 上传，NO_CHECK_BUCKET 必带（受限 token 无建桶权）。
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -132,17 +122,10 @@ jobs:
           command -v rclone && rclone version | head -1
           command -v uv || { curl -LsSf https://astral.sh/uv/install.sh | sh; echo "$HOME/.local/bin" >> "$GITHUB_PATH"; }
           command -v uv || { echo uv 安装失败; exit 1; }
-      - name: 灌段（main 推 ark/dev；v* tag 或 dispatch 补 ark/stable）
+      - name: 灌段（main 推 ark/dev，sync 形）
         env:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            uv run --script .tools/seed.py --ark-stable --tag "$GITHUB_REF_NAME"
-          elif [[ -n "${{ github.event.inputs.stable_tag }}" ]]; then
-            uv run --script .tools/seed.py --ark-stable --tag "${{ github.event.inputs.stable_tag }}"
-          else
-            uv run --script .tools/seed.py --ark-dev --tag dev
-          fi
+        run: uv run --script .tools/seed.py --ark-dev --tag dev
