@@ -254,6 +254,11 @@ def main() -> int:
                 # 沙滚段无 version 目录：路径 <seg>/<asset>，无条件重灌（沙滚语义）
                 ok = all(upload_pair_seg(local, sha, seg, dry) for seg in segs)
                 results["uploaded" if ok else "failed"] += 1
+        if mode == "ark-stable" and results["uploaded"] == 0 and results["failed"] == 0:
+            # tag 首发 mirror 岗常先于 release 发布跑（draft 资产 404 全 skip），属预期；
+            # 但零上传即 stable 段未动，不得当灌段成功（v1.3.0 漏切实录，2026-09-17 补审 F2）。
+            print("[WARN] ark-stable 全 skip 零上传：stable 段未动（draft 窗口或资产名漂移）。"
+                  "发布后须 workflow_dispatch 带 stable_tag 补推。")
         print(json.dumps({"mode": mode, **results}, ensure_ascii=False))
         return 0 if results["failed"] == 0 else 1
 

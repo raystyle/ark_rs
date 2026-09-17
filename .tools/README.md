@@ -15,7 +15,7 @@
 | 工具 | 用途 | 用法 |
 | --- | --- | --- |
 | `import-catalog.ps1` | 已退役（D18）：catalog 是唯一权威，不再对照外部 psd1；运行提示后退出 0 | `pwsh -NoProfile -File .tools\import-catalog.ps1` |
-| `seed.py` | 软件资产与 ark 产物对 env.ohmygh.com（R2）种子同步：域面 diff（`--plan` 只读无凭据）与 rclone 上传（路线 A 加 B，D27；catalog 三件套归 ohmycloud catalog-seed，B 承接 R015 五）；D41 B 起自产段配 ark-* 主名（`--ark-dev`/`--ark-stable`）；ome/ 段与 ome-* 兼容写已撤（全舰队 ome 水位清零，2026-09-14 收口） | `uv run --script .tools/seed.py [--plan\|--ark-dev --tag dev\|--ark-stable --tag <v*>]` |
+| `seed.py` | 软件资产与 ark 产物对 env.ohmygh.com（R2）种子同步：域面 diff（`--plan` 只读无凭据）与 rclone 上传（路线 A 加 B，D27；catalog 三件套归 ohmycloud catalog-seed，B 承接 R015 五）；D41 B 起自产段配 ark-* 主名（`--ark-dev`/`--ark-stable`）；ome/ 段与 ome-* 兼容写已撤（全舰队 ome 水位清零，2026-09-14 收口）；ark-stable 全 skip 零上传落 WARN 加补推指引（draft 窗口防静默丢段，2026-09-17 补审 F2） | `uv run --script .tools/seed.py [--plan\|--ark-dev --tag dev\|--ark-stable --tag <v*>]` |
 | `catalog-sign/` | 云端清单 minisign 签名工具（Rust 子工程，D34）：keygen / pubkey / sign / verify；私钥只在本机与 CI 密钥库，公钥进仓库并内嵌 ome | `cargo run --manifest-path .tools/catalog-sign/Cargo.toml -- sign -s <sec> -m catalog/tools.toml` |
 | `inject-guide-d25.py` | 已注入完毕留档（D25；guide 内容随 catalog 上云，注入目标仓库路径 D37 退役，guide 字段 D50 起数据面保留） | `uv run --script .tools/inject-guide-d25.py` |
 | `inject-probe-d28.py` | D28 探测字段注入：catalog 各节插 probe_pattern/probe_args（幂等；值迁自 toolver.rs 原 match 表，已注入完毕留档） | `uv run --script .tools/inject-probe-d28.py` |
