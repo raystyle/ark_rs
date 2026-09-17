@@ -44,3 +44,4 @@
 | 2026-09-17 | `docs/diary/2026-09-17-三仓滚版舰队收敛验收.md` | 滚版验收四件全过：ark 1.3.0 五端加 hst 2.0.0 五端（init 收残留）加 aria2 1.37.2 五端（锚三方等）加 lan-mac 三工具新 pin |
 | 2026-09-17 | `docs/diary/2026-09-17-封版三笔补审与stable段补推.md` | 封版三笔 codex 补审多轮全采纳（aidoc 版本面 CI 门禁、seed 空转护栏硬化），镜像 ark/stable 段 dispatch 补推 1.3.0 三边车实测等 |
 | 2026-09-17 | `docs/diary/2026-09-17-build-release标准对齐批一批二.md` | 总台标准对齐：批一 r2-seed 双段同灌（run 35187398380 六件逐名在位）加批二 release.ps1 本地三段式直发加 build 撤正式岗，各两轮 CONFIRM；断网推送后补 |
+| 2026-09-17 | `docs/diary/2026-09-17-issue命令集成.md` | REQ-057 契约 issue 三叶集成（三轮对线 CONFIRM），实弹 #7 抓 host 缺陷 #8 复弹 AI-LAB，ureq 错误面分诊与 UTF-16 计数对齐 |
