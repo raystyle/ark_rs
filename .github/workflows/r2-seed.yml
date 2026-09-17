@@ -52,15 +52,16 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           miss=1
           for i in $(seq 1 30); do
-            names=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")" 2>/dev/null || true)
+            listing=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq '.assets[].name' 2>/dev/null || true)
             miss=0
             for a in ark-x86_64-pc-windows-gnu.exe ark-x86_64-unknown-linux-gnu ark-aarch64-apple-darwin; do
-              case " $names " in *" $a "*) ;; *) miss=1;; esac
+              grep -qx "$a" <<<"$listing" || miss=1
             done
             [ "$miss" = 0 ] && break
-            echo "资产未齐（now: $names），轮询 ${i}/30"; sleep 10
+            echo "资产未齐（now: $(echo $listing)），轮询 ${i}/30"; sleep 10
           done
           [ "$miss" = 0 ] || { echo "::error::release 资产 5 分钟未齐"; exit 1; }
-          echo "资产齐备：$names"
+          echo "资产齐备：$(echo $listing)"
       - name: 双段同灌（版本段 immutable 加 stable sync 保窗加双段逐名核对红灯）
         run: uv run --script .tools/seed.py --ark-published --tag "$TAG"
