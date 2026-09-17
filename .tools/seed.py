@@ -21,9 +21,11 @@ D37 完全解耦后资产播种与清单三件套运营归 ohmycloud catalog-see
   uv run --script .tools/seed.py --ark-stable --tag v1.0.0   # 路线 A：v* 正式产物灌 ark/stable 段（主名）
 
 环境变量：R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / R2_BUCKET（上传必需）；
-GH_TOKEN 可选（公开仓不需要）。
+GH_TOKEN 可选（公开仓不需要）；ARK_SEED_ALLOW_SKIP=1 豁免 ark-stable 全 skip 红灯
+（旧 tag 窗口期重灌预期 skip 时用；正常 tag run 应直灌成功，v1.2.3 实录 uploaded 3）。
 
-退出码：0 全同步或 plan；1 有失败项；2 catalog 解析失败。
+退出码：0 全同步或 plan；1 有失败项，含 ark-stable 全 skip 零上传（stable 段未动，
+draft 窗口或资产名漂移，2026-09-17 补审 F2 二轮硬化）；2 catalog 解析失败。
 """
 
 from __future__ import annotations
@@ -240,6 +242,7 @@ def main() -> int:
         else:
             segs, assets, mode = ("ark/stable",), ARK_ASSETS, "ark-stable"
         results = {"synced": 0, "uploaded": 0, "failed": 0}
+        skipped: list[str] = []
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
             for asset in assets:
@@ -249,18 +252,27 @@ def main() -> int:
                     results["failed"] += 1
                     continue
                 if st == "skip":
+                    skipped.append(asset)
                     continue
                 sha = sha256_file(local)
                 # 沙滚段无 version 目录：路径 <seg>/<asset>，无条件重灌（沙滚语义）
                 ok = all(upload_pair_seg(local, sha, seg, dry) for seg in segs)
                 results["uploaded" if ok else "failed"] += 1
-        if mode == "ark-stable" and results["uploaded"] == 0 and results["failed"] == 0:
-            # tag 首发 mirror 岗常先于 release 发布跑（draft 资产 404 全 skip），属预期；
-            # 但零上传即 stable 段未动，不得当灌段成功（v1.3.0 漏切实录，2026-09-17 补审 F2）。
-            print("[WARN] ark-stable 全 skip 零上传：stable 段未动（draft 窗口或资产名漂移）。"
-                  "发布后须 workflow_dispatch 带 stable_tag 补推。")
+        exit_code = 0 if results["failed"] == 0 else 1
+        if mode == "ark-stable" and skipped:
+            names = "、".join(skipped)
+            if not results["uploaded"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
+                # 正常 tag run 应直灌 stable（v1.2.3 实录 ark-stable uploaded 3）；全 skip 零上传
+                # 即 stable 段未动（多系 draft 窗口或资产名漂移），红灯拦静默丢段
+                # （v1.3.0 漏切实录，2026-09-17 补审 F2，二轮按 v1.2.3 史实硬化）。
+                print(f"[FAIL] ark-stable 全 skip 零上传：stable 段未动（skip：{names}）。"
+                      "发布后须 workflow_dispatch 带 stable_tag 补推；"
+                      "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免。")
+                exit_code = 1
+            else:
+                print(f"[WARN] ark-stable 有 skip 未灌（{names}），该些资产 stable 段未动")
         print(json.dumps({"mode": mode, **results}, ensure_ascii=False))
-        return 0 if results["failed"] == 0 else 1
+        return exit_code
 
     objs, pending, evergreen = collect()
     if objs is None:

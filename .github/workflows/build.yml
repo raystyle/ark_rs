@@ -87,6 +87,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           cargo install cargo-aidoc --version 0.4.0 --locked
+          rustup toolchain install "$(cargo aidoc --print-required-toolchain)"
           cargo aidoc --check --strict
       - name: 归位资产名
         shell: bash
