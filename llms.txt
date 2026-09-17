@@ -25,11 +25,11 @@
 | `src/manifest.rs` | manifest.toml 引擎（R016 B 层 D39）：解析与 schema 拒载、L1 env_set/shims 三平台原语、L1 mirror 镜像源节七键落源（D42）、L2 受控命令超时与失败报告 |
 | `src/lib.rs` | crate 根：模块声明与库入口（集成测试链接面） |
 | `src/main.rs` | clap CLI 入口与子命令分派（query/pin/install/update/status/init（self-deploy 别名）/self update/verify/heal/doctor；`--llms`；输出纪律与示例元数据在文件顶部） |
-| `src/omerr.rs` | 机器可读错误四元组（code/message/hint/exit_code），main 按 exit_code 退出 |
+| `src/arerr.rs` | 机器可读错误四元组（code/message/hint/exit_code），main 按 exit_code 退出 |
 | `src/render.rs` | 单一渲染层：stdout 只走 key=value 数据，组标题走 # 注释行 |
 | `src/catalog.rs` | `catalog/tools.toml` 读写、EnvRoot 解析、pin 回写 |
-| `src/resolve.rs` | 版本解析三分支（GitHub REST / cdn 模板 / HashiCorp index） |
-| `src/download.rs` | 资产下载与缓存复用；D44 反转镜像优先链（env.ohmygh.com 单次快速首试、官方完整链兜底、有锚必校验） |
+| `src/resolve.rs` | 版本解析三分支（GitHub REST / cdn 模板 / HashiCorp index）；D51 镜像默认通道：GitHub 分支 pin 驱动零 API 直装（镜像 URL 主通道加 fallback_url 官方直链兜底），API 仅显式 latest/tag/version 或 pin 缺键兜底 |
+| `src/download.rs` | 资产下载与缓存复用；D44 反转镜像优先链（env.ohmygh.com 单次快速首试、官方完整链兜底、有锚必校验）；D51 `ARK_MIRROR=0` 官方优先逃逸阀（跳过镜像首试） |
 | `src/checksum.rs` | sha256 校验与官方校验源 |
 | `src/install.rs` | 安装主编排（幂等、防穿越、验版本、回写） |
 | `src/extract.rs` | 解压/安装九分派 |
@@ -38,7 +38,7 @@
 | `src/toolver.rs` | 已装版本探测（探测参数与正则读 catalog `probe_args`/`probe_pattern` 字段，D28 迁移；exe 路径解析与 PATH 现查）；update 漂移三态 pin_drift（D49：一致 skip、落后补装、领先如实报） |
 | `src/status.rs` | status 三态对照 |
 | `src/selfdeploy.rs` | 自部署到用户程序目录（Windows `%LOCALAPPDATA%/Programs/ark`，接管旧 ome 位；ome 别名 2026-09-14 停建并顺带清理）+ catalog 同步到用户数据目录 |
-| `src/selfupdate.rs` | ark 自升级三通道（dev 滚动 / stable 正式版 / git 源码）：digest 对比后替换自部署目标（ome 别名已停建，升级顺带清理存量副本）；官方失败回落镜像对应通道（段读序 ark/ 先 ome/ 回落；latest 段已退役）；Windows 主名自 D46 切 gnu、msvc 回退名窗口期次试（旧 msvc 源保供）、ome 兼容殿后；随升级搬迁旧元数据七件套 |
+| `src/selfupdate.rs` | ark 自升级三通道（dev 滚动 / stable 正式版 / git 源码）：digest 对比后替换自部署目标（ome 别名已停建，升级顺带清理存量副本）；官方失败回落镜像对应通道（仅 ark/ 段，ome 兼容段已收口；latest 段已退役）；D51 元数据镜像段读序先行、官方 API 兜底，ARK_MIRROR=0 逃逸反转；Windows 主名自 D46 切 gnu、msvc 回退名窗口期次试（旧 msvc 源保供）、ome 兼容殿后；随升级搬迁旧元数据七件套 |
 | `src/vsbuild.rs` | VS Build Tools 接管（evergreen 引导器、gsudo 提权、机器级 PATH、cl.exe 幂等探测；语义见 R001 六） |
 | `src/rustup.rs` | Rust 接管（rustup 引导器型：rsproxy 直链 stable 滚动、cargo sparse 镜像全平台；Windows RUSTUP_HOME/CARGO_HOME 重定位 EnvRoot，POSIX 系统标准位 `~/.rustup` 与 `~/.cargo`（D42）；自 set-rust.ps1 迁移） |
 | `src/docker.rs` | Docker Engine 接管（自 set-docker.ps1 迁移：static zip + Windows 服务注册 + daemon.json 合并 + compose 插件 + 机器级 PATH；gsudo 提权；与 vsbuild 差异在有 pin 非 evergreen） |
@@ -51,7 +51,7 @@
 | `tests/linux_install.rs` | Linux/macOS 部署集成（真实 GitHub 资产 jq，HOME 沙盒；`cfg(not(windows))` 门控） |
 | `tests/golden.rs` | 黄金文件回归（expected oracle 全量比对 stdout，S002 三件套） |
 | `tests/real.rs` | 真机闸门（ARK_TEST_REAL=1 才跑，对照本机 catalog 与 EnvRoot 部署态） |
-| `tests/mirror_fallback.rs` | 镜像兜底链真网闸门（ARK_TEST_MIRROR=1 才跑：官方不可达回落 env.ohmygh.com，pin 锚 sha 与 pin 一致、evergreen latest 段与自产双段 sha 与边车一致，D08 两批齐加 D41 主段腿） |
+| `tests/mirror_fallback.rs` | 镜像兜底链真网闸门（ARK_TEST_MIRROR=1 才跑：官方不可达回落 env.ohmygh.com，pin 锚 sha 与 pin 一致、evergreen latest 段与自产双段 sha 与边车一致，D08 两批齐加 D41 主段腿加 D38 私有仓 pin 直装） |
 | `tests/common/mod.rs` | 集成测试共享设施（ark 运行 helper `run_ark` 与 expected oracle 断言） |
 | `tests/expected/` | 黄金文件 oracle（pin/status 全量 stdout 期望，平台双 oracle：linux/macos 实机冻结；`##` 头注释记来源，约定见 R004 二、4） |
 | `tests/fixtures/tools.toml` | 离线测试夹具 catalog（cli 与 install 沙盒共用） |

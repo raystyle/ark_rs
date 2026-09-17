@@ -6,8 +6,8 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 数据契约见 `docs/references/R001`：读用 serde（字段同 R001），
 写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。
 路径解析优先级：
-- EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
-- catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
+- EnvRoot：`--env-root` 参数 > `ARK_ROOT` 环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
+- catalog：`ARK_CATALOG` 环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
   > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）
   > 用户数据目录 catalog\tools.toml（自部署布局）
 
@@ -15,7 +15,7 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 
 - `auto_refresh` — 自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，
 - `auto_refresh_if_user_data` — 命令入口接线：解析面**就是**用户数据副本时按 TTL 刷新；跳过与失败都不拦命令。
-- `auto_ttl` — 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。
+- `auto_ttl` — 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`）。
 - `catalog_state` — 子功能 status 采集（云端不可达时如实标注 error 字段，不报错退出）。
 - `check_signature` — 校验磁盘清单与其分离签名（`<清单>.minisig`）。
 - `classify_origin` — 解析面来源分类（纯函数，供 status 子功能报告）：userdata / repo / env / other。
@@ -27,8 +27,8 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 - `needs_check` — 是否需要联网比对（纯函数）：目标缺失、无标记、标记过期、或本地已被改写（标记锚与本地不符）。
 - `parse_marker` — 标记文件解析（纯函数）：`<unix 秒>\n<sha256>\n`。
 - `pin_key` — 当前平台 pin 字段的 TOML 键名（Windows 无前缀，Linux/mac 加平台前缀）。
-- `resolve_catalog_path` — catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
-- `resolve_env_root` — EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。
+- `resolve_catalog_path` — catalog 路径解析：`ARK_CATALOG` > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
+- `resolve_env_root` — EnvRoot 解析：显式参数 > ARK_ROOT > 平台默认。
 - `resolve_ttl` — TTL 解析（纯函数）：离线优先，其次显式秒数（0 关），非法值回落默认。
 - `seq_gate` — seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；
 - `signature_path` — 清单的分离签名路径（`<清单>.minisig`）。

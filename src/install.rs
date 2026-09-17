@@ -259,12 +259,14 @@ pub fn install_tool(
     let expected_sha = checksum::expected_sha256(def, res, env_root)?;
 
     // 下载（tag 与锁定不一致时强制重下，对齐 -Force:$forceDownload）；
-    // 镜像优先（D44）：env.ohmygh.com 单次首试，未命中或锚不符回落官方；有锚必校验（pin、镜像版本段边车或官方 sums）
+    // 镜像优先（D44）：env.ohmygh.com 单次首试，未命中或锚不符回落官方；有锚必校验（pin、镜像版本段边车或官方 sums）；
+    // D51：pin 驱动解析的 asset_url 是镜像主通道 URL，官方回落地址取 fallback_url（在位时）
     let force_download = def.pin_tag() != Some(res.tag.as_str());
+    let official_url = res.fallback_url.as_deref().unwrap_or(&res.asset_url);
     let cache = download::download_asset_with_mirror(
         env_root,
         &res.asset_name,
-        &res.asset_url,
+        official_url,
         expected_sha.as_deref(),
         force_download,
         name,
@@ -407,7 +409,7 @@ fn ensure_user_env_overrides(ms: Option<&crate::manifest::ToolManifest>) -> Resu
 /// **多数发行版与 hostExec 的 PATH 都含**（注意：只剩最小 PATH 的 env 里同样无效，本兜底
 /// 不等于把 PATH 送进去）。
 /// 语义：已指对即跳过（幂等）；悬空或指向旧 target（版本目录型布局升级后）先删再建
-/// ——**直链以 ome 装的那份为准**，既存链接指向别处即重指；落点若是非链接的真文件
+/// ——**直链以 ark 装的那份为准**，既存链接指向别处即重指；落点若是非链接的真文件
 /// （用户自装）绝不覆盖；exe 本就落该目录（多数 POSIX 绿色工具）时不建自指链接。
 /// 返回是否真的建/重指了链接（false = 已指对、真文件、或本就同路径，供调用方决定是否出声）。
 #[cfg(not(windows))]
@@ -510,7 +512,7 @@ fn register_bin(
 /// UV_TOOL_BIN_DIR，register 走 official 分支注册该目录）。
 /// 升级占用解锁（browser-harness M102 方案吸收）：Windows 运行中进程锁 venv Scripts\，
 /// uv 无法替换——升级前用工具自身 CLI 停守护（--reload 停 daemon、rmux kill-server 停
-/// worker 会话），装后提示 x-monitor 恢复值守栈（ome 不擅自拉起）。
+/// worker 会话），装后提示 x-monitor 恢复值守栈（ark 不擅自拉起）。
 fn install_uv_git(
     cat: &Catalog,
     name: &str,
@@ -713,10 +715,12 @@ fn install_npm_tgz(
     let exe_path = toolver::exe_path(def, env_root)?;
 
     let expected = checksum::expected_sha256(def, res, env_root)?;
+    // D51：官方回落地址取 fallback_url（pin 驱动解析在位），asset_url 为镜像主通道
+    let official_url = res.fallback_url.as_deref().unwrap_or(&res.asset_url);
     let cache = download::download_asset_with_mirror(
         env_root,
         &res.asset_name,
-        &res.asset_url,
+        official_url,
         expected.as_deref(),
         true,
         name,

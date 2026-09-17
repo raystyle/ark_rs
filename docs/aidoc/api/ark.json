@@ -3,9 +3,19 @@
   "version": "1.3.0",
   "items": [
     {
+      "path": "ark::arerr",
+      "kind": "module",
+      "docs": "arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。\n内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 ArkError，\nmain 按 exit_code 退出。"
+    },
+    {
+      "path": "ark::arerr::ArkError",
+      "kind": "struct",
+      "docs": "机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。"
+    },
+    {
       "path": "ark::catalog",
       "kind": "module",
-      "docs": "catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：\n`ark catalog status`（看解析面与云端同步态）与 `ark catalog sync`（从云端刷新用户数据副本，D33）。\n\n数据契约见 `docs/references/R001`：读用 serde（字段同 R001），\n写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。\n路径解析优先级：\n- EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\\ 则 D:\\ohmyenv 否则 C:\\ohmyenv\n- catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\\tools.toml > cwd\\catalog\\tools.toml\n  > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）\n  > 用户数据目录 catalog\\tools.toml（自部署布局）"
+      "docs": "catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：\n`ark catalog status`（看解析面与云端同步态）与 `ark catalog sync`（从云端刷新用户数据副本，D33）。\n\n数据契约见 `docs/references/R001`：读用 serde（字段同 R001），\n写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。\n路径解析优先级：\n- EnvRoot：`--env-root` 参数 > `ARK_ROOT` 环境变量 > 存在 D:\\ 则 D:\\ohmyenv 否则 C:\\ohmyenv\n- catalog：`ARK_CATALOG` 环境变量 > exe 上级的 catalog\\tools.toml > cwd\\catalog\\tools.toml\n  > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）\n  > 用户数据目录 catalog\\tools.toml（自部署布局）"
     },
     {
       "path": "ark::catalog::CLOUD_CATALOG_KEY",
@@ -75,7 +85,7 @@
     {
       "path": "ark::catalog::auto_ttl",
       "kind": "function",
-      "docs": "当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。"
+      "docs": "当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`）。"
     },
     {
       "path": "ark::catalog::catalog_state",
@@ -135,12 +145,12 @@
     {
       "path": "ark::catalog::resolve_catalog_path",
       "kind": "function",
-      "docs": "catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\\tools.toml（仓库与旧自部署布局）\n> cwd\\catalog\\tools.toml > 用户数据目录 catalog\\tools.toml（新自部署布局，self-deploy 时同步）。\n> 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+      "docs": "catalog 路径解析：`ARK_CATALOG` > exe 上级的 catalog\\tools.toml（仓库与旧自部署布局）\n> cwd\\catalog\\tools.toml > 用户数据目录 catalog\\tools.toml（新自部署布局，self-deploy 时同步）。\n> 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::resolve_env_root",
       "kind": "function",
-      "docs": "EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。\n对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+      "docs": "EnvRoot 解析：显式参数 > ARK_ROOT > 平台默认。\n对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::catalog::resolve_ttl",
@@ -708,16 +718,6 @@
       "docs": "uv.toml 目标内容（纯函数）：`[[index]]` default 形态（uv 0.4.23+ 数组表）。"
     },
     {
-      "path": "ark::omerr",
-      "kind": "module",
-      "docs": "omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。\n内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 OmeError，\nmain 按 exit_code 退出。"
-    },
-    {
-      "path": "ark::omerr::OmeError",
-      "kind": "struct",
-      "docs": "机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。"
-    },
-    {
       "path": "ark::platform",
       "kind": "module",
       "docs": "platform：跨平台抽象层。\n\nWindows：EnvRoot 为 `D:\\ohmyenv` 或 `C:\\ohmyenv`，工具集中安装；PATH 通过注册表管理。\nLinux / macOS：各软件按系统标准目录安装；PATH 通过当前 shell 的 profile 文件（如 `~/.bashrc`）管理。\nark 自身与 EnvRoot 解耦：二进制进用户程序目录（Windows `%LOCALAPPDATA%\\Programs\\ark`）、\n元数据进用户数据目录（Windows `%LOCALAPPDATA%\\ark`；Linux `~/.local/share/ark`；\nmacOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目录在而新目录未建时读回旧位。"
@@ -748,9 +748,9 @@
       "docs": "设置用户级环境变量（幂等）。Windows 写 HKCU\\Environment 并同步当前进程；\nO3（S017）：写 profile 自定义钩子块（POSIX；Windows no-op）。幂等且块体感知：\n块体与目标不一致时原位重写（存量旧钩子自愈升级）。"
     },
     {
-      "path": "ark::platform::env_var_or",
+      "path": "ark::platform::env_var",
       "kind": "function",
-      "docs": "读环境变量（D41 更名 Ark）：主名优先，主名未设或纯空白时读回旧名；都未设返回 None。\n同设时主名胜（旧名只作过渡期读回，不参与合并）。"
+      "docs": "读环境变量：空白值视同未设，返回 None（旧名读回已随 ome 关键字剔除批撤除，2026-09-18）。"
     },
     {
       "path": "ark::platform::exe_suffix",
@@ -788,9 +788,14 @@
       "docs": "展开后的路径若为相对路径则拼到 EnvRoot 下（Windows 名录是相对 dir/bin；Linux/macOS 多为 ~/ 绝对）。"
     },
     {
+      "path": "ark::platform::legacy_alias_target",
+      "kind": "function",
+      "docs": "`ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；\n落点保留供 `remove_legacy_alias` 定位清理既有副本）。\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
+    },
+    {
       "path": "ark::platform::legacy_deploy_dir",
       "kind": "function",
-      "docs": "旧 ome 部署位（D41 C 接管清单：Windows `Programs\\ome`，在位时 Some）。\nPOSIX 旧位 `~/.local/bin/ome` 即别名落点，由 `remove_ome_alias` 清理。"
+      "docs": "旧 ome 部署位（D41 C 接管清单：Windows `Programs\\ome`，在位时 Some）。\nPOSIX 旧位 `~/.local/bin/ome` 即别名落点，由 `remove_legacy_alias` 清理。"
     },
     {
       "path": "ark::platform::legacy_metadata_dir",
@@ -843,11 +848,6 @@
       "docs": "搬迁核心（传新旧根便于测）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
-      "path": "ark::platform::ome_alias_target",
-      "kind": "function",
-      "docs": "`ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；\n落点保留供 `remove_ome_alias` 定位清理既有副本）。\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
-    },
-    {
       "path": "ark::platform::path_entries_eq",
       "kind": "function",
       "docs": "标准化 PATH 条目比较：展开环境变量、大小写不敏感（Windows）/ 敏感（Unix）。"
@@ -863,7 +863,7 @@
       "docs": "env 块摘除单键（纯函数，D42 env_unset 通道）：**全文件撤变量不分写入者**——\n托管块内（读序双块合并体）摘行、体空则两块整撤不残留空标记；托管块之外\n的同名 `export KEY=` 行（遗产脚本或用户手写形态）同样摘除，\n否则旧变量继续生效而日志已报「已撤」（对线 R1）。\n快速路径：全文件无该键的 export 行时**原样返回**——重建本身会重排块位\n（env 块不在文末时后续 install 追加 PATH 块即此常态），恒等才能让\n「文本变化」等价「真撤了」（对线 R1 复审残留）。"
     },
     {
-      "path": "ark::platform::remove_ome_alias",
+      "path": "ark::platform::remove_legacy_alias",
       "kind": "function",
       "docs": "清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，\nWindows 文件占用时留待下次 init / self update 再收）。\n\n# Errors\n返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。"
     },
@@ -890,7 +890,7 @@
     {
       "path": "ark::platform::user_env_write_blocked",
       "kind": "function",
-      "docs": "用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1`（读回 `OME_TEST_NO_PATH_REG`）时，**所有**用户环境写入面\n一律跳过（PATH 注册、用户级变量、profile 钩子、用户 bin 直链）。变量名沿历史（PATH 注册\n是最早的那面），覆盖面已扩到四面——只守一面会让沙盒测试从别的门漏进真实环境。"
+      "docs": "用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1` 时，**所有**用户环境写入面\n一律跳过（PATH 注册、用户级变量、profile 钩子、用户 bin 直链）。变量名沿历史（PATH 注册\n是最早的那面），覆盖面已扩到四面——只守一面会让沙盒测试从别的门漏进真实环境。"
     },
     {
       "path": "ark::platform::user_path_contains",
@@ -960,7 +960,7 @@
     {
       "path": "ark::resolve",
       "kind": "module",
-      "docs": "resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），\n语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。\n本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），\napi.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。"
+      "docs": "resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），\n语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。\n本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），\napi.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。\nD51 镜像默认通道（用户裁定 2026-09-18）：GitHub 分支 pin 驱动解析零 API\n（镜像直装 + 官方确定性直链兜底），API 仅显式 latest/tag/version 或 pin 缺键时兜底。"
     },
     {
       "path": "ark::resolve::Resolution",
@@ -1065,7 +1065,7 @@
     {
       "path": "ark::selfupdate",
       "kind": "module",
-      "docs": "selfupdate：ome 自身升级（`ark self update`），三通道：\n- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；\n- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；\n- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。\n\n升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；\n不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。\n包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后\n解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。\nWindows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。"
+      "docs": "selfupdate：ark 自身升级（`ark self update`），三通道：\n- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；\n- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；\n- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。\n\nD51 镜像默认通道：release 元数据镜像段读序先行（边车即锚），GitHub API 兜底；\n`ARK_MIRROR=0` 官方优先逃逸阀反转读序（旧 =1 强制镜像已转正为默认）。\n升级判定：release 资产的 digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；\n不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。\n包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后\n解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。\nWindows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。"
     },
     {
       "path": "ark::selfupdate::Channel",
@@ -1083,14 +1083,9 @@
       "docs": "升级结果。"
     },
     {
-      "path": "ark::selfupdate::asset_compat_for_this_platform",
-      "kind": "function",
-      "docs": "兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史\nrelease 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在\n（历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，\n仅非 Windows 平台有效。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
-    },
-    {
       "path": "ark::selfupdate::asset_for_this_platform",
       "kind": "function",
-      "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
+      "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。\n\n# Errors\n返回 Err（人读原因串）当：当前平台无 CI 构建资产（platform_triple 同源判）。"
     },
     {
       "path": "ark::selfupdate::asset_package_for_this_platform",
@@ -1098,14 +1093,14 @@
       "docs": "包形资产名（REQ-0008 窗口，对线裁定）：`ark-<triple>` 单顶层目录（净 triple），win\nzip 他 tar.gz，逐包 .sha256 边车。读序主名先于裸件（双挂窗存量迁移方向），裸件为\n回退臂（第三版退役删臂）。\n\n# Errors\n返回 Err 当：当前平台无 CI 构建资产（platform_triple 同源判）。"
     },
     {
-      "path": "ark::selfupdate::is_ome_self",
+      "path": "ark::selfupdate::is_ark_self",
       "kind": "function",
-      "docs": "是否自管条目（extract = \"ome-self\"；D41 起双接受 \"ark-self\"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。"
+      "docs": "是否自管条目（extract = \"ark-self\"）：无 pin 无资产，升级走 self update 三通道。\n（旧值 ome-self 双接受已随 ome 关键字剔除批收口，2026-09-18；云端权威 catalog 自\n2026-09-14 起写 ark-self，旧值仅存在于长期未同步的端上副本，`ark catalog sync` 即迁。）"
     },
     {
       "path": "ark::selfupdate::self_update",
       "kind": "function",
-      "docs": "自升级主流程。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
+      "docs": "自升级主流程。\n\n# Errors\n返回 Err（人读原因串）当：通道缺件（git/cargo）、镜像与官方双链元数据全败、下载校验\n或替换失败等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::status",

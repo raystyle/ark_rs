@@ -19,8 +19,8 @@ fn sandbox(catalog_text: &str) -> (tempfile::TempDir, PathBuf, PathBuf) {
     (dir, catalog, env_root)
 }
 
-fn ome(catalog: &Path, env_root: &Path) -> Command {
-    let mut cmd = Command::cargo_bin("ark").expect("ome 二进制应已构建");
+fn ark_cli(catalog: &Path, env_root: &Path) -> Command {
+    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     cmd.env("ARK_CATALOG", catalog);
     // O5（S017）：沙盒 install 不得写真实用户 PATH（HKCU / profile）
     cmd.env("ARK_TEST_NO_PATH_REG", "1");
@@ -43,7 +43,7 @@ version = "1.0.0"
 asset = "evil.exe"
 "#;
     let (_guard, catalog, env_root) = sandbox(catalog_text);
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .args(["install", "evil"])
         .assert()
         .failure()
@@ -86,7 +86,7 @@ asset = "winonly.exe"
         )
     };
     let (_guard, catalog, env_root) = sandbox(catalog_text);
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .args(["install", name])
         .assert()
         .success()
@@ -94,7 +94,7 @@ asset = "winonly.exe"
     // 反例：manifest 在位时不该打这条 WARN（防误报）
     fs::write(_guard.path().join("manifest.toml"), "schema_version = 1\n")
         .expect("写同目录 manifest 失败");
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .args(["install", name])
         .assert()
         .success()
@@ -142,7 +142,7 @@ asset = "jq-windows-amd64.exe"
     fs::copy(real_jq, jq_dir.join("jq.exe")).expect("复制假 exe 失败");
 
     // cdn_url 指向不可达地址：若未走幂等短路，下载必失败；成功即证明未触网
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .args(["install", "jq"])
         .assert()
         .success()
@@ -195,7 +195,7 @@ asset = "jq-windows-amd64.exe"
     )
     .expect("写沙盒 manifest 失败");
 
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .args(["install", "jq"])
         .assert()
         .success()
@@ -262,7 +262,7 @@ asset = "selftool.exe"
     ))
     .expect("拼 PATH 失败");
 
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .env("PATH", &path_env)
         .env("ARK_OFFLINE", "1")
         .args(["update", "selftool"])
@@ -328,7 +328,7 @@ asset = "selftool.exe"
     ))
     .expect("拼 PATH 失败");
 
-    ome(&catalog, &env_root)
+    ark_cli(&catalog, &env_root)
         .env("PATH", &path_env)
         .env("ARK_OFFLINE", "1")
         .args(["install", "selftool"])

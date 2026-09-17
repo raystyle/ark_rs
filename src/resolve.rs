@@ -2,6 +2,8 @@
 //! 语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。
 //! 本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），
 //! api.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。
+//! D51 镜像默认通道（用户裁定 2026-09-18）：GitHub 分支 pin 驱动解析零 API
+//! （镜像直装 + 官方确定性直链兜底），API 仅显式 latest/tag/version 或 pin 缺键时兜底。
 
 use std::cmp::Ordering;
 use std::process::Command;
@@ -47,6 +49,10 @@ pub struct Resolution {
     /// 官方 sha256 直值锚（D43，ziglang index 形态 per-target shasum）：
     /// checksum 官方链最前（优先于清单与 digest），亦是 D44 镜像段校验锚。
     pub official_sha256: Option<String>,
+    /// 官方兜底直链（D51，仅 pin 驱动镜像直装路径在位）：GitHub release 确定性下载
+    /// URL（对象直链非 API，无配额面），镜像主通道失败时下载层回落用；他路 None
+    /// （asset_url 即官方地址）。
+    pub fallback_url: Option<String>,
 }
 
 /// 解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。
@@ -100,6 +106,7 @@ fn resolve_uv_git(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Reso
         asset_url: format!("git+https://github.com/{repo}"),
         shasums_url: None,
         official_sha256: None,
+        fallback_url: None,
     })
 }
 
@@ -202,6 +209,7 @@ fn resolve_cdn_index(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<R
             asset_url: url,
             shasums_url,
             official_sha256: None,
+            fallback_url: None,
         });
     }
 
@@ -242,6 +250,7 @@ fn resolve_cdn_index(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<R
         asset_url: url,
         shasums_url: None,
         official_sha256: Some(sha),
+        fallback_url: None,
     })
 }
 
@@ -290,10 +299,13 @@ fn resolve_cdn_url(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Res
         asset_url: url,
         shasums_url: None,
         official_sha256: None,
+        fallback_url: None,
     })
 }
 
-/// 分支 (c)：GitHub REST（releases/latest 或 releases/tags/{tag}）。
+/// 分支 (c)：GitHub REST（releases/latest 或 releases/tags/{tag}）——D51 起为**兜底通道**：
+/// pin 驱动（install/update/query/heal 的默认路径）零 API 直装镜像（见 `pin_direct`），
+/// API 仅在显式 `--latest`/`--tag`/`--version` 请求或 pin 三键缺一（数据面未 pin 完整）时走。
 fn resolve_github(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Resolution, String> {
     // repo 用 effective 访问器（Linux 取 linux_repo 回退通用）——仅 linux_repo 的工具
     // （如 shellcheck）在 Linux 解析不应报「缺少 repo」（2026-09-01 WSL install all 实证）
@@ -303,6 +315,16 @@ fn resolve_github(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Reso
     // psd1 语义：TagPrefix 为空即 tag 无前缀（uv/nushell/zig 等 tag 就是裸版本号），
     // 勿默认补 v——只有显式写 tag_prefix 的工具才带前缀
     let prefix = tool.tag_prefix.as_deref().unwrap_or("");
+
+    // D51 镜像默认通道（用户裁定 2026-09-18「GitHub 应该是兜底，不是默认流程」）：
+    // pin 驱动解析零 GitHub API——catalog pin 即版本真源（tag/version/asset 三键），
+    // 镜像资产域 URL 为主通道（下载层单次快速首试、pin sha 或边车锚校验，D44 机制不动），
+    // GitHub release 确定性下载直链为兜底（对象存储非 API，无 60 次/时配额面）。
+    // 五端实弹病灶：全量 update 每工具打 api.github.com，gh 未认证/凭证失效撞匿名
+    // 配额（lan-win 30 项失败 exit 1、lan-mac 401、lan-linux 未 login、lan-ubuntu 无 gh）。
+    if let Some(res) = pin_direct(name, tool, opts, repo) {
+        return Ok(res);
+    }
 
     let url = if opts.latest {
         format!("https://api.github.com/repos/{repo}/releases/latest")
@@ -317,50 +339,9 @@ fn resolve_github(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Reso
         format!("https://api.github.com/repos/{repo}/releases/tags/{tag}")
     };
 
-    // D38 消费面镜像直装：GitHub API 失败（私有仓匿名 404、限流、断网）且 pin 四键齐
-    // （锚 = pin sha256）时回落镜像资产域直拼 URL——镜像为主通道（D44），有锚必校验
-    // 同源，回落前移到查询段；下载与校验链不变（expected_sha256 仍 pin 优先）。
-    // ARK_MIRROR=1（读回 OME_MIRROR）时 pin 驱动直接镜像（selfupdate 同名开关语义扩展到解析面，真跳过 API）。
-    let pin_driven = !opts.latest && opts.tag.is_none() && opts.version.is_none();
-    let forced = crate::platform::env_var_or("ARK_MIRROR", "OME_MIRROR").as_deref() == Some("1");
-    let mirror_resolution = |forced_msg: bool, api_err: &str| -> Option<Resolution> {
-        if !pin_driven || tool.pin_sha256().is_none() {
-            return None;
-        }
-        let (tag, ver, asset) = (tool.pin_tag()?, tool.pin_version()?, tool.pin_asset()?);
-        let dl = crate::download::mirror_url(name, ver, asset);
-        if forced_msg {
-            eprintln!(
-                "[INFO] ARK_MIRROR=1 镜像优先，跳过 GitHub API；{name} pin 锚在，镜像直装: {dl}"
-            );
-        } else {
-            eprintln!("[WARN] GitHub API 失败（{api_err}），pin 锚在，回落镜像直装: {dl}");
-        }
-        Some(Resolution {
-            tool: name.to_string(),
-            tag: tag.to_string(),
-            version: ver.to_string(),
-            asset_name: asset.to_string(),
-            asset_size: 0,
-            asset_url: dl,
-            shasums_url: None,
-            official_sha256: None,
-        })
-    };
-    if pin_driven && forced {
-        if let Some(res) = mirror_resolution(true, "") {
-            return Ok(res);
-        }
-    }
-    let release = match get_json_retried(&url, true) {
-        Ok(r) => r,
-        Err(api_err) => {
-            if let Some(res) = mirror_resolution(false, &api_err) {
-                return Ok(res);
-            }
-            return Err(api_err);
-        }
-    };
+    // API 兜底段（显式 latest/tag/version 或 pin 三键缺一；D38 的「API 失败回落镜像」
+    // 已被 D51 pin_direct 默认通道收编——pin 键齐时根本不打 API，键缺时回落也不成立）
+    let release = get_json_retried(&url, true)?;
     let tag_name = release
         .get("tag_name")
         .and_then(Value::as_str)
@@ -423,6 +404,34 @@ fn resolve_github(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Reso
         asset_url,
         shasums_url: None,
         official_sha256: None,
+        fallback_url: None,
+    })
+}
+
+/// pin 驱动镜像直装（D51 纯函数，零网络零 API）：无 latest/tag/version 显式选项且
+/// pin 三键（tag/version/asset）在位时，镜像资产域 URL 为主通道、GitHub release
+/// 确定性下载直链（`github.com/{repo}/releases/download/{tag}/{asset}`，公开仓对象
+/// 直链无配额）为兜底；校验锚由下载层取 pin sha（在位）或镜像版本段边车（D44 机制）。
+/// 键缺或显式请求返回 None，调用方回落 GitHub API（镜像缺数据兜底）。
+fn pin_direct(name: &str, tool: &Tool, opts: &ResolveOptions, repo: &str) -> Option<Resolution> {
+    if opts.latest || opts.tag.is_some() || opts.version.is_some() {
+        return None;
+    }
+    let tag = tool.pin_tag()?;
+    let ver = tool.pin_version()?;
+    let asset = tool.pin_asset()?;
+    Some(Resolution {
+        tool: name.to_string(),
+        tag: tag.to_string(),
+        version: ver.to_string(),
+        asset_name: asset.to_string(),
+        asset_size: 0,
+        asset_url: crate::download::mirror_url(name, ver, asset),
+        shasums_url: None,
+        official_sha256: None,
+        fallback_url: Some(format!(
+            "https://github.com/{repo}/releases/download/{tag}/{asset}"
+        )),
     })
 }
 
@@ -697,5 +706,95 @@ mod tests {
         ];
         assert_eq!(index_pick_latest(keys.iter()), Some("0.16.0".to_string()));
         assert_eq!(index_pick_latest(["master".to_string()].iter()), None);
+    }
+
+    /// pin 驱动夹具（age 形：GitHub 分支、tag_prefix=v、pin 三键齐；期望值来自 fixtures/tools.toml）。
+    fn age_fixture() -> Tool {
+        Tool {
+            repo: Some("FiloSottile/age".into()),
+            tag_prefix: Some("v".into()),
+            tag: Some("v1.3.1".into()),
+            version: Some("1.3.1".into()),
+            asset: Some("age-v1.3.1-windows-amd64.zip".into()),
+            sha256: Some("C56E8CE22F7E80CB85AD946CC82D198767B056366201D3E1A2B93D865BE38154".into()),
+            linux_tag: Some("v1.3.1".into()),
+            linux_version: Some("1.3.1".into()),
+            linux_asset: Some("age-v1.3.1-linux-amd64.tar.gz".into()),
+            linux_sha256: Some(
+                "BDC69C09CBDD6CF8B1F333D372A1F58247B3A33146406333E30C0F26E8F51377".into(),
+            ),
+            ..Tool::default()
+        }
+    }
+
+    /// D51：pin 驱动默认零 API——镜像 URL 主通道 + GitHub 确定性直链兜底，
+    /// 四元组全取 pin（纯函数不触网，期望值即夹具 pin 值）。
+    #[test]
+    fn pin驱动_镜像直装_零api主镜像兜底官方() {
+        let tool = age_fixture();
+        let res = pin_direct("age", &tool, &ResolveOptions::default(), "FiloSottile/age")
+            .expect("pin 三键齐应直装");
+        assert_eq!(res.tag, "v1.3.1");
+        assert_eq!(res.version, "1.3.1");
+        assert_eq!(res.asset_name, tool.pin_asset().unwrap());
+        // 主通道：镜像资产域 {MIRROR_BASE}/{tool}/{version}/{asset}（下载层同式拼、锚校验同源）
+        assert_eq!(
+            res.asset_url,
+            format!(
+                "https://env.ohmygh.com/age/{}/{}",
+                tool.pin_version().unwrap(),
+                tool.pin_asset().unwrap()
+            )
+        );
+        // 兜底：GitHub release 确定性下载直链（对象直链非 API；资产名随平台 pin 键）
+        let expect_fallback = format!(
+            "https://github.com/FiloSottile/age/releases/download/{}/{}",
+            tool.pin_tag().unwrap(),
+            tool.pin_asset().unwrap()
+        );
+        assert_eq!(res.fallback_url.as_deref(), Some(expect_fallback.as_str()));
+    }
+
+    /// D51：显式 latest/tag/version 请求不走镜像直装（上游最新语义仍走 GitHub API 兜底）。
+    #[test]
+    fn pin驱动_显式选项不走镜像直装() {
+        let tool = age_fixture();
+        for opts in [
+            ResolveOptions {
+                latest: true,
+                ..ResolveOptions::default()
+            },
+            ResolveOptions {
+                tag: Some("v1.4.0".into()),
+                ..ResolveOptions::default()
+            },
+            ResolveOptions {
+                version: Some("1.4.0".into()),
+                ..ResolveOptions::default()
+            },
+        ] {
+            assert!(
+                pin_direct("age", &tool, &opts, "FiloSottile/age").is_none(),
+                "显式请求（latest={:?} tag={:?} version={:?}）应回落 API",
+                opts.latest,
+                opts.tag,
+                opts.version
+            );
+        }
+    }
+
+    /// D51：pin 三键缺一（数据面未 pin 完整）无直装资格，回落 GitHub API 兜底。
+    #[test]
+    fn pin驱动_pin三键缺一无直装资格() {
+        let mut tool = age_fixture();
+        tool.asset = None;
+        tool.linux_asset = None;
+        tool.mac_asset = None;
+        assert!(pin_direct("age", &tool, &ResolveOptions::default(), "FiloSottile/age").is_none());
+        let mut tool2 = age_fixture();
+        tool2.tag = None;
+        tool2.linux_tag = None;
+        tool2.mac_tag = None;
+        assert!(pin_direct("age", &tool2, &ResolveOptions::default(), "FiloSottile/age").is_none());
     }
 }

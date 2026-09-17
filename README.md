@@ -26,9 +26,9 @@ cargo build --release
 
 `ark init` 自部署：二进制进用户程序目录（Windows `%LOCALAPPDATA%\Programs\ark`，POSIX `~/.local/bin`）、同步 catalog、注册 PATH，幂等可重跑。重开终端后 `ark doctor` 验证。
 
-- 被管理工具装在 EnvRoot：Windows 默认 `D:\ohmyenv`（无 D: 盘则 `C:\ohmyenv`），Linux / macOS 默认 `~/.local/share/ohmyenv`；可用 `--env-root` 或 `ARK_ROOT` 改（读回旧名 `OHMYENV_ROOT`）
-- ark 自身装用户目录，与 EnvRoot 解耦；旧 `ome` 部署位与旧环境变量读回兼容（`ome` 别名已停建，2026-09-14 全舰队水位清零收口）
-- 升级自身：`ark self update`（dev / stable / git 三通道）
+- 被管理工具装在 EnvRoot：Windows 默认 `D:\ohmyenv`（无 D: 盘则 `C:\ohmyenv`），Linux / macOS 默认 `~/.local/share/ohmyenv`；可用 `--env-root` 或 `ARK_ROOT` 改
+- ark 自身装用户目录，与 EnvRoot 解耦；旧 `ome` 部署位在升级时自动清扫（别名已停建，2026-09-14 全舰队水位清零收口；旧环境变量读回已撤，2026-09-18 剔除批）
+- 升级自身：`ark self update`（dev / stable / git 三通道；默认镜像段读序、GitHub API 兜底）
 
 ## install 链
 
@@ -44,7 +44,7 @@ cargo build --release
 ```powershell
 ark status                # 锁定 / 已装 / PATH 三态对照
 ark query ffmpeg --latest # 只解析最新版与资产，不下载
-ark update [名]           # 拉云端最新安装（锁定归云端数据面，不回写；本机落后锁定时补装锁定版，D49）
+ark update [名]           # 对齐云端锁定安装（catalog pin 即目标、零 GitHub API；落后补装、领先如实报，D49/D51；不回写锁定）
 ark pin [名]              # 查看 / 设置版本锁定（lock 为别名）
 ```
 
@@ -59,7 +59,7 @@ ark pin [名]              # 查看 / 设置版本锁定（lock 为别名）
 
 ```powershell
 ark catalog        # 看 catalog 与 manifest 两面：在位、锚、年龄、签名、同步态
-ark catalog sync   # 立即从云端刷新（默认 TTL 24h 自动刷新；ARK_CATALOG_TTL 改，ARK_OFFLINE=1 关，旧名 OME_* 读回）
+ark catalog sync   # 立即从云端刷新（默认 TTL 24h 自动刷新；ARK_CATALOG_TTL 改，ARK_OFFLINE=1 关）
 ```
 
 ## issue 反馈
@@ -96,7 +96,7 @@ ark issue show 3             # 单条详情（含正文）
 
 ## 镜像源
 
-**下载默认走 env.ohmygh.com 自建镜像**（D44 反转，2026-09-13 用户裁定：安装默认走 ohmygh，官方渠道是兜底）；镜像未命中或失败秒级回落官方完整链；有 sha 锚（catalog pin、镜像边车或官方清单）必校验，锚不符视同失败回落。
+**下载与元数据默认走 env.ohmygh.com 自建镜像、GitHub 兜底**（D44 下载链反转，2026-09-13；D51 全链转正，2026-09-18：解析面 pin 驱动零 GitHub API、self update 元数据镜像段读序先行、update 对齐 catalog pin）；镜像未命中或失败秒级回落官方（下载走官方直链与完整链，无 API 配额面）；有 sha 锚（catalog pin、镜像边车或官方清单）必校验，锚不符视同失败回落。镜像故障逃逸：`ARK_MIRROR=0` 官方优先（`=1` 已是默认、兼容保留）。
 
 运行时工具族的中国源配置走 manifest `mirror` 节（数据面声明、引擎落源，D42）：fnm 面 FNM_NODE_DIST_MIRROR 与 npm registry（npmmirror）、uv / pip 清华 TUNA 加 python 安装 NJU、bun npmmirror；win 落用户环境变量与各工具原生配置位、POSIX 落 shell rc（profile env 块）与 XDG 配置位。rust 由 rustup 接管模块原生落 rsproxy 全量（三平台：装走 rsproxy rustup-init，RUSTUP_DIST_SERVER / RUSTUP_UPDATE_ROOT 加 cargo config；POSIX 用 `~/.rustup` 与 `~/.cargo` 系统标准位）。幂等：内容一致零重写，存量端 `ark install` / `ark update` 即得。
 

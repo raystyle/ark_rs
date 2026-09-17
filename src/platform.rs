@@ -176,20 +176,16 @@ pub fn self_deploy_target() -> Result<PathBuf, String> {
     }
 }
 
-/// 读环境变量（D41 更名 Ark）：主名优先，主名未设或纯空白时读回旧名；都未设返回 None。
-/// 同设时主名胜（旧名只作过渡期读回，不参与合并）。
-pub fn env_var_or(primary: &str, fallback: &str) -> Option<String> {
-    let read = |k: &str| {
-        std::env::var(k)
-            .ok()
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-    };
-    read(primary).or_else(|| read(fallback))
+/// 读环境变量：空白值视同未设，返回 None（旧名读回已随 ome 关键字剔除批撤除，2026-09-18）。
+pub fn env_var(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 /// 旧 ome 部署位（D41 C 接管清单：Windows `Programs\ome`，在位时 Some）。
-/// POSIX 旧位 `~/.local/bin/ome` 即别名落点，由 `remove_ome_alias` 清理。
+/// POSIX 旧位 `~/.local/bin/ome` 即别名落点，由 `remove_legacy_alias` 清理。
 pub fn legacy_deploy_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
@@ -203,11 +199,11 @@ pub fn legacy_deploy_dir() -> Option<PathBuf> {
 }
 
 /// `ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；
-/// 落点保留供 `remove_ome_alias` 定位清理既有副本）。
+/// 落点保留供 `remove_legacy_alias` 定位清理既有副本）。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。
-pub fn ome_alias_target() -> Result<PathBuf, String> {
+pub fn legacy_alias_target() -> Result<PathBuf, String> {
     let t = self_deploy_target()?;
     let name = if cfg!(windows) { "ome.exe" } else { "ome" };
     Ok(t.with_file_name(name))
@@ -218,8 +214,8 @@ pub fn ome_alias_target() -> Result<PathBuf, String> {
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：{}: {e} 等（完整失败面见函数体错误构造）。
-pub fn remove_ome_alias() -> Result<bool, String> {
-    let alias = ome_alias_target()?;
+pub fn remove_legacy_alias() -> Result<bool, String> {
+    let alias = legacy_alias_target()?;
     remove_file_if_exists(&alias)
 }
 
@@ -232,11 +228,11 @@ fn remove_file_if_exists(path: &Path) -> Result<bool, String> {
     }
 }
 
-/// 用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1`（读回 `OME_TEST_NO_PATH_REG`）时，**所有**用户环境写入面
+/// 用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1` 时，**所有**用户环境写入面
 /// 一律跳过（PATH 注册、用户级变量、profile 钩子、用户 bin 直链）。变量名沿历史（PATH 注册
 /// 是最早的那面），覆盖面已扩到四面——只守一面会让沙盒测试从别的门漏进真实环境。
 pub fn user_env_write_blocked() -> bool {
-    env_var_or("ARK_TEST_NO_PATH_REG", "OME_TEST_NO_PATH_REG").as_deref() == Some("1")
+    env_var("ARK_TEST_NO_PATH_REG").as_deref() == Some("1")
 }
 
 /// 路径是否位于系统临时目录下。闸的是「注册面」不是安装面：Temp 下装得
@@ -1230,41 +1226,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn env_var_or_主名优先与旧名读回() {
-        // D41 自测 1：同设主名优先、主名空白视同未设、仅旧名读回、都未设为 None
-        std::env::set_var("ARK_TEST_ENVVAR_X", "primary");
-        std::env::set_var("OME_TEST_ENVVAR_X", "fallback");
-        assert_eq!(
-            env_var_or("ARK_TEST_ENVVAR_X", "OME_TEST_ENVVAR_X").as_deref(),
-            Some("primary"),
-            "同设时主名优先"
-        );
+    fn env_var_空白视同未设() {
+        // 单名读取语义：未设 None、纯空白视同未设、常规值 trim 后返回
         std::env::remove_var("ARK_TEST_ENVVAR_X");
-        assert_eq!(
-            env_var_or("ARK_TEST_ENVVAR_X", "OME_TEST_ENVVAR_X").as_deref(),
-            Some("fallback"),
-            "主名未设读回旧名"
-        );
+        assert_eq!(env_var("ARK_TEST_ENVVAR_X"), None, "未设为 None");
         std::env::set_var("ARK_TEST_ENVVAR_X", "  ");
+        assert_eq!(env_var("ARK_TEST_ENVVAR_X"), None, "纯空白视同未设");
+        std::env::set_var("ARK_TEST_ENVVAR_X", " val ");
         assert_eq!(
-            env_var_or("ARK_TEST_ENVVAR_X", "OME_TEST_ENVVAR_X").as_deref(),
-            Some("fallback"),
-            "主名纯空白视同未设"
+            env_var("ARK_TEST_ENVVAR_X").as_deref(),
+            Some("val"),
+            "trim 后返回"
         );
         std::env::remove_var("ARK_TEST_ENVVAR_X");
-        std::env::remove_var("OME_TEST_ENVVAR_X");
-        assert_eq!(
-            env_var_or("ARK_TEST_ENVVAR_X", "OME_TEST_ENVVAR_X"),
-            None,
-            "都未设为 None"
-        );
     }
 
     #[cfg(windows)]
     #[test]
-    fn ome别名_部署位同目录() {
-        // D41 C 收口：别名停建，落点仅供清理定位
-        let alias = ome_alias_target().expect("别名应可解析");
+    fn legacy别名_部署位同目录() {
+        // D41 C 收口：别名停建，落点仅供清理定位（旧位实名 ome）
+        let alias = legacy_alias_target().expect("别名应可解析");
         let deploy = self_deploy_target().expect("部署位应可解析");
         assert_eq!(alias.parent(), deploy.parent(), "别名与部署位同目录");
         assert!(
@@ -1276,8 +1257,8 @@ mod tests {
 
     #[cfg(not(windows))]
     #[test]
-    fn ome别名_部署位同目录() {
-        let alias = ome_alias_target().expect("别名应可解析");
+    fn legacy别名_部署位同目录() {
+        let alias = legacy_alias_target().expect("别名应可解析");
         let deploy = self_deploy_target().expect("部署位应可解析");
         assert_eq!(alias.parent(), deploy.parent(), "别名与部署位同目录");
         assert!(alias.ends_with("ome"), "别名文件名: {}", alias.display());
@@ -1667,10 +1648,10 @@ mod tests {
     #[cfg(not(windows))]
     #[test]
     fn expand_env_vars_linux_语法() {
-        std::env::set_var("OME_TEST_PLAT_X", "/home/demo");
-        assert_eq!(expand_env_vars("$OME_TEST_PLAT_X/bin"), "/home/demo/bin");
-        assert_eq!(expand_env_vars("${OME_TEST_PLAT_X}/bin"), "/home/demo/bin");
-        assert_eq!(expand_env_vars("$OME_NO_SUCH_VAR/x"), "$OME_NO_SUCH_VAR/x");
+        std::env::set_var("ARK_TEST_PLAT_X", "/home/demo");
+        assert_eq!(expand_env_vars("$ARK_TEST_PLAT_X/bin"), "/home/demo/bin");
+        assert_eq!(expand_env_vars("${ARK_TEST_PLAT_X}/bin"), "/home/demo/bin");
+        assert_eq!(expand_env_vars("$ARK_NO_SUCH_VAR/x"), "$ARK_NO_SUCH_VAR/x");
     }
 
     #[cfg(not(windows))]

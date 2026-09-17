@@ -5,7 +5,7 @@
 | 编号 | 文件 | 主题 |
 | --- | --- |  |
 | R001 | `docs/references/R001-catalog数据模式-tools-toml字段与pin语义.md` | catalog 清单字段模式与 pin 回写语义（数据面归 ohmycloud） |
-| R004 | `docs/references/R004-测试标准细则-分层断言与门禁流程.md` | 测试分层断言与门禁（真机对齐闸门 ARK_TEST_REAL，旧名 OME_TEST_REAL 读回） |
+| R004 | `docs/references/R004-测试标准细则-分层断言与门禁流程.md` | 测试分层断言与门禁（真机对齐闸门 ARK_TEST_REAL） |
 | R005 | `docs/references/R005-选型研究细则-cratesio与github双通道.md` | Rust 库与项目选型双通道 |
 | R008 | `docs/references/R008-项目工具Python库选型细则-pypi与uv.md` | 项目工具 Python 选库与 uv |
 | R009 | `docs/references/R009-项目工具PowerShell模块选型细则-psgallery与psresourceget.md` | 项目工具 PowerShell 模块选型 |

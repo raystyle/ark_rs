@@ -14,3 +14,4 @@
 | REQ-0007 | draft | 对齐build-release标准迁移（批一播种面加批二发布面） | 实施中（批一批二，trace 见 REQ 内） |
 | REQ-0008 | draft | 包形专项批三 | 对线合流三点全准（2026-09-17）；窗一版动工在即（开关形双挂加包形读序），设计决策见 REQ 内 |
 | REQ-0009 | implemented | issue命令集成 | lib 单测六件加全量全绿加真读面冒烟加实弹回执（trace 见 REQ 内） |
+| REQ-0010 | implemented | 镜像默认通道与GitHub兜底 | cargo test 全绿 220 项加离线集成测零 API 面加门禁绿（trace 见 REQ 内） |

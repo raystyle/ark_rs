@@ -1,20 +1,20 @@
-//! ome CLI 入口：query / pin（lock 别名）/ install / update / status / init（self-deploy 别名）
+//! ark CLI 入口：query / pin（lock 别名）/ install / update / status / init（self-deploy 别名）
 //! / verify / heal / doctor / self。
 //!
 //! 输出纪律（吸收自 incurs 研究 S001，S003 扩展三格式）：
 //! - stdout 只走数据：默认 key=value 逐行，`--format json|jsonl` 或 `--json` 切结构化，
 //!   统一经 render 层输出，命令里不散写 println!；
 //! - 人称提示（[INFO]/[OK]/[WARN]/[HINT]/[跳过] 等）一律 stderr；
-//! - 错误出口为 OmeError（code/message/hint/exit_code），main 按 exit_code 退出；
+//! - 错误出口为 ArkError（code/message/hint/exit_code），main 按 exit_code 退出；
 //!   结构化模式下错误以单行 JSON 附 stderr 末行，stdout 保持纯数据。
 
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
 
+use ark::arerr::ArkError;
 use ark::catalog::{self, Catalog};
 use ark::install::{install_tool, InstallOptions, InstallOutcome};
-use ark::omerr::OmeError;
 use ark::render;
 use ark::resolve::{resolve_tool, Resolution, ResolveOptions};
 use ark::status;
@@ -37,13 +37,13 @@ const LLMS_MANIFEST: &str = "\
 | ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |
 | ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |
 | ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |
-| ark update [名] | 拉云端最新并安装（不回写锁定，锁定归数据面；省略则全量） | 同 install | 0/1 |
+| ark update [名] | 对齐云端锁定安装（catalog pin 即目标，零 GitHub API；落后补装、领先如实报，不回写锁定；省略则全量） | 同 install | 0/1 |
 | ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |
 | ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |
 | ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |
 | ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |
-| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新，旧名 OME_* 读回） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |
-| ark self update [--stable\\|--git] | 升级自身三通道（默认走镜像对应通道段、未命中回落官方，边车即锚；ARK_MIRROR=1 为解析面跳过官方 API） | exe,sha256 | 0/1 |
+| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |
+| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |
 | ark issue new\\|list\\|show | 派生·统一 issue 入口（REQ-057 契约）：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list/show 读面 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |
 
 细契约：仓库 docs\\references\\R013（输出格式/退出码/冻结面）。
@@ -72,7 +72,7 @@ const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --bo
     about = "Ark（Agent Runtime Kit）：全平台 Agent 工具及运行时依赖环境的部署、管理、验收与诊断 CLI"
 )]
 struct Cli {
-    /// 环境根目录覆盖，默认读取 ARK_ROOT（读回 OHMYENV_ROOT）或平台默认路径
+    /// 环境根目录覆盖，默认读取 ARK_ROOT 或平台默认路径
     #[arg(long, global = true)]
     env_root: Option<String>,
 
@@ -206,7 +206,7 @@ enum Commands {
     },
     /// ark 自身管理
     #[command(name = "self", after_help = EX_SELF)]
-    OmeSelf {
+    ArkSelf {
         #[command(subcommand)]
         cmd: SelfCmd,
     },
@@ -308,7 +308,7 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), OmeError> {
+fn run() -> Result<(), ArkError> {
     let cli = Cli::parse();
     // --llms：打印紧凑命令清单后退出（agent 零安装可用；D50 起唯一 agent 发现通道，
     // R013 契约）。早于一切子命令与格式初始化。
@@ -326,17 +326,17 @@ fn run() -> Result<(), OmeError> {
     render::set_format(format);
     // 子命令可选；缺子命令在加载 catalog 之前给出 agent 友好错误（无 catalog 时仍能提示）
     let Some(cmd) = cli.command else {
-        return Err(OmeError::from(
+        return Err(ArkError::from(
             "缺少子命令；--llms 打印命令清单，--help 看详情".to_string(),
         ));
     };
     // issue 域纯网络面（REQ-0009）：早期派发，不经 catalog 加载与签名巡检
     //（无清单环境也能一键反馈缺陷）。
     if let Commands::Issue { cmd } = cmd.clone() {
-        return cmd_issue(cmd).map_err(OmeError::from);
+        return cmd_issue(cmd).map_err(ArkError::from);
     }
-    let env_root = catalog::resolve_env_root(cli.env_root.as_deref()).map_err(OmeError::from)?;
-    let cat_path = catalog::resolve_catalog_path().map_err(OmeError::from)?;
+    let env_root = catalog::resolve_env_root(cli.env_root.as_deref()).map_err(ArkError::from)?;
+    let cat_path = catalog::resolve_catalog_path().map_err(ArkError::from)?;
     // D33：仅当解析面就是用户数据副本时按 TTL 刷新云端清单（仓库与 ARK_CATALOG 指定面零干扰；
     // catalog 子命令自身除外，其状态与刷新显式可控）。失败与跳过都不拦命令。
     if !matches!(cmd, Commands::Catalog { .. }) {
@@ -349,7 +349,7 @@ fn run() -> Result<(), OmeError> {
         match catalog::check_signature(&cat_path) {
             catalog::SignatureState::Valid => {}
             catalog::SignatureState::Invalid(e) => {
-                return Err(OmeError::from(format!(
+                return Err(ArkError::from(format!(
                     "清单签名校验不过: {}（{e}）；修复: `ark catalog sync` 取回云端签名件，或设 ARK_CATALOG 指定本地清单；内嵌公钥 {}",
                     cat_path.display(),
                     catalog::CLOUD_CATALOG_PUBKEY_ID
@@ -365,27 +365,27 @@ fn run() -> Result<(), OmeError> {
             }
         }
     }
-    let cat = Catalog::load(&cat_path).map_err(OmeError::from)?;
+    let cat = Catalog::load(&cat_path).map_err(ArkError::from)?;
     match cmd {
-        Commands::Query { tool, opts } => cmd_query(&cat, &tool, &opts).map_err(OmeError::from),
-        Commands::Pin { tool, opts } => cmd_pin(&cat, &tool, &opts).map_err(OmeError::from),
+        Commands::Query { tool, opts } => cmd_query(&cat, &tool, &opts).map_err(ArkError::from),
+        Commands::Pin { tool, opts } => cmd_pin(&cat, &tool, &opts).map_err(ArkError::from),
         Commands::Install { tool, opts, force } => {
-            cmd_install(&cat, &env_root, &tool, &opts, force).map_err(OmeError::from)
+            cmd_install(&cat, &env_root, &tool, &opts, force).map_err(ArkError::from)
         }
         Commands::Update { tool, force } => {
-            cmd_update(&cat, &env_root, &tool, force).map_err(OmeError::from)
+            cmd_update(&cat, &env_root, &tool, force).map_err(ArkError::from)
         }
-        Commands::Status => cmd_status(&cat, &env_root).map_err(OmeError::from),
-        Commands::Init => cmd_init(&env_root).map_err(OmeError::from),
+        Commands::Status => cmd_status(&cat, &env_root).map_err(ArkError::from),
+        Commands::Init => cmd_init(&env_root).map_err(ArkError::from),
         Commands::Verify { check } => {
-            cmd_verify(&cat, &env_root, check.as_deref()).map_err(OmeError::from)
+            cmd_verify(&cat, &env_root, check.as_deref()).map_err(ArkError::from)
         }
         Commands::Heal { dim, dry_run } => {
-            cmd_heal(&cat, &env_root, &dim, dry_run).map_err(OmeError::from)
+            cmd_heal(&cat, &env_root, &dim, dry_run).map_err(ArkError::from)
         }
-        Commands::Doctor => cmd_doctor(&cat, &env_root).map_err(OmeError::from),
-        Commands::Catalog { cmd } => cmd_catalog(&env_root, &cat_path, cmd).map_err(OmeError::from),
-        Commands::OmeSelf {
+        Commands::Doctor => cmd_doctor(&cat, &env_root).map_err(ArkError::from),
+        Commands::Catalog { cmd } => cmd_catalog(&env_root, &cat_path, cmd).map_err(ArkError::from),
+        Commands::ArkSelf {
             cmd: SelfCmd::Update { stable, git },
         } => {
             let channel = if git {
@@ -395,7 +395,7 @@ fn run() -> Result<(), OmeError> {
             } else {
                 ark::selfupdate::Channel::Dev
             };
-            cmd_self_update(&env_root, channel).map_err(OmeError::from)
+            cmd_self_update(&env_root, channel).map_err(ArkError::from)
         }
         // issue 已在 catalog 前早期派发（纯网络面），此臂不可达
         Commands::Issue { .. } => unreachable!("issue 已早期派发"),
@@ -792,7 +792,7 @@ fn cmd_query(cat: &Catalog, tool: &str, opts: &VersionOpts) -> Result<(), String
             );
             continue;
         }
-        if ark::selfupdate::is_ome_self(def) {
+        if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 为自管条目，版本走 self update 三通道（dev/stable/git）");
             emit_block(
                 &mut first,
@@ -849,7 +849,7 @@ fn cmd_pin(cat: &Catalog, tool: &str, opts: &VersionOpts) -> Result<(), String> 
             emit_block(&mut first, vec![kv("tool", name), kv("pin", "evergreen")]);
             continue;
         }
-        if ark::selfupdate::is_ome_self(def) {
+        if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 为自管条目，无 pin 语义（self update 按资产 sha 滚动）");
             emit_block(
                 &mut first,
@@ -969,7 +969,7 @@ fn cmd_install(
             continue;
         }
         // ome：自管条目（self update 三通道），install 提示走 self update
-        if ark::selfupdate::is_ome_self(def) {
+        if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 自管理：升级走 `ark self update`（dev/stable/git 三通道）");
             emit_block(
                 &mut first,
@@ -1046,15 +1046,15 @@ fn summarize_all_errors(errors: &[String]) -> Result<(), String> {
     }
 }
 
-/// update：--latest 解析，同 tag 跳过（不看 --force），否则装 + 注册；**不回写锁定**
-/// （D37 定案：拉云端最新，版本锁定单源归数据面 omc；`ark pin` 留作临时本地锁）。
+/// update：**对齐云端 catalog pin 安装**（D51 镜像默认通道：pin 驱动解析零 GitHub API，
+/// 云端「最新」定义随此改指镜像与 catalog——上游滚版归数据面 omc 滚锁）；本机对照锁定
+/// 走 D49 三态（一致 skip、落后/未装补装、领先如实报）；**不回写锁定**（D37 定案：
+/// 版本锁定单源归数据面 omc；`ark pin` 留作临时本地锁）；`--force` 走真装。
 fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result<(), String> {
     let names = cat.select(tool)?;
     warn_if_manifest_missing(cat);
-    let ropts = ResolveOptions {
-        latest: true,
-        ..ResolveOptions::default()
-    };
+    // D51：默认解析 pin 驱动（GitHub 分支零 API 镜像直装；zig 等 index 分支无 pin 仍解析最新）
+    let ropts = ResolveOptions::default();
     let iopts = InstallOptions {
         configure: true,
         update_lock: false,
@@ -1104,7 +1104,7 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             );
             continue;
         }
-        if ark::selfupdate::is_ome_self(def) {
+        if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 为自管条目，不走 update（ark self update 三通道）");
             emit_block(
                 &mut first,

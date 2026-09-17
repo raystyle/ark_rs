@@ -53,17 +53,17 @@ mod tests {
     #[test]
     fn add_前置插入_保未展开条目() {
         // %USERPROFILE% 条目必须以未展开形式保留（review 实测降级为字面路径会静默失效）
-        std::env::set_var("OME_TEST_HOME", r"C:\Users\demo");
-        let raw = r"%OME_TEST_HOME%\bin;C:\tools";
+        std::env::set_var("ARK_TEST_HOME", r"C:\Users\demo");
+        let raw = r"%ARK_TEST_HOME%\bin;C:\tools";
         let new = add_path_entry(raw, r"D:\ohmyenv\jq").expect("应新增");
-        assert_eq!(new, r"D:\ohmyenv\jq;%OME_TEST_HOME%\bin;C:\tools");
+        assert_eq!(new, r"D:\ohmyenv\jq;%ARK_TEST_HOME%\bin;C:\tools");
     }
 
     #[test]
     fn add_展开后已存在_跳过且大小写不敏感() {
-        std::env::set_var("OME_TEST_HOME", r"C:\Users\demo");
+        std::env::set_var("ARK_TEST_HOME", r"C:\Users\demo");
         // 已存在条目的展开形式与 dir 相同（变量形式不同也算重复）
-        let raw = r"%OME_TEST_HOME%\bin;C:\tools";
+        let raw = r"%ARK_TEST_HOME%\bin;C:\tools";
         assert_eq!(add_path_entry(raw, r"C:\Users\demo\bin"), None);
         // 大小写不敏感（对齐 PowerShell -contains）
         assert_eq!(add_path_entry(raw, r"c:\users\demo\BIN"), None);
@@ -96,11 +96,11 @@ mod tests {
 
     #[test]
     fn remove_展开后匹配_大小写不敏感() {
-        std::env::set_var("OME_TEST_HOME", r"C:\Users\demo");
-        let raw = r"D:\ohmyenv\jq;%OME_TEST_HOME%\bin;C:\tools";
+        std::env::set_var("ARK_TEST_HOME", r"C:\Users\demo");
+        let raw = r"D:\ohmyenv\jq;%ARK_TEST_HOME%\bin;C:\tools";
         assert_eq!(
             remove_path_entry(raw, r"d:\ohmyenv\JQ"),
-            r"%OME_TEST_HOME%\bin;C:\tools"
+            r"%ARK_TEST_HOME%\bin;C:\tools"
         );
         assert_eq!(
             remove_path_entry(raw, r"C:\Users\demo\bin"),

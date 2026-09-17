@@ -11,7 +11,7 @@ use std::path::PathBuf;
 type TestResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn gated() -> bool {
-    ark::platform::env_var_or("ARK_TEST_MIRROR", "OME_TEST_MIRROR")
+    ark::platform::env_var("ARK_TEST_MIRROR")
         .map(|v| v == "1")
         .unwrap_or(false)
 }
@@ -36,12 +36,12 @@ fn 镜像优先_darwin资产镜像命中且sha与mac_pin一致() -> TestResult<(
     // 期望值来源：catalog\tools.toml [tools.rmux] mac 平台键（darwin 分发测试，ohmycloud#3）
     let asset = "rmux-0.10.0-macos-aarch64.tar.gz";
     let pin_sha = "AAC857519071F680BE53AA9A328DC0CD04C2ABE66EC726F78AA9E26337C5EF7B";
-    let sandbox = std::env::temp_dir().join(format!("ome-mirror-mac-{}", std::process::id()));
+    let sandbox = std::env::temp_dir().join(format!("ark-mirror-mac-{}", std::process::id()));
     std::fs::create_dir_all(&sandbox)?;
     let got: PathBuf = ark::download::download_asset_with_mirror(
         &sandbox,
         asset,
-        "https://official-invalid.ome-test.invalid/x",
+        "https://official-invalid.ark-test.invalid/x",
         Some(pin_sha),
         true,
         "rmux",
@@ -65,13 +65,13 @@ fn 镜像优先_下载命中且sha与pin一致() -> TestResult<()> {
     // 期望值来源：catalog\tools.toml [tools.zoxide] pin（独立来源，非被测逻辑回显）
     let asset = "zoxide-0.10.0-x86_64-pc-windows-msvc.zip";
     let pin_sha = "F465AE548F8754C8E7EDBC60B45FBF58C92BFE123DB83D790252D6810FA5DAF1";
-    let sandbox = std::env::temp_dir().join(format!("ome-mirror-test-{}", std::process::id()));
+    let sandbox = std::env::temp_dir().join(format!("ark-mirror-test-{}", std::process::id()));
     std::fs::create_dir_all(&sandbox)?;
     let got: PathBuf = ark::download::download_asset_with_mirror(
         &sandbox,
         asset,
         // 官方段故意给不可达地址（.invalid TLD 保测不会真通），逼回落镜像段
-        "https://official-invalid.ome-test.invalid/x.zip",
+        "https://official-invalid.ark-test.invalid/x.zip",
         Some(pin_sha),
         true,
         "zoxide",
@@ -96,12 +96,12 @@ fn 镜像优先_linux资产镜像命中且sha与linux_pin一致() -> TestResult<
     // 期望值来源：catalog\tools.toml [tools.zoxide] linux 平台键（2026-09-08 官方资产哈希回填）
     let asset = "zoxide-0.10.0-x86_64-unknown-linux-musl.tar.gz";
     let pin_sha = "2D93385B99F3E82CF2701609A1BFFCAD863FBEB75AA3FE7EB6BE4D29BE68B1AE";
-    let sandbox = std::env::temp_dir().join(format!("ome-mirror-linux-{}", std::process::id()));
+    let sandbox = std::env::temp_dir().join(format!("ark-mirror-linux-{}", std::process::id()));
     std::fs::create_dir_all(&sandbox)?;
     let got: PathBuf = ark::download::download_asset_with_mirror(
         &sandbox,
         asset,
-        "https://official-invalid.ome-test.invalid/x.tar.gz",
+        "https://official-invalid.ark-test.invalid/x.tar.gz",
         Some(pin_sha),
         true,
         "zoxide",
@@ -123,12 +123,12 @@ fn 镜像优先_rust引导器latest段命中且sha与边车一致() -> TestResul
         eprintln!("skip: ARK_TEST_MIRROR != 1");
         return Ok(());
     }
-    let sandbox = std::env::temp_dir().join(format!("ome-mirror-rust-{}", std::process::id()));
+    let sandbox = std::env::temp_dir().join(format!("ark-mirror-rust-{}", std::process::id()));
     std::fs::create_dir_all(&sandbox)?;
     let got = ark::download::download_latest_with_sidecar(
         &sandbox,
         "rustup-init.exe",
-        "https://official-invalid.ome-test.invalid/rustup-init.exe",
+        "https://official-invalid.ark-test.invalid/rustup-init.exe",
         "rust",
     )?;
     let oracle = sidecar_oracle(
@@ -151,12 +151,12 @@ fn 镜像优先_vsbuild引导器latest段命中且sha与边车一致() -> TestRe
         eprintln!("skip: ARK_TEST_MIRROR != 1");
         return Ok(());
     }
-    let sandbox = std::env::temp_dir().join(format!("ome-mirror-vsbuild-{}", std::process::id()));
+    let sandbox = std::env::temp_dir().join(format!("ark-mirror-vsbuild-{}", std::process::id()));
     std::fs::create_dir_all(&sandbox)?;
     let got = ark::download::download_latest_with_sidecar(
         &sandbox,
         "vs_buildtools.exe",
-        "https://official-invalid.ome-test.invalid/vs_buildtools.exe",
+        "https://official-invalid.ark-test.invalid/vs_buildtools.exe",
         "vsbuild",
     )?;
     let oracle = sidecar_oracle(
@@ -213,7 +213,7 @@ fn 镜像优先_自身dev主段边车锚一致() -> TestResult<()> {
     let got: PathBuf = ark::download::download_asset_with_mirror(
         &sandbox,
         &asset,
-        "https://official-invalid.ome-test.invalid/ark.exe",
+        "https://official-invalid.ark-test.invalid/ark.exe",
         Some(&anchor),
         true,
         "ark",
@@ -232,7 +232,7 @@ fn 镜像优先_自身dev主段边车锚一致() -> TestResult<()> {
 /// 镜像资产域 URL（真网 gated；断言只锚镜像域前缀与 pin 版本，不依赖具体版本号）。
 #[test]
 fn mirror_query_私有仓pin锚镜像直装() -> Result<(), Box<dyn std::error::Error>> {
-    if ark::platform::env_var_or("ARK_TEST_MIRROR", "OME_TEST_MIRROR").unwrap_or_default() != "1" {
+    if ark::platform::env_var("ARK_TEST_MIRROR").unwrap_or_default() != "1" {
         eprintln!("skip: ARK_TEST_MIRROR 未设置");
         return Ok(());
     }

@@ -468,21 +468,21 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn env变量展开_未定义原样保留() {
-        std::env::set_var("OME_TEST_VAR_X", r"C:\somewhere");
+        std::env::set_var("ARK_TEST_VAR_X", r"C:\somewhere");
         assert_eq!(
-            expand_env_vars(r"%OME_TEST_VAR_X%\bin\tool.exe"),
+            expand_env_vars(r"%ARK_TEST_VAR_X%\bin\tool.exe"),
             r"C:\somewhere\bin\tool.exe"
         );
         assert_eq!(
-            expand_env_vars(r"%OME_NO_SUCH_VAR%\x.exe"),
-            r"%OME_NO_SUCH_VAR%\x.exe"
+            expand_env_vars(r"%ARK_NO_SUCH_VAR%\x.exe"),
+            r"%ARK_NO_SUCH_VAR%\x.exe"
         );
     }
 
     #[test]
     #[cfg(not(windows))]
     fn exe路径_专属exe相对安装目录_通用exe相对envroot() {
-        let root = Path::new("/tmp/ome-root");
+        let root = Path::new("/tmp/ark-root");
         // 专属 exe（linux_exe，mac 上 mac_exe 同理）相对 install_dir：dir 展开后绝对路径直用
         let platform = Tool {
             dir: Some("~/.local/bin".to_string()),
@@ -532,9 +532,9 @@ mod tests {
         );
         assert!(!is_official(&green));
 
-        std::env::set_var("OME_TEST_VAR_Y", r"C:\official");
+        std::env::set_var("ARK_TEST_VAR_Y", r"C:\official");
         let official = Tool {
-            exe: Some(r"%OME_TEST_VAR_Y%\rmux\bin\rmux.exe".to_string()),
+            exe: Some(r"%ARK_TEST_VAR_Y%\rmux\bin\rmux.exe".to_string()),
             ..Tool::default()
         };
         assert_eq!(

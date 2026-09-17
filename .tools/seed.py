@@ -7,7 +7,7 @@ D37 完全解耦后资产播种与清单三件套运营归 ohmycloud catalog-see
 
 口径（R014 延续）：
 - 唯一权威 catalog\tools.toml：version + asset + sha256 三键齐才入镜；无 sha 进 pending 队列；
-  hold 与 evergreen（ome-self/vsbuild/rustup）不入镜。
+  hold 与 evergreen（ark-self/vsbuild/rustup）不入镜。
 - 边车自算即锚：`<hex 小写>空两格<asset>` 同名 .sha256 边车，上传前资产先过 catalog sha 锚校验；
   边车经临时目录暂存后上传（不落源资产目录，源目录可能是仓库工作树，M015）。
 - diff 走公网域面（GET 边车带 ?t= 时间戳击穿 + HEAD 资产），不需要 R2 凭据；上传走 rclone（CI 内）。
@@ -80,7 +80,7 @@ def _catalog_path() -> Path:
     )
 
 DOMAIN = "https://env.ohmygh.com"
-EVERGREEN_EXTRACT = {"ome-self", "ark-self", "vsbuild", "rustup"}
+EVERGREEN_EXTRACT = {"ark-self", "vsbuild", "rustup"}
 PLATFORMS = (("win", "", ""), ("linux", "linux_", "linux_"), ("mac", "mac_", "mac_"))
 # 路线 A 的本仓三资产（CI 目标三元组；selfupdate 资产名同源）：主名 ark-*。
 # ome-* 兼容名与 ome/ 段已撤（全舰队 ome 水位清零，2026-09-14 收口）。

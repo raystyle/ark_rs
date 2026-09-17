@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+镜像默认通道翻转批加 ome 关键字剔除批（2026-09-18 总台派单与用户令；D51/ADR-0008/REQ-0010）。
+
+- **镜像默认通道与 GitHub 兜底**（D51，用户两连发裁定）：三面翻转。解析面 pin 驱动（install/update/query/heal 默认路径）零 GitHub API：catalog pin 三键在位即镜像资产域 URL 直装（`Resolution.fallback_url` 承载 GitHub release 确定性直链兜底，对象直链无配额面），pin 缺键或显式 `--latest`/`--tag`/`--version` 才打 API（D38「API 失败回落镜像」被默认通道收编删除）；下载面 D44 机制不动；自更新面元数据镜像段读序先行、官方 API 兜底、双败报两段错误；`ark update` 解析对齐 catalog pin（云端最新定义改指镜像与 catalog，D49 补装三态与不回写锁定不动；私有仓工具 update 由必败转可用）。开关 `ARK_MIRROR`：`=1` 转正默认兼容 no-op、`=0` 官方优先逃逸阀（下载跳镜像首试、selfupdate 反转读序）。
+- **ome 关键字剔除批**（用户令）：env 旧名读回全撤（`env_var_or` 改单名 `env_var`，`OME_*`/`OHMYENV_ROOT` 读回链删除，五端如有旧名导出需换 `ARK_*`）；selfupdate ome 兼容层收口（`ome-<triple>` 资产名与镜像 `ome/` 段读序腿删除、`extract` 仅认 `ark-self`，长期未同步端 `ark catalog sync` 即迁）；标识符与测试面全量 ark 化（`is_ark_self`、`arerr.rs`/`ArkError`、UA 与临时串）；保留实称：EnvRoot 磁盘目录名 `ohmyenv`（迁移另立项待裁）、镜像自检签名被签内容对（私钥在 ohmycloud 侧）。
+
 v1.3.0 封版收尾批补审（herdr codex 评审闸门，2026-09-17 两轮 CONFIRM）。
 
 - **aidoc 版本面漂移根治**（补审 F1，v1.2.3/v1.3.0 二犯）：封版滚版本未再生成 aidoc 四件投影的漂移补滚至 1.3.0；CI 文档门禁新增 `cargo aidoc --check --strict` 岗（linux 岗）；REQ-0006 封版件判据补 aidoc 同提交项。

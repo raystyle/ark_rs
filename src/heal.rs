@@ -600,7 +600,7 @@ fn install_one(cat: &Catalog, env_root: &Path, name: &str) -> Result<InstallActi
         return crate::rustup::install(def, env_root, true).map(|o| o.action);
     }
     // ome 自管条目：升级走 self update 三通道，heal 的 install all 不碰
-    if crate::selfupdate::is_ome_self(def) {
+    if crate::selfupdate::is_ark_self(def) {
         eprintln!("[INFO] {name} 自管理：升级走 `ark self update`（dev/stable/git 三通道）");
         return Ok(InstallAction::Skipped);
     }

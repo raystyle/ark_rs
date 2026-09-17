@@ -1,5 +1,5 @@
 //! CLI 集成冒烟测试（离线路径）：以 ARK_CATALOG 指向夹具，断退出码与 key=value 标记行。
-//! 网络路径（query --latest 等）不在此处测，真机对齐走 OME_TEST_REAL 闸门。
+//! 网络路径（query --latest 等）不在此处测，真机对齐走 ARK_TEST_REAL 闸门。
 
 use std::path::PathBuf;
 
@@ -11,8 +11,8 @@ fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tools.toml")
 }
 
-fn ome() -> Command {
-    let mut cmd = Command::cargo_bin("ark").expect("ome 二进制应已构建");
+fn ark_cli() -> Command {
+    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     cmd.env("ARK_CATALOG", fixture());
     cmd
 }
@@ -26,7 +26,7 @@ fn pin_无选项_打印当前pin_sha截16位() {
     let (asset, sha16) = ("age-v1.3.1-linux-amd64.tar.gz", "BDC69C09CBDD6CF8...");
     #[cfg(target_os = "macos")]
     let (asset, sha16) = ("age-v1.3.1-darwin-arm64.tar.gz", "01120EA2CBF0463D...");
-    ome()
+    ark_cli()
         .args(["pin", "age"])
         .assert()
         .success()
@@ -37,9 +37,36 @@ fn pin_无选项_打印当前pin_sha截16位() {
         .stdout(contains(format!("sha256={sha16}")));
 }
 
+/// D51 镜像默认通道：GitHub 分支 pin 驱动 query 零 API（离线即证不打 api.github.com），
+/// url 如实呈现镜像资产域直拼地址；版本与资产全取 catalog pin（期望值来自夹具）。
+#[test]
+fn query_pind驱动_零api镜像直装url() {
+    #[cfg(windows)]
+    let asset = "age-v1.3.1-windows-amd64.zip";
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    let asset = "age-v1.3.1-linux-amd64.tar.gz";
+    #[cfg(target_os = "macos")]
+    let asset = "age-v1.3.1-darwin-arm64.tar.gz";
+    // 断网面：代理指向不可达地址加 ARK_OFFLINE 关自动刷新，query 仍应成功（零网络纯读 pin）
+    ark_cli()
+        .env("HTTPS_PROXY", "http://127.0.0.1:1")
+        .env("https_proxy", "http://127.0.0.1:1")
+        .env("ARK_OFFLINE", "1")
+        .args(["query", "age"])
+        .assert()
+        .success()
+        .stdout(contains("tool=age"))
+        .stdout(contains("tag=v1.3.1"))
+        .stdout(contains("version=1.3.1"))
+        .stdout(contains(format!("asset={asset}")))
+        .stdout(contains(format!(
+            "url=https://env.ohmygh.com/age/1.3.1/{asset}"
+        )));
+}
+
 #[test]
 fn lock_别名等价pin() {
-    ome()
+    ark_cli()
         .args(["lock", "vault"])
         .assert()
         .success()
@@ -48,7 +75,7 @@ fn lock_别名等价pin() {
 
 #[test]
 fn dies_query_未知工具() {
-    ome()
+    ark_cli()
         .args(["query", "nonexistent"])
         .assert()
         .failure()
@@ -57,7 +84,7 @@ fn dies_query_未知工具() {
 
 #[test]
 fn dies_pin_未知工具() {
-    ome()
+    ark_cli()
         .args(["pin", "nonexistent"])
         .assert()
         .failure()
@@ -66,7 +93,7 @@ fn dies_pin_未知工具() {
 
 #[test]
 fn dies_pin_latest与version互斥() {
-    ome()
+    ark_cli()
         .args(["pin", "age", "--latest", "--version", "1.3.1"])
         .assert()
         .failure();
@@ -74,7 +101,7 @@ fn dies_pin_latest与version互斥() {
 
 #[test]
 fn dies_pin_tag与version互斥() {
-    ome()
+    ark_cli()
         .args(["pin", "age", "--tag", "v1.3.1", "--version", "1.3.1"])
         .assert()
         .failure();
@@ -92,35 +119,20 @@ fn dies_catalog_缺文件() {
 }
 
 #[test]
-fn ome_catalog_旧名读回_仍生效() {
-    // D41 兼容：旧名 OME_CATALOG 注入同样命中解析面（主名未设时读回）
-    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
-    cmd.env("OME_CATALOG", fixture());
-    cmd.args(["status"])
-        .assert()
-        .success()
-        .stdout(contains("tool=age"));
-}
-
-#[test]
-fn env_root_同设主名优先_端到端() {
-    // D41 自测 1：ARK_ROOT 与 OHMYENV_ROOT 同设，status 的 exe 解析应取主名目录
+fn env_root_ark_root覆盖_端到端() {
+    // ARK_ROOT 覆盖默认 EnvRoot（旧名读回已随 ome 关键字剔除批撤除，2026-09-18）
     let primary = std::env::temp_dir().join("ark-root-primary-e2e");
-    let fallback = std::env::temp_dir().join("ohmyenv-root-fallback-e2e");
-    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
-    cmd.env("ARK_CATALOG", fixture())
+    ark_cli()
         .env("ARK_ROOT", &primary)
-        .env("OHMYENV_ROOT", &fallback)
         .args(["status"])
         .assert()
         .success()
-        .stdout(contains(primary.to_string_lossy().as_ref()))
-        .stdout(predicates::str::contains(fallback.to_string_lossy().as_ref()).not());
+        .stdout(contains(primary.to_string_lossy().as_ref()));
 }
 
 #[test]
 fn dies_latest与tag互斥() {
-    ome()
+    ark_cli()
         .args(["query", "age", "--latest", "--tag", "v1.3.1"])
         .assert()
         .failure();
@@ -131,7 +143,7 @@ fn status_沙盒_三态输出exe缺失为横线() {
     // 沙盒 EnvRoot：exe 不存在 → installed=-；path 读真实用户 PATH（只读）判定 bin 未注册
     // 组头为七类 taxonomy（夹具节序 python→vault→age 对应 运行时依赖→远程服务依赖→命令工具依赖）
     let dir = tempfile::tempdir().expect("创建沙盒失败");
-    ome()
+    ark_cli()
         .args(["status", "--env-root", &dir.path().to_string_lossy()])
         .assert()
         .success()
@@ -147,7 +159,7 @@ fn status_沙盒_三态输出exe缺失为横线() {
 fn status_format_json_整批数组且组标题不出stdout() {
     // S003：--format json 输出合法 JSON 数组文档，值全字符串，# 组标题是 kv 排版件不进结构化
     let dir = tempfile::tempdir().expect("创建沙盒失败");
-    let out = ome()
+    let out = ark_cli()
         .args([
             "status",
             "--format",
@@ -177,7 +189,7 @@ fn status_format_json_整批数组且组标题不出stdout() {
 
 #[test]
 fn json_简写等价格式_数组单对象() {
-    let out = ome()
+    let out = ark_cli()
         .args(["pin", "age", "--json"])
         .assert()
         .success()
@@ -198,7 +210,7 @@ fn json_简写等价格式_数组单对象() {
 #[test]
 fn status_format_jsonl_逐块单行json() {
     let dir = tempfile::tempdir().expect("创建沙盒失败");
-    let out = ome()
+    let out = ark_cli()
         .args([
             "status",
             "--format",
@@ -224,7 +236,7 @@ fn status_format_jsonl_逐块单行json() {
 #[test]
 fn 错误_结构化模式_stderr单行json含code() {
     // S003：--json 下 stdout 恒纯数据（此例无数据块），错误走 stderr 单行 JSON，退出码不变形
-    let out = ome()
+    let out = ark_cli()
         .args(["pin", "nonexistent", "--json"])
         .assert()
         .failure()
@@ -250,7 +262,7 @@ fn 错误_结构化模式_stderr单行json含code() {
 
 #[test]
 fn dies_json与format互斥() {
-    ome()
+    ark_cli()
         .args(["status", "--json", "--format", "jsonl"])
         .assert()
         .failure();
@@ -266,7 +278,7 @@ fn query_sha256_同pin给锁定sha() {
     let sha16 = "BDC69C09CBDD6CF8";
     #[cfg(target_os = "macos")]
     let sha16 = "01120EA2CBF0463D";
-    ome()
+    ark_cli()
         .args(["query", "age"])
         .assert()
         .success()
@@ -278,7 +290,7 @@ fn query_sha256_同pin给锁定sha() {
 
 #[test]
 fn dies_heal_未知维度() {
-    ome()
+    ark_cli()
         .args(["heal", "nonexistent"])
         .assert()
         .failure()
@@ -288,17 +300,21 @@ fn dies_heal_未知维度() {
 #[test]
 fn heal_休眠键_agent裁决提示不执行() {
     // agent 域键按 2026-09-01 裁决休眠：只提示不执行，退出码 0
-    ome().args(["heal", "claude"]).assert().success().stdout(
-        contains("dim=claude")
-            .and(contains("action=dormant"))
-            .and(contains("result=skip")),
-    );
+    ark_cli()
+        .args(["heal", "claude"])
+        .assert()
+        .success()
+        .stdout(
+            contains("dim=claude")
+                .and(contains("action=dormant"))
+                .and(contains("result=skip")),
+        );
 }
 
 #[test]
 fn heal_外域键_路由提示() {
     // compileMatrix 属外域（双平台在册，断言 routed）
-    ome()
+    ark_cli()
         .args(["heal", "compileMatrix"])
         .assert()
         .success()
@@ -308,7 +324,7 @@ fn heal_外域键_路由提示() {
 #[test]
 fn heal_dryrun_install键只出计划() {
     // dry-run 在解析 catalog 之前返回计划行（无网络无落盘）
-    ome()
+    ark_cli()
         .args(["heal", "yq", "--dry-run"])
         .assert()
         .success()
@@ -322,7 +338,7 @@ fn heal_dryrun_install键只出计划() {
 
 #[test]
 fn heal_all_dryrun_计划含原生动作类() {
-    ome()
+    ark_cli()
         .args(["heal", "all", "--dry-run"])
         .assert()
         .success()
@@ -331,7 +347,7 @@ fn heal_all_dryrun_计划含原生动作类() {
 
 #[test]
 fn heal_json_结构化块含休眠理由() {
-    let out = ome()
+    let out = ark_cli()
         .args(["heal", "claude", "--json"])
         .assert()
         .success()
@@ -350,7 +366,7 @@ fn heal_json_结构化块含休眠理由() {
 #[test]
 fn heal_平台不适用键_提示不报错() {
     // POSIX 专列键 go：Windows 上单维度调用提示不适用（Windows 走 dev-go）
-    ome()
+    ark_cli()
         .args(["heal", "go"])
         .assert()
         .success()
@@ -360,7 +376,7 @@ fn heal_平台不适用键_提示不报错() {
 #[cfg(windows)]
 #[test]
 fn heal_goproxy_windows_dryrun() {
-    ome()
+    ark_cli()
         .args(["heal", "goproxy", "--dry-run"])
         .assert()
         .success()
@@ -375,7 +391,7 @@ fn heal_goproxy_windows_dryrun() {
 #[test]
 fn heal_别名键_归一规范键() {
     // mac-* 专列在 ome 归一为别名：mac-go → go（POSIX 上规范键生效）
-    ome()
+    ark_cli()
         .args(["heal", "mac-go", "--dry-run"])
         .assert()
         .success()
@@ -388,7 +404,7 @@ fn heal_别名键_归一规范键() {
 
 #[test]
 fn llms_打印命令清单无需catalog() {
-    let mut cmd = Command::cargo_bin("ark").expect("ome 二进制应已构建");
+    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     cmd.env("ARK_CATALOG", fixture().with_file_name("nonexistent.toml"));
     cmd.arg("--llms")
         .assert()
@@ -402,7 +418,7 @@ fn llms_打印命令清单无需catalog() {
 
 #[test]
 fn install_帮助_省略则全量() {
-    ome()
+    ark_cli()
         .args(["install", "--help"])
         .assert()
         .success()
@@ -411,7 +427,7 @@ fn install_帮助_省略则全量() {
 
 #[test]
 fn update_帮助_省略则全量() {
-    ome()
+    ark_cli()
         .args(["update", "--help"])
         .assert()
         .success()
@@ -421,7 +437,7 @@ fn update_帮助_省略则全量() {
 #[test]
 fn query_pin_heal_帮助_省略则全量() {
     for cmd in ["query", "pin", "heal"] {
-        ome()
+        ark_cli()
             .args([cmd, "--help"])
             .assert()
             .success()
@@ -431,7 +447,7 @@ fn query_pin_heal_帮助_省略则全量() {
 
 #[test]
 fn dies_缺子命令_先于catalog加载() {
-    let mut cmd = Command::cargo_bin("ark").expect("ome 二进制应已构建");
+    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     cmd.env("ARK_CATALOG", fixture().with_file_name("nonexistent.toml"));
     cmd.assert().failure().stderr(contains("缺少子命令"));
 }

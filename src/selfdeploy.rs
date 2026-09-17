@@ -130,7 +130,7 @@ pub fn self_deploy(env_root: &Path) -> Result<SelfDeployOutcome, String> {
     }
     let path_registered = platform::add_user_path(&bin_dir)?;
     // D41 C 收口（2026-09-14）：ome 别名停建，顺带清理既有副本（全舰队 ome 水位清零）
-    if let Err(e) = platform::remove_ome_alias() {
+    if let Err(e) = platform::remove_legacy_alias() {
         eprintln!("[WARN] ome 别名清理失败（不拦部署，下次再收）: {e}");
     }
     // 清理旧自部署位 <EnvRoot>\ome\bin 的 PATH 残留（一次性迁移，幂等）
@@ -197,7 +197,7 @@ pub fn self_deploy(_env_root: &Path) -> Result<SelfDeployOutcome, String> {
     }
     let path_registered = platform::add_user_path(&bin_dir)?;
     // D41 C 收口（2026-09-14）：ome 别名停建，顺带清理既有副本（POSIX 落点 ~/.local/bin/ome）
-    if let Err(e) = platform::remove_ome_alias() {
+    if let Err(e) = platform::remove_legacy_alias() {
         eprintln!("[WARN] ome 别名清理失败（不拦部署，下次再收）: {e}");
     }
     let catalog = deploy_catalog()?;

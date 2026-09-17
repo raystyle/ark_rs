@@ -1082,17 +1082,17 @@ GOTOOLCHAIN=local
                 "cmd".to_string(),
                 "/c".to_string(),
                 "echo".to_string(),
-                "ome-ok".to_string(),
+                "ark-ok".to_string(),
             ]
         } else {
-            vec!["echo".to_string(), "ome-ok".to_string()]
+            vec!["echo".to_string(), "ark-ok".to_string()]
         };
         let mut m = ToolManifest::default();
         m.post_install = Some(pi_for(ok));
         run_post_install(&m, "t").expect("当前平台命令应成功");
         // 启动失败：一条不存在的命令
         let mut bad = ToolManifest::default();
-        bad.post_install = Some(pi_for(vec!["definitely-missing-ome-bin".to_string()]));
+        bad.post_install = Some(pi_for(vec!["definitely-missing-ark-bin".to_string()]));
         let e = run_post_install(&bad, "t").expect_err("应报失败");
         assert!(e.contains("失败"), "{e}");
         // 未覆盖：当前平台无命令且未 skip

@@ -17,7 +17,7 @@ bunx = "bun"
 
 # 受控命令样例（win 命令、linux/mac 显式 skip：三键齐备 lint 形态）
 [manifest.demo.post_install]
-win = [["cmd", "/c", "echo", "ome-manifest-ok"]]
+win = [["cmd", "/c", "echo", "ark-manifest-ok"]]
 skip = ["linux", "mac"]
 
 # 镜像源节样例（D42，全集口径对齐 ohmypwsh set-mirror.ps1 / P0017；真实数据权威在

@@ -9,6 +9,7 @@ init、self update。catalog 为唯一 pin 源。
 
 ## Modules
 
+- [`arerr`](arerr.md): arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
 - [`catalog`](catalog.md): catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
 - [`checksum`](checksum.md): checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。
 - [`docker`](docker.md): docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。
@@ -20,17 +21,28 @@ init、self update。catalog 为唯一 pin 源。
 - [`install`](install.md): install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
 - [`issue`](issue.md): issue 域（REQ-0009，对齐 ohmycloud REQ-057 契约）：自研命令仓统一 issue 入口
 - [`manifest`](manifest.md): manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
-- [`omerr`](omerr.md): omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
 - [`platform`](platform.md): platform：跨平台抽象层。
 - [`render`](render.md): render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。
 - [`resolve`](resolve.md): resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
 - [`rustup`](rustup.md): rustup：Rust 接管（自 ohmypwsh `scripts\set-rust.ps1` 平移，2026-09-02；POSIX 接管 D42，2026-09-13）。
 - [`selfdeploy`](selfdeploy.md): selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ome`，
-- [`selfupdate`](selfupdate.md): selfupdate：ome 自身升级（`ark self update`），三通道：
+- [`selfupdate`](selfupdate.md): selfupdate：ark 自身升级（`ark self update`），三通道：
 - [`status`](status.md): status：三态对照（locked/installed/path）。
 - [`toolver`](toolver.md): toolver：已装版本探测，移植 helpers.ps1 的 Get-InstalledVersion（888-935 行）。
 - [`verify`](verify.md): verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。
 - [`vsbuild`](vsbuild.md): vsbuild：VS Build Tools 接管（自 ohmypwsh `scripts\set-vsbuild.ps1` 平移，2026-09-01）。
+
+
+<!-- ark/arerr.md -->
+# ark::arerr
+
+arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
+内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 ArkError，
+main 按 exit_code 退出。
+
+## Types
+
+- `ArkError` — 机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。
 
 
 <!-- ark/catalog.md -->
@@ -42,8 +54,8 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 数据契约见 `docs/references/R001`：读用 serde（字段同 R001），
 写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。
 路径解析优先级：
-- EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
-- catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
+- EnvRoot：`--env-root` 参数 > `ARK_ROOT` 环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
+- catalog：`ARK_CATALOG` 环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
   > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）
   > 用户数据目录 catalog\tools.toml（自部署布局）
 
@@ -51,7 +63,7 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 
 - `auto_refresh` — 自动刷新（仅用户数据副本路径）：TTL 判定在联网之前；网络异常单次探活即退化，
 - `auto_refresh_if_user_data` — 命令入口接线：解析面**就是**用户数据副本时按 TTL 刷新；跳过与失败都不拦命令。
-- `auto_ttl` — 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。
+- `auto_ttl` — 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`）。
 - `catalog_state` — 子功能 status 采集（云端不可达时如实标注 error 字段，不报错退出）。
 - `check_signature` — 校验磁盘清单与其分离签名（`<清单>.minisig`）。
 - `classify_origin` — 解析面来源分类（纯函数，供 status 子功能报告）：userdata / repo / env / other。
@@ -63,8 +75,8 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 - `needs_check` — 是否需要联网比对（纯函数）：目标缺失、无标记、标记过期、或本地已被改写（标记锚与本地不符）。
 - `parse_marker` — 标记文件解析（纯函数）：`<unix 秒>\n<sha256>\n`。
 - `pin_key` — 当前平台 pin 字段的 TOML 键名（Windows 无前缀，Linux/mac 加平台前缀）。
-- `resolve_catalog_path` — catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
-- `resolve_env_root` — EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。
+- `resolve_catalog_path` — catalog 路径解析：`ARK_CATALOG` > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
+- `resolve_env_root` — EnvRoot 解析：显式参数 > ARK_ROOT > 平台默认。
 - `resolve_ttl` — TTL 解析（纯函数）：离线优先，其次显式秒数（0 关），非法值回落默认。
 - `seq_gate` — seq 门（纯函数可测）：拉到 seq 低于已见即拒收（报错不降级）；等于幂等重放；
 - `signature_path` — 清单的分离签名路径（`<清单>.minisig`）。
@@ -355,18 +367,6 @@ mirror 节不升 schema（serde 容忍未知字段，旧引擎静默忽略零动
 - `SUPPORTED_SCHEMA_VERSION` — 引擎支持的 manifest schema 大版本（R016 v0.2 定稿）。
 
 
-<!-- ark/omerr.md -->
-# ark::omerr
-
-omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
-内部各模块保持 Result<T, String> 风格；边界（main 出口、需要特殊退出码的命令）转换为 OmeError，
-main 按 exit_code 退出。
-
-## Types
-
-- `OmeError` — 机器可读错误：code 稳定标识，message 人称描述，hint 下一步提示，exit_code 进程退出码。
-
-
 <!-- ark/platform.md -->
 # ark::platform
 
@@ -384,7 +384,7 @@ macOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目�
 - `add_user_path` — 将 dir 注册进用户 PATH；返回是否实际新增。
 - `default_env_root` — 默认 EnvRoot：显式参数与环境变量已在 `catalog::resolve_env_root` 处理，此处仅返回平台默认值。
 - `ensure_profile_hook` — 设置用户级环境变量（幂等）。Windows 写 HKCU\Environment 并同步当前进程；
-- `env_var_or` — 读环境变量（D41 更名 Ark）：主名优先，主名未设或纯空白时读回旧名；都未设返回 None。
+- `env_var` — 读环境变量：空白值视同未设，返回 None（旧名读回已随 ome 关键字剔除批撤除，2026-09-18）。
 - `exe_suffix` — 可执行文件后缀。
 - `expand_env_vars` — 展开环境变量引用。
 - `expand_install_path` — 展开安装路径中的 `~` 与环境变量引用。
@@ -392,6 +392,7 @@ macOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目�
 - `is_elevated` — 当前进程是否管理员（以写权限打开 HKLM Environment 判定；非 Windows 恒 false）。
 - `is_official_exe` — 判定 exe 字段是否表示 official 布局（使用环境变量展开 / 绝对路径，不纳入 EnvRoot 管理）。
 - `join_if_relative` — 展开后的路径若为相对路径则拼到 EnvRoot 下（Windows 名录是相对 dir/bin；Linux/macOS 多为 ~/ 绝对）。
+- `legacy_alias_target` — `ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；
 - `legacy_deploy_dir` — 旧 ome 部署位（D41 C 接管清单：Windows `Programs\ome`，在位时 Some）。
 - `legacy_metadata_dir` — 旧元数据目录（D41 迁移源 `<data>\ohmyenv`；只在存在时 Some，旧目录始终只读保留）。
 - `machine_path_add` — 把缺失目录追加进机器 PATH（REG_EXPAND_SZ，需管理员）；返回是否写入。非 Windows 恒不写入。
@@ -403,16 +404,15 @@ macOS `~/Library/Application Support/ark`）；迁移过渡期旧 `ohmyenv` 目�
 - `migrate_legacy_env_block_once` — D41：检测旧 ome env 标记即收口迁移一次（init 与 self update 收尾钩子；
 - `migrate_legacy_metadata` — 元数据七件套搬迁（D41 C）：旧 `ohmyenv\catalog` 在而新 `ark\catalog` 缺件时逐件复制
 - `migrate_legacy_metadata_in` — 搬迁核心（传新旧根便于测）。
-- `ome_alias_target` — `ome` 别名落点（D41 C 过渡载体已停建，2026-09-14 全舰队 ome 水位清零收口；
 - `path_entries_eq` — 标准化 PATH 条目比较：展开环境变量、大小写不敏感（Windows）/ 敏感（Unix）。
 - `path_separator` — PATH 环境变量条目分隔符。
 - `remove_env_export` — env 块摘除单键（纯函数，D42 env_unset 通道）：**全文件撤变量不分写入者**——
-- `remove_ome_alias` — 清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，
+- `remove_legacy_alias` — 清理 `ome` 别名副本（幂等：不在位返回 false 静默；best-effort：失败返回 Err 由调用方告警，
 - `remove_user_env_var` — 撤除用户级环境变量（D42 mirror env_unset 通道；幂等）。返回是否真的撤了。
 - `remove_user_path` — 从用户 PATH 移除 dir；返回是否实际移除。
 - `self_deploy_target` — 自部署目标路径（D41：ark 接管部署位；旧 ome 位与 `ome` 别名已于 2026-09-14 收口停建）。
 - `set_user_env_var` — Linux/macOS 写 profile 的 ome 标记块。用于装后遥测关闭等运行时开关。
-- `user_env_write_blocked` — 用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1`（读回 `OME_TEST_NO_PATH_REG`）时，**所有**用户环境写入面
+- `user_env_write_blocked` — 用户面写入总闸门（测试隔离）：`ARK_TEST_NO_PATH_REG=1` 时，**所有**用户环境写入面
 - `user_path_contains` — 用户 PATH 是否已含 dir。
 - `user_path_entries` — 用户 PATH 原始条目（保序不去空；Windows 读 HKCU\Environment，非 Windows 读 profile 标记块）。
 
@@ -459,6 +459,8 @@ resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
 语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。
 本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），
 api.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。
+D51 镜像默认通道（用户裁定 2026-09-18）：GitHub 分支 pin 驱动解析零 API
+（镜像直装 + 官方确定性直链兜底），API 仅显式 latest/tag/version 或 pin 缺键时兜底。
 
 ## Functions
 
@@ -524,12 +526,14 @@ Windows 顺带清理旧自部署位 `<EnvRoot>\ome\bin` 的 PATH 残留。
 <!-- ark/selfupdate.md -->
 # ark::selfupdate
 
-selfupdate：ome 自身升级（`ark self update`），三通道：
+selfupdate：ark 自身升级（`ark self update`），三通道：
 - **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；
 - **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；
 - **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。
 
-升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
+D51 镜像默认通道：release 元数据镜像段读序先行（边车即锚），GitHub API 兜底；
+`ARK_MIRROR=0` 官方优先逃逸阀反转读序（旧 =1 强制镜像已转正为默认）。
+升级判定：release 资产的 digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
 不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
 包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后
 解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。
@@ -537,10 +541,9 @@ Windows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 
 
 ## Functions
 
-- `asset_compat_for_this_platform` — 兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史
 - `asset_for_this_platform` — 编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。
 - `asset_package_for_this_platform` — 包形资产名（REQ-0008 窗口，对线裁定）：`ark-<triple>` 单顶层目录（净 triple），win
-- `is_ome_self` — 是否自管条目（extract = "ome-self"；D41 起双接受 "ark-self"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。
+- `is_ark_self` — 是否自管条目（extract = "ark-self"）：无 pin 无资产，升级走 self update 三通道。
 - `self_update` — 自升级主流程。
 
 ## Types

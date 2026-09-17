@@ -205,6 +205,7 @@ mod tests {
             asset_url: "https://example.invalid/demo.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
         let got = expected_sha256(&tool, &res, dir.path())?;
@@ -236,6 +237,7 @@ mod tests {
             asset_url: "https://example.invalid/demo.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
         assert_eq!(
@@ -258,6 +260,7 @@ mod tests {
             asset_url: "https://example.invalid/demo.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
         assert_eq!(expected_sha256(&tool, &res, dir.path())?, None);

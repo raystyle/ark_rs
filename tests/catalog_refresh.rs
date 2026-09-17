@@ -8,7 +8,7 @@ use std::path::PathBuf;
 type TestResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn gated() -> bool {
-    ark::platform::env_var_or("ARK_TEST_MIRROR", "OME_TEST_MIRROR")
+    ark::platform::env_var("ARK_TEST_MIRROR")
         .map(|v| v == "1")
         .unwrap_or(false)
 }
@@ -19,7 +19,7 @@ fn 云端清单刷新_锚一致且落位幂等() -> TestResult<()> {
         eprintln!("skip: ARK_TEST_MIRROR != 1");
         return Ok(());
     }
-    let root = std::env::temp_dir().join(format!("ome-catalog-sync-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("ark-catalog-sync-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root)?;
     let target: PathBuf = root.join("data").join("catalog").join("tools.toml");

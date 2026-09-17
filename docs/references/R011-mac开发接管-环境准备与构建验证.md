@@ -58,7 +58,7 @@ uv run --script .tools/md-heading-scan.py
 | --- | --- | --- |
 | mac（开发主机） | 非 Windows 逻辑：解析、下载、校验、安装、PATH、status 的 build + test | `cargo build`、`cargo test` |
 | Linux/WSL（验证机） | Linux 本机部署闭环验证（保留，防止 mac 与 Linux 行为分叉） | `cargo test`（[记忆] 2026-08-31 已全绿） |
-| Windows（验收机） | Windows 专属行为：注册表 PATH、msi/7zsfx、self-deploy、真机闸门对照本机 EnvRoot | `OME_TEST_REAL=1 cargo test` |
+| Windows（验收机） | Windows 专属行为：注册表 PATH、msi/7zsfx、self-deploy、真机闸门对照本机 EnvRoot | `ARK_TEST_REAL=1 cargo test` |
 
 ## 六、mac 真机验证结果
 

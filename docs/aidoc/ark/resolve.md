@@ -4,6 +4,8 @@ resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
 语义对齐 helpers.ps1 的 Resolve-ToolVersion / Get-HashiCorpIndex / Get-GitHubRelease。
 本模块只解析不下载；网络调用统一 30s 超时、3 次指数退避（2^n 秒），
 api.github.com 在 403/限流等失败时回退 `gh api`（认证通道）。
+D51 镜像默认通道（用户裁定 2026-09-18）：GitHub 分支 pin 驱动解析零 API
+（镜像直装 + 官方确定性直链兜底），API 仅显式 latest/tag/version 或 pin 缺键时兜底。
 
 ## Functions
 

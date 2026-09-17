@@ -12,3 +12,4 @@
 | ADR-0005 | accepted | 工具链与脚本错误模式归档（原 M105-工具链与脚本-错误.md 并入） | 批四 |
 | ADR-0006 | accepted | catalog 转换与数据保真错误模式归档（原 M106-catalog转换与数据保真-错误.md 并入） | 批四 |
 | ADR-0007 | accepted | skill面撤除与llms唯一发现通道 | REQ-0005 |
+| ADR-0008 | accepted | 镜像默认通道与GitHub兜底 | REQ-0010 |

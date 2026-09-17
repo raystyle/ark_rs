@@ -48,17 +48,17 @@ fn relay_gh_credentials(cmd: &mut Command) {
     }
 }
 
-fn ome(home: &Path, env_root: &Path) -> Command {
-    ome_reg(home, env_root, false)
+fn ark_cli(home: &Path, env_root: &Path) -> Command {
+    ark_reg(home, env_root, false)
 }
 
 /// `allow_path_reg`：断言 profile 写入的用例传 true（沙盒 HOME 已隔离真实 profile，
 /// 注册面本身是被测行为）；其余用例默认 O5 隔离（不写任何用户面）。
-fn ome_reg(home: &Path, env_root: &Path, allow_path_reg: bool) -> Command {
+fn ark_reg(home: &Path, env_root: &Path, allow_path_reg: bool) -> Command {
     // catalog 落沙盒副本：install 的 pin 与 sha 回写不得触达真实 catalog
     let catalog = env_root.join("tools.sandbox.toml");
     fs::copy(catalog_source(env_root), &catalog).expect("复制 catalog 到沙盒失败");
-    let mut cmd = Command::cargo_bin("ark").expect("ome 二进制应已构建");
+    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     // M028：gh 凭据转继（GH_CONFIG_DIR 注入真实配置，见函数注）
     relay_gh_credentials(&mut cmd);
     cmd.env("HOME", home);
@@ -75,7 +75,7 @@ fn ome_reg(home: &Path, env_root: &Path, allow_path_reg: bool) -> Command {
 /// 清单取件源（D37 终态：本仓不再持权威件，端上清单一律云端拉取）。
 /// 序：`ARK_TEST_CATALOG` 显式指定、仓库件（开发态若在）、用户数据副本、云端三重门。
 fn catalog_source(env_root: &Path) -> PathBuf {
-    if let Some(p) = ark::platform::env_var_or("ARK_TEST_CATALOG", "OME_TEST_CATALOG") {
+    if let Some(p) = ark::platform::env_var("ARK_TEST_CATALOG") {
         let p = PathBuf::from(p);
         if p.exists() {
             return p;
@@ -105,7 +105,7 @@ fn linux_jq_安装部署状态闭环() {
     let profile = home.join(".bashrc");
 
     // 1) install：下载 jq 到 ~/.local/bin 并注册 PATH
-    ome_reg(&home, &env_root, true)
+    ark_reg(&home, &env_root, true)
         .args(["install", "jq", "--latest"])
         .assert()
         .success()
@@ -134,7 +134,7 @@ fn linux_jq_安装部署状态闭环() {
     );
 
     // 2) status：jq 应显示已安装且在 PATH 中
-    ome_reg(&home, &env_root, true)
+    ark_reg(&home, &env_root, true)
         .args(["status"])
         .assert()
         .success()
@@ -150,7 +150,7 @@ fn linux_profile_path_幂等() {
     let profile = home.join(".bashrc");
 
     // 首次 install 写入 PATH
-    ome_reg(&home, &env_root, true)
+    ark_reg(&home, &env_root, true)
         .args(["install", "jq", "--latest"])
         .assert()
         .success();
@@ -162,7 +162,7 @@ fn linux_profile_path_幂等() {
         .count();
 
     // 再次 install 不应重复写入
-    ome_reg(&home, &env_root, true)
+    ark_reg(&home, &env_root, true)
         .args(["install", "jq", "--latest"])
         .assert()
         .success();

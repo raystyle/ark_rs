@@ -4,8 +4,8 @@
 //! 数据契约见 `docs/references/R001`：读用 serde（字段同 R001），
 //! 写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。
 //! 路径解析优先级：
-//! - EnvRoot：`--env-root` 参数 > `ARK_ROOT`（读回 `OHMYENV_ROOT`）环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
-//! - catalog：`ARK_CATALOG`（读回 `OME_CATALOG`）环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
+//! - EnvRoot：`--env-root` 参数 > `ARK_ROOT` 环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv
+//! - catalog：`ARK_CATALOG` 环境变量 > exe 上级的 catalog\tools.toml > cwd\catalog\tools.toml
 //!   > 用户数据目录；四级全 miss 时自举拉取（镜像边车锚，键读序 `ark/catalog` 主先、`ome/catalog` 兼容回落，#10）
 //!   > 用户数据目录 catalog\tools.toml（自部署布局）
 
@@ -34,7 +34,7 @@ pub struct Tool {
     pub bin: Option<String>,
     /// 本机可执行文件相对路径（探测与验证目标）
     pub exe: Option<String>,
-    /// 解压九分派类型（zip/targz-bin/msi/copy/ome-self 等）
+    /// 解压九分派类型（zip/targz-bin/msi/copy/ark-self 等）
     pub extract: Option<String>,
     /// GitHub 仓坐标 owner/name（resolve 与自更新源）
     pub repo: Option<String>,
@@ -513,7 +513,7 @@ impl Catalog {
     }
 }
 
-/// EnvRoot 解析：显式参数 > ARK_ROOT（读回 OHMYENV_ROOT） > 平台默认。
+/// EnvRoot 解析：显式参数 > ARK_ROOT > 平台默认。
 /// 对齐 helpers.ps1 Get-DefaultEnvRoot：参数与环境变量都会裁掉尾部斜杠。
 ///
 /// # Errors
@@ -525,7 +525,7 @@ pub fn resolve_env_root(cli: Option<&str>) -> Result<PathBuf, String> {
             return Ok(PathBuf::from(v));
         }
     }
-    if let Some(v) = crate::platform::env_var_or("ARK_ROOT", "OHMYENV_ROOT") {
+    if let Some(v) = crate::platform::env_var("ARK_ROOT") {
         let v = v.trim_end_matches(['/', '\\']);
         if !v.is_empty() {
             return Ok(PathBuf::from(v));
@@ -534,14 +534,14 @@ pub fn resolve_env_root(cli: Option<&str>) -> Result<PathBuf, String> {
     Ok(crate::platform::default_env_root())
 }
 
-/// catalog 路径解析：`ARK_CATALOG`（读回 `OME_CATALOG`） > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
+/// catalog 路径解析：`ARK_CATALOG` > exe 上级的 catalog\tools.toml（仓库与旧自部署布局）
 /// > cwd\catalog\tools.toml > 用户数据目录 catalog\tools.toml（新自部署布局，self-deploy 时同步）。
 /// > 四级全 miss（裸二进制端，ohmyenv-rs#10 缺口 3）时自举拉取到用户数据目录。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
 pub fn resolve_catalog_path() -> Result<PathBuf, String> {
-    if let Some(v) = crate::platform::env_var_or("ARK_CATALOG", "OME_CATALOG") {
+    if let Some(v) = crate::platform::env_var("ARK_CATALOG") {
         return Ok(PathBuf::from(v));
     }
     match catalog_candidates(&catalog_search_roots())
@@ -558,7 +558,7 @@ pub fn resolve_catalog_path() -> Result<PathBuf, String> {
 /// catalog 自举（ohmyenv-rs#10 缺口 3；D37 终态改为 fail-closed）：
 /// 一律走云端 `ome/catalog/tools.toml` 三重门（边车 sha 锚、`Catalog::load` 解析、内嵌公钥验签），
 /// 落位清单与签名件到用户数据目录并写检查标记。仓库件已退役，故不再有官方 raw 兜底路径；
-/// 镜像不可达即如实报错（提示网络与 `OME_CATALOG` 出路），不静默放行未验签内容。
+/// 镜像不可达即如实报错（提示网络与 `ARK_CATALOG` 出路），不静默放行未验签内容。
 fn bootstrap_catalog() -> Result<PathBuf, String> {
     let env_root = crate::platform::default_env_root();
     let dst_dir = crate::platform::metadata_dir().join("catalog");
@@ -913,10 +913,10 @@ pub fn resolve_ttl(ttl_env: Option<&str>, offline_env: Option<&str>) -> u64 {
     }
 }
 
-/// 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`，均读回 `OME_*` 旧名）。
+/// 当前 TTL（读 `ARK_CATALOG_TTL` / `ARK_OFFLINE`）。
 pub fn auto_ttl() -> u64 {
-    let ttl = crate::platform::env_var_or("ARK_CATALOG_TTL", "OME_CATALOG_TTL");
-    let offline = crate::platform::env_var_or("ARK_OFFLINE", "OME_OFFLINE");
+    let ttl = crate::platform::env_var("ARK_CATALOG_TTL");
+    let offline = crate::platform::env_var("ARK_OFFLINE");
     resolve_ttl(ttl.as_deref(), offline.as_deref())
 }
 
@@ -1530,7 +1530,7 @@ pub fn catalog_state(env_root: &Path, resolved: &Path) -> CatalogState {
     let cwd_catalog = std::env::current_dir()
         .ok()
         .map(|c| c.join("catalog").join("tools.toml"));
-    let env_catalog = crate::platform::env_var_or("ARK_CATALOG", "OME_CATALOG").map(PathBuf::from);
+    let env_catalog = crate::platform::env_var("ARK_CATALOG").map(PathBuf::from);
     let local_sha = file_sha(resolved);
     let ttl_secs = auto_ttl();
     let now = now_secs();
@@ -1769,22 +1769,15 @@ mod tests {
     }
 
     #[test]
-    fn env_root_同设主名优先_旧名读回() {
-        // D41 自测 1：ARK_ROOT 与 OHMYENV_ROOT 同设主名胜；主名撤走读回旧名
+    fn env_root_ark_root覆盖与撤销() {
+        // ARK_ROOT 在位即覆盖；撤销后回落平台默认（旧名读回已撤，2026-09-18）
         std::env::set_var("ARK_ROOT", "/tmp/ark-root-primary");
-        std::env::set_var("OHMYENV_ROOT", "/tmp/ohmyenv-root-fallback");
         assert_eq!(
             resolve_env_root(None).expect("应可解析"),
             PathBuf::from("/tmp/ark-root-primary"),
-            "同设时 ARK_ROOT 优先"
+            "ARK_ROOT 在位即覆盖"
         );
         std::env::remove_var("ARK_ROOT");
-        assert_eq!(
-            resolve_env_root(None).expect("应可解析"),
-            PathBuf::from("/tmp/ohmyenv-root-fallback"),
-            "主名未设读回 OHMYENV_ROOT"
-        );
-        std::env::remove_var("OHMYENV_ROOT");
     }
 
     /// 回写后重读文档树：字段顺序应与原文件一致（sha256 被版本变更删除除外）。
@@ -1834,6 +1827,7 @@ mod tests {
             asset_url: "https://example.invalid/age.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         let changed = write_pin(&path, "age", &res)?;
         assert!(changed, "1.3.1 到 1.4.0 应判定为版本变更");
@@ -1873,6 +1867,7 @@ mod tests {
             asset_url: "https://example.invalid/age.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         let changed = write_pin(&path, "age", &res)?;
         assert!(!changed, "同版本 re-pin 不算变更");
@@ -1900,6 +1895,7 @@ mod tests {
             asset_url: "https://example.invalid/age.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         write_pin(&path, "age", &res)?;
 
@@ -1927,6 +1923,7 @@ mod tests {
             asset_url: "https://example.invalid/demo.zip".to_string(),
             shasums_url: None,
             official_sha256: None,
+            fallback_url: None,
         };
         write_pin(&path, "demo", &res)?;
 
@@ -1964,11 +1961,7 @@ mod refresh_tests {
             DEFAULT_TTL_SECS,
             "非法值回落默认"
         );
-        assert_eq!(
-            resolve_ttl(Some("600"), Some("1")),
-            0,
-            "OME_OFFLINE=1 优先关闭"
-        );
+        assert_eq!(resolve_ttl(Some("600"), Some("1")), 0, "offline=1 优先关闭");
         assert_eq!(resolve_ttl(None, Some("0")), DEFAULT_TTL_SECS, "离线只认 1");
     }
 
@@ -2156,7 +2149,8 @@ mod refresh_tests {
         assert!(!rec.exists(), "无 seq 旧件不应留下恒 0 记录");
     }
 
-    /// 自检签名：内容 `ome-catalog-signature-selftest\n` 的 minisign 签名（本仓签名密钥生成，2026-09-10）。
+    /// 自检签名：内容 `ome-catalog-signature-selftest\n` 的 minisign 签名（2026-09-10 签署）。
+    /// 消息与签名是被签内容对（私钥在 ohmycloud 侧），剔除批不改：改串须持钥重签。
     /// 用途：锁住「内嵌公钥加签名格式」这一对不漂移；换钥时本常量须同步更新（属预期红灯）。
     const SELFTEST_MSG: &str = "ome-catalog-signature-selftest\n";
     /// 注意 trusted comment 属被签内容（改它等于改签名），故此处逐字保留签署当时文本。

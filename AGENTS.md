@@ -8,16 +8,16 @@
 
 - 查版本：`ark query`（省略则全量；只解析不下载）
 - 装工具：`ark install`（省略则全量；下载到 EnvRoot，注册 PATH、写注册表与配置；工具参收逗号串）
-- 更新：`ark update`（省略则全量；拉云端最新安装，不回写锁定（锁定归数据面 D37）；云端无新版而本机落后锁定时补装锁定版（D49）；临时钉版走 pin）
+- 更新：`ark update`（省略则全量；对齐云端 catalog 锁定安装，解析零 GitHub API（D51 镜像默认通道）；不回写锁定（锁定归数据面 D37）；本机落后补装、领先如实报（D49）；临时钉版走 pin）
 - 锁定：`ark pin`（省略则全量；lock 为别名）
 - 看状态：`ark status`（锁定 / 已装 / PATH 三态对照）
 - 自部署：`ark init`（self-deploy 别名；二进制进用户程序目录、catalog 同步、注册 PATH）
-- 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚，`ARK_MIRROR=1` 镜像优先）
-- 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关，旧名 `OME_*` 读回）
+- 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚；默认镜像段读序、GitHub API 兜底，`ARK_MIRROR=0` 官方优先逃逸阀（D51））
+- 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关）
 - 报缺陷：`ark issue new "<标题>"`（统一入口 issues.ohmygh.com，REQ-057 契约；自动带 tool=ark 与版本/平台/host，`--body` 附正文；`ark issue list [--tool]` 与 `ark issue show <id>` 读面；遇缺陷即一键反馈，agent 纪律）
 - 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/research docs/references`；`mq -F grep '.h2' docs/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）
 - 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py`；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/.claude/skills/dev-evo/scripts/check.py .`
-- 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL`（读回 `OME_TEST_REAL`）闸门 skip
+- 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL` 闸门 skip
 - 格式与静态检查：`cargo fmt --check` 与 `cargo clippy --release --locked`（改 Rust 必跑）；lib 面 `missing_docs` 为 deny（Cargo.toml lints，ADR-0006 第五十九批强制口径）
 - aidoc 投影：改 pub 项后 `cargo aidoc` 生成并同提交 `docs/aidoc/`（生成物手改被覆盖）；漂移门禁 `cargo aidoc --check --strict`（需 cargo-aidoc 与其要求的 nightly 工具链；CI linux 岗已挂此门禁）
 - 文档骨架合规：`PEVO_CHECK_ALLOW="^docs/aidoc/" uv run ~/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py .`（退出码 0；豁免在册，aidoc 条目分隔符 em dash 是渲染格式无开关，真门禁是 aidoc --check --strict；路径随 project-evo 第六十六批 skill 形态重排切新，2026-09-16）
@@ -61,7 +61,7 @@
 
 ## 环境
 
-- 平台矩阵：Windows（PowerShell 7）/ Linux / macOS / WSL（平台常规 shell）；仓库 `D:\ark_rs`（GitHub raystyle/ark_rs）；EnvRoot `D:\ohmyenv`（POSIX `~/.local/share/ohmyenv`；`--env-root` / `ARK_ROOT` 读回 `OHMYENV_ROOT` 可覆盖）
+- 平台矩阵：Windows（PowerShell 7）/ Linux / macOS / WSL（平台常规 shell）；仓库 `D:\ark_rs`（GitHub raystyle/ark_rs）；EnvRoot `D:\ohmyenv`（POSIX `~/.local/share/ohmyenv`；`--env-root` / `ARK_ROOT` 可覆盖；磁盘目录名迁移另立项待裁）
 - 编码：Markdown 与 Rust 源码 UTF-8；兼容 5.1 的 ps1 用 UTF-8 BOM
 - 验收与运维脚本统一载体 pwsh（五端 7.6.6；非登录 shell 场景带 PATH 兜底；口径见 dev-evo env-platform.md 第十一节）
 - 版本载体唯一权威：Cargo.toml（Version 加 InformationalVersion 血统后缀），载体外版本号即第二真相须清理；semver 判据写封版 REQ（dev-evo flow-release 第七节）

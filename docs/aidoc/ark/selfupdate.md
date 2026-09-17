@@ -1,11 +1,13 @@
 # ark::selfupdate
 
-selfupdate：ome 自身升级（`ark self update`），三通道：
+selfupdate：ark 自身升级（`ark self update`），三通道：
 - **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；
 - **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；
 - **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。
 
-升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
+D51 镜像默认通道：release 元数据镜像段读序先行（边车即锚），GitHub API 兜底；
+`ARK_MIRROR=0` 官方优先逃逸阀反转读序（旧 =1 强制镜像已转正为默认）。
+升级判定：release 资产的 digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
 不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
 包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后
 解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。
@@ -13,10 +15,9 @@ Windows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 
 
 ## Functions
 
-- `asset_compat_for_this_platform` — 兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史
 - `asset_for_this_platform` — 编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。
 - `asset_package_for_this_platform` — 包形资产名（REQ-0008 窗口，对线裁定）：`ark-<triple>` 单顶层目录（净 triple），win
-- `is_ome_self` — 是否自管条目（extract = "ome-self"；D41 起双接受 "ark-self"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。
+- `is_ark_self` — 是否自管条目（extract = "ark-self"）：无 pin 无资产，升级走 self update 三通道。
 - `self_update` — 自升级主流程。
 
 ## Types

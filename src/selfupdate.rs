@@ -1,9 +1,11 @@
-//! selfupdate：ome 自身升级（`ark self update`），三通道：
+//! selfupdate：ark 自身升级（`ark self update`），三通道：
 //! - **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；
 //! - **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；
 //! - **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。
 //!
-//! 升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
+//! D51 镜像默认通道：release 元数据镜像段读序先行（边车即锚），GitHub API 兜底；
+//! `ARK_MIRROR=0` 官方优先逃逸阀反转读序（旧 =1 强制镜像已转正为默认）。
+//! 升级判定：release 资产的 digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
 //! 不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
 //! 包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后
 //! 解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。
@@ -34,9 +36,11 @@ pub enum Channel {
     Git,
 }
 
-/// 是否自管条目（extract = "ome-self"；D41 起双接受 "ark-self"，数据面改名可单方回退）：无 pin 无资产，升级走 self update 三通道。
-pub fn is_ome_self(def: &crate::catalog::Tool) -> bool {
-    matches!(def.extract(), Some("ome-self") | Some("ark-self"))
+/// 是否自管条目（extract = "ark-self"）：无 pin 无资产，升级走 self update 三通道。
+/// （旧值 ome-self 双接受已随 ome 关键字剔除批收口，2026-09-18；云端权威 catalog 自
+/// 2026-09-14 起写 ark-self，旧值仅存在于长期未同步的端上副本，`ark catalog sync` 即迁。）
+pub fn is_ark_self(def: &crate::catalog::Tool) -> bool {
+    def.extract() == Some("ark-self")
 }
 
 /// 升级结果。
@@ -77,20 +81,9 @@ fn platform_triple() -> Result<&'static str, String> {
 /// 编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。
 ///
 /// # Errors
-/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
+/// 返回 Err（人读原因串）当：当前平台无 CI 构建资产（platform_triple 同源判）。
 pub fn asset_for_this_platform() -> Result<String, String> {
     Ok(format!("ark-{}", platform_triple()?))
-}
-
-/// 兼容资产名（`ome-<triple>`，旧二进制认的名；ome/ 分发面已收口停写，仅历史
-/// release 残量资产仍可命中，读序殿后）。Windows 下随 gnu 三元组派生的此名从未存在
-/// （历史 ome 资产是 msvc 名），该层在 Windows 恒 miss、对应窗口已由 msvc 回退层覆盖，
-/// 仅非 Windows 平台有效。
-///
-/// # Errors
-/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
-pub fn asset_compat_for_this_platform() -> Result<String, String> {
-    Ok(format!("ome-{}", platform_triple()?))
 }
 
 /// 包形净三元组（platform_triple 去 `.exe` 尾）：包名与包内目录用净 triple
@@ -180,7 +173,8 @@ fn asset_msvc_fallback() -> Option<String> {
 /// 自升级主流程。
 ///
 /// # Errors
-/// 返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。
+/// 返回 Err（人读原因串）当：通道缺件（git/cargo）、镜像与官方双链元数据全败、下载校验
+/// 或替换失败等（完整失败面见函数体错误构造）。
 pub fn self_update(env_root: &Path, channel: Channel) -> Result<SelfUpdateOutcome, String> {
     match channel {
         Channel::Git => self_update_git(env_root),
@@ -189,13 +183,8 @@ pub fn self_update(env_root: &Path, channel: Channel) -> Result<SelfUpdateOutcom
     }
 }
 
-/// 镜像优先开关（`ARK_MIRROR=1`，读回 `OME_MIRROR`）：self update 跳过官方 API 直取镜像边车锚。
-/// 供断源验收（远端不可构造官方断网）与未来默认切自建过渡；锚语义不变（边车取不到即拒绝）。
-fn mirror_first() -> bool {
-    crate::platform::env_var_or("ARK_MIRROR", "OME_MIRROR").as_deref() == Some("1")
-}
-
 /// release 通道（dev 滚动 / latest 正式）：元数据 → digest 对比 → 下载校验 → 替换 → 刷 catalog。
+/// D51 起元数据镜像段读序先行（边车即锚），GitHub API 兜底；`ARK_MIRROR=0` 逃逸阀反转。
 fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutcome, String> {
     let channel = if endpoint == "latest" {
         "stable"
@@ -204,43 +193,45 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     };
     let asset_name = asset_for_this_platform()?;
     let asset_pkg = asset_package_for_this_platform()?;
-    let asset_compat = asset_compat_for_this_platform().ok();
     let asset_msvc = asset_msvc_fallback();
     // 镜像段按通道分（oma 同型，段名与通道同名）。读序（REQ-0008 窗口扩包形层）：
     // ark/ 段包形主名先（双挂窗有包用包，存量迁移方向）、ark-<triple> gnu 裸件名次
-    //（回退臂，dev 滚动源无包形落此层）、msvc 回退名再次（D46 窗口期）、ome-* 兼容名
-    // 殿后（分发面已停写，仅历史残量可命中）。dev 通道禁止回落 stable；latest 段已退役。
+    //（回退臂，dev 滚动源无包形落此层）、msvc 回退名再次（D46 窗口期）。ome-* 兼容
+    // 层已收口（ome/ 段镜像删桶边车 404、stable 已全 ark-* 名，2026-09-18 剔除批）。
+    // dev 通道禁止回落 stable；latest 段已退役。
     let mirror_ver = if channel == "stable" { "stable" } else { "dev" };
     let mut names = vec![asset_pkg.as_str(), asset_name.as_str()];
     if let Some(m) = asset_msvc.as_deref() {
         names.push(m);
     }
-    if let Some(c) = asset_compat.as_deref() {
-        names.push(c);
-    }
-    let official = if mirror_first() {
-        Err("ARK_MIRROR=1 镜像优先，跳过官方 API".to_string())
+    // D51 元数据双链：默认镜像段读序先行，未命中回落官方 API；双败报两段错误。
+    // 逃逸阀（ARK_MIRROR=0）反转读序：官方先行、镜像回落（D41/D44 原序）。
+    let (digest, dl_url, asset_used) = if crate::download::mirror_off() {
+        official_asset_meta(endpoint, &names).or_else(|api_err| {
+            mirror_fallback_meta(
+                env_root,
+                mirror_ver,
+                &asset_name,
+                asset_msvc.as_deref(),
+                &api_err,
+            )
+        })?
     } else {
-        official_asset_meta(endpoint, &names)
-    };
-    let (digest, dl_url, seg_used, asset_used) = match official {
-        Ok((d, u, name)) => (d, u, String::new(), name),
-        Err(api_err) => mirror_fallback_meta(
-            env_root,
-            mirror_ver,
-            &asset_name,
-            asset_msvc.as_deref(),
-            asset_compat.as_deref(),
-            &api_err,
-        )?,
+        mirror_meta(env_root, mirror_ver, &asset_name, asset_msvc.as_deref()).or_else(
+            |mirror_err| {
+                eprintln!("[WARN] 镜像段未命中（{mirror_err}），回落官方 API");
+                official_asset_meta(endpoint, &names).map_err(|api_err| {
+                    format!("镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {api_err}")
+                })
+            },
+        )?
     };
 
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let mine = sha256_file(&exe)?;
     let is_package = asset_used.ends_with(".zip") || asset_used.ends_with(".tar.gz");
-    // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：镜像路径已命中则沿用其段；
-    // 官方路径按命中资产名前缀取段（纯函数 fallback_seg，三态单测覆盖）
-    let seg_for_fallback = fallback_seg(&seg_used, &asset_used);
+    // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：段恒 ark/（ome/ 兼容段已收口）
+    let seg_for_fallback = "ark";
     // 裸件：digest 即二进制 sha，先比后下（零下载判 current）。
     if !is_package && mine == digest {
         eprintln!("[OK] 已是最新构建（sha256 一致）");
@@ -293,7 +284,7 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     if let Err(e) = platform::migrate_legacy_metadata() {
         eprintln!("[WARN] 元数据搬迁失败（旧位读回继续）: {e}");
     }
-    // D41：POSIX profile 旧 ome env 块收口（Windows no-op）
+    // D41：POSIX profile 旧版 env 块收口（Windows no-op）
     platform::migrate_legacy_env_block_once();
     let catalog_synced = sync_catalog_from_cloud(env_root);
     Ok(SelfUpdateOutcome {
@@ -306,94 +297,76 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     })
 }
 
-/// 镜像段内回落的段名裁定（纯函数）：镜像路径已命中则沿用其段；官方路径按命中资产名
-/// 前缀取段（ome-* 配 ome/ 段、ark-* 配 ark/ 段，D46 的 msvc 回退名属 ark- 族走主段）
-/// ——过渡窗 release 仅 ome-* 时官方命中兼容名，回落段必须跟着兼容族走，
-/// 否则 ark/ome-* 拼出 404 断保供。
-fn fallback_seg<'a>(seg_used: &'a str, asset_used: &str) -> &'a str {
-    if !seg_used.is_empty() {
-        return seg_used;
-    }
-    if asset_used.starts_with("ome-") {
-        "ome"
-    } else {
-        "ark"
-    }
-}
-
-/// 镜像段读序尝试表（纯函数，自测 3 三态矩阵的构造面）：ark/ 段配 gnu 主名先、
-/// ark/ 段 msvc 回退名次（D46 窗口期）、ome/ 段配 ome-* 兼容名殿后；各层缺名即跳过。
-/// 每项含段、资产、边车与下载 URL。
+/// 镜像段读序尝试表（纯函数，自测 3 三态矩阵的构造面）：包形主名先（REQ-0008 双挂窗
+/// 有包用包）、gnu 裸件次（回退臂，dev 滚动源落此层）、msvc 回退名再次（D46 窗口期）；
+/// 各层缺名即跳过，段恒 ark/（ome/ 兼容段已收口）。
 fn mirror_attempts(
     base: &str,
     channel: &str,
     primary: &str,
     msvc_fallback: Option<&str>,
-    compat: Option<&str>,
 ) -> Vec<(String, String, String, String)> {
     let mut out = vec![];
-    let mut push = |seg: &str, asset: &str| {
+    let mut push = |asset: &str| {
         out.push((
-            seg.to_string(),
+            "ark".to_string(),
             asset.to_string(),
-            format!("{base}/{seg}/{channel}/{asset}.sha256"),
-            format!("{base}/{seg}/{channel}/{asset}"),
+            format!("{base}/ark/{channel}/{asset}.sha256"),
+            format!("{base}/ark/{channel}/{asset}"),
         ));
     };
-    // REQ-0008 窗口：包形主名先（有包用包，存量迁移方向），裸件为回退臂（双挂窗保旧），
-    // 其后 D46 msvc 与 ome 兼容层照旧。dev 滚动源无包形，包名 miss 即落裸件。
     if let Ok(pkg) = asset_package_for_this_platform() {
-        push("ark", &pkg);
+        push(&pkg);
     }
-    push("ark", primary);
+    push(primary);
     if let Some(f) = msvc_fallback {
-        push("ark", f);
-    }
-    if let Some(c) = compat {
-        push("ome", c);
+        push(f);
     }
     out
 }
 
-/// 镜像段读序落锚（D41 B，D46 扩 msvc 回退层）：按尝试表取首个在位边车为锚，命中返回
-/// （锚、下载 URL、段、资产名）；全败报双链错误（含官方 API 原因）。
-fn mirror_fallback_meta(
+/// 镜像段读序核心（D51 起为默认通道）：按尝试表取首个在位边车为锚，命中返回
+/// （锚、下载 URL、资产名）；全败返回末层错误串（调用方决定兜底方向与报错拼装）。
+fn mirror_meta(
     env_root: &Path,
     channel: &str,
     primary: &str,
     msvc_fallback: Option<&str>,
-    compat: Option<&str>,
-    api_err: &str,
-) -> Result<(String, String, String, String), String> {
+) -> Result<(String, String, String), String> {
     let attempts = mirror_attempts(
         crate::download::MIRROR_BASE,
         channel,
         primary,
         msvc_fallback,
-        compat,
-    );
-    eprintln!(
-        "[WARN] 官方 API 失败（{api_err}），镜像段读序试边车：{}",
-        attempts
-            .iter()
-            .map(|(seg, a, _, _)| format!("{seg}/{channel}/{a}"))
-            .collect::<Vec<_>>()
-            .join(" 先、")
     );
     let mut last = String::new();
-    for (seg, asset, sidecar_url, dl) in attempts {
+    for (_seg, asset, sidecar_url, dl) in attempts {
         match crate::download::mirror_sidecar_sha(env_root, &sidecar_url) {
-            Ok(digest) => return Ok((digest, dl, seg, asset)),
-            Err(e) => last = format!("{seg}/{asset}: {e}"),
+            Ok(digest) => return Ok((digest, dl, asset)),
+            Err(e) => last = format!("ark/{asset}: {e}"),
         }
     }
-    Err(format!("镜像段读序全败（官方: {api_err}; {last}）"))
+    Err(format!("镜像段读序全败: {last}"))
+}
+
+/// 官方 API 失败后的镜像回落（D51 逃逸阀路径用，D41 B/D46 读序不变）：报双链错误
+/// （含官方 API 原因）。
+fn mirror_fallback_meta(
+    env_root: &Path,
+    channel: &str,
+    primary: &str,
+    msvc_fallback: Option<&str>,
+    api_err: &str,
+) -> Result<(String, String, String), String> {
+    eprintln!("[WARN] 官方 API 失败（{api_err}），镜像段读序试边车");
+    mirror_meta(env_root, channel, primary, msvc_fallback)
+        .map_err(|e| format!("镜像与官方双链失败\n官方: {api_err}\n镜像段: {e}"))
 }
 
 /// 官方 release 资产元数据（digest 大写 + 下载直链 + 命中资产名）；资产名读序：包形主名
 /// 先（REQ-0008 窗口，双挂窗有包用包）、gnu 裸件名次（回退臂，双挂窗保旧量与 dev 滚动源）、
-/// msvc 回退名再次（D46 窗口期，stable 段与历史 release 仅剩 msvc 资产）、ome 兼容名殿后
-///（历史 release 残量），全 miss 报首名错；API 段失败由调用方走镜像边车读序。
+/// msvc 回退名再次（D46 窗口期，stable 段与历史 release 仅剩 msvc 资产），全 miss 报首名错；
+/// API 段失败由调用方走镜像边车读序（ome 兼容名层已收口）。
 fn official_asset_meta(endpoint: &str, names: &[&str]) -> Result<(String, String, String), String> {
     // release JSON 单拉一次（G2：原每层各拉一遍，窗口期 stable 稳定 2 次 API GET），
     // 本地按名序匹配，全 miss 报首名错。
@@ -508,7 +481,7 @@ fn self_update_git(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
     if let Err(e) = platform::migrate_legacy_metadata() {
         eprintln!("[WARN] 元数据搬迁失败（旧位读回继续）: {e}");
     }
-    // D41：POSIX profile 旧 ome env 块收口（Windows no-op）
+    // D41：POSIX profile 旧版 env 块收口（Windows no-op）
     platform::migrate_legacy_env_block_once();
     let catalog_synced = sync_catalog_from_cloud(env_root);
     let _ = std::fs::remove_dir_all(&work);
@@ -537,8 +510,8 @@ fn replace_deployed_and_current(new_file: &Path) -> Result<PathBuf, String> {
     }
     // D41 C 收口（2026-09-14）：ome 别名停建，升级顺带清理既有副本（水位清零；
     // 当前正以别名运行时 Windows 删不动，warn 留待下次再收）
-    if let Err(e) = platform::remove_ome_alias() {
-        eprintln!("[WARN] ome 别名清理失败（不拦升级，下次再收）: {e}");
+    if let Err(e) = platform::remove_legacy_alias() {
+        eprintln!("[WARN] 旧别名清理失败（不拦升级，下次再收）: {e}");
     }
     Ok(deploy)
 }
@@ -703,87 +676,43 @@ mod tests {
 
     #[test]
     fn 资产名_当前平台必有映射() {
-        // 本 CI 覆盖的三目标之一，或明确报不支持；D41 B 起主名 ark-、兼容名 ome-
-        match (asset_for_this_platform(), asset_compat_for_this_platform()) {
-            (Ok(primary), Ok(compat)) => {
-                assert!(primary.starts_with("ark-"), "主名应带 ark- 前缀: {primary}");
-                assert!(compat.starts_with("ome-"), "兼容名应带 ome- 前缀: {compat}");
-                assert_eq!(
-                    primary.trim_start_matches("ark-"),
-                    compat.trim_start_matches("ome-"),
-                    "主名与兼容名共用三元组"
-                );
-            }
-            (Err(e), _) => assert!(e.contains("无 CI 构建资产")),
-            _ => panic!("主名可解析则兼容名必可解析"),
+        // 本 CI 覆盖的三目标之一，或明确报不支持；D41 B 起主名 ark-（ome 兼容名层已收口）
+        match asset_for_this_platform() {
+            Ok(primary) => assert!(primary.starts_with("ark-"), "主名应带 ark- 前缀: {primary}"),
+            Err(e) => assert!(e.contains("无 CI 构建资产")),
         }
     }
 
     #[test]
-    fn 段内回落裁定_三态() {
-        // 镜像命中沿用其段；官方命中按资产族；默认主段
-        assert_eq!(
-            fallback_seg("ome", "ome-x.exe"),
-            "ome",
-            "镜像命中的段直接沿用"
-        );
-        assert_eq!(
-            fallback_seg("ark", "ark-x.exe"),
-            "ark",
-            "镜像命中的段直接沿用"
-        );
-        assert_eq!(
-            fallback_seg("", "ome-x.exe"),
-            "ome",
-            "官方命中兼容名回落兼容段"
-        );
-        assert_eq!(fallback_seg("", "ark-x.exe"), "ark", "官方命中主名回落主段");
-        // D46：msvc 回退名属 ark- 族，回落主段（gnu 主名 miss 后窗口期资产仍按 ark/ 段取）
-        assert_eq!(
-            fallback_seg("", "ark-x86_64-pc-windows-msvc.exe"),
-            "ark",
-            "官方命中 msvc 回退名回落主段"
-        );
-    }
-
-    #[test]
-    fn 镜像段读序_尝试表四层构造() {
-        // D41 自测 3（构造面）：ark 主先、ome 兼容回落、URL 形态、缺名层跳过；
-        // D46 补 msvc 回退层：gnu 主名先、msvc 回退次、ome 兼容殿后
+    fn 镜像段读序_尝试表三层构造() {
+        // D41 自测 3（构造面）：包形主名先、gnu 裸件次、msvc 回退再次（D46）、URL 形态、
+        // 缺名层跳过；ome/ 兼容段已收口（剔除批 2026-09-18），段恒 ark/
         let base = "https://mirror.example";
-        let four = mirror_attempts(
+        let three = mirror_attempts(
             base,
             "dev",
             "ark-x86_64-pc-windows-gnu.exe",
             Some("ark-x86_64-pc-windows-msvc.exe"),
-            Some("ome-x86_64-pc-windows-gnu.exe"),
         );
-        // REQ-0008 窗口扩包形层：包形主名先、gnu 裸件次、msvc 回退再次、ome 段殿后
-        assert_eq!(four.len(), 4, "四层读序四尝试");
+        assert_eq!(three.len(), 3, "三层读序三尝试");
         let pkg = asset_package_for_this_platform().expect("测试平台有包名");
-        assert_eq!(four[0].1, pkg, "包形主名先（有包用包）");
-        assert_eq!(four[0].0, "ark", "包形走 ark 主段");
+        assert_eq!(three[0].1, pkg, "包形主名先（有包用包）");
+        assert_eq!(three[0].0, "ark", "段恒 ark");
         assert_eq!(
-            four[1].1, "ark-x86_64-pc-windows-gnu.exe",
+            three[1].1, "ark-x86_64-pc-windows-gnu.exe",
             "gnu 裸件回退臂次"
         );
-        assert_eq!(four[2].1, "ark-x86_64-pc-windows-msvc.exe", "msvc 回退再次");
-        assert_eq!(four[2].0, "ark", "msvc 回退名走主段");
-        assert_eq!(four[3].0, "ome", "ome 段殿后");
         assert_eq!(
-            four[1].2,
+            three[2].1, "ark-x86_64-pc-windows-msvc.exe",
+            "msvc 回退再次"
+        );
+        assert_eq!(
+            three[1].2,
             format!("{base}/ark/dev/ark-x86_64-pc-windows-gnu.exe.sha256"),
             "边车 URL 形态"
         );
-        assert_eq!(
-            four[3].3,
-            format!("{base}/ome/dev/ome-x86_64-pc-windows-gnu.exe"),
-            "下载 URL 形态"
-        );
-        let three_now = mirror_attempts(base, "dev", "ark-x.exe", None, Some("ome-x.exe"));
-        assert_eq!(three_now.len(), 3, "无 msvc 回退名跳过该层（包加裸加兼容）");
-        let two_now = mirror_attempts(base, "stable", "ark-x.exe", None, None);
-        assert_eq!(two_now.len(), 2, "无回退名仅包加裸两层");
+        let two_now = mirror_attempts(base, "stable", "ark-x.exe", None);
+        assert_eq!(two_now.len(), 2, "无 msvc 回退名仅包加裸两层");
         assert!(
             two_now[0].2.contains("/ark/stable/"),
             "stable 通道段名随通道"
@@ -881,19 +810,17 @@ mod tests {
     }
 
     #[test]
-    fn 自管条目_新旧extract双接受() {
-        // D41（R8）：数据面改名可单方回退——引擎双接受，六消费分支同判定
+    fn 自管条目_extract单接受() {
+        // ome 关键字剔除批（2026-09-18）：旧值 ome-self 双接受收口，仅认 ark-self
+        //（云端权威 catalog 自 2026-09-14 起写 ark-self）
         let mk = |e: &str| crate::catalog::Tool {
             extract: Some(e.to_string()),
             ..Default::default()
         };
-        assert!(
-            is_ome_self(&mk("ome-self")),
-            "旧标记仍受认（数据面未改名期）"
-        );
-        assert!(is_ome_self(&mk("ark-self")), "新标记受认");
-        assert!(!is_ome_self(&mk("zip")), "非自管不误判");
-        assert!(!is_ome_self(&mk("npm-tgz")), "npm 型不误判");
+        assert!(is_ark_self(&mk("ark-self")), "ark-self 受认");
+        assert!(!is_ark_self(&mk("ome-self")), "旧值已收口不再受认");
+        assert!(!is_ark_self(&mk("zip")), "非自管不误判");
+        assert!(!is_ark_self(&mk("npm-tgz")), "npm 型不误判");
     }
 
     #[cfg(not(all(windows, target_arch = "x86_64")))]

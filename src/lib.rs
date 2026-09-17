@@ -4,6 +4,7 @@
 //! 下载镜像主通道 env.ohmygh.com、官方兜底（D44）；锁定归云端数据面（D37）。
 //! 公开契约双面：命令输出走黄金文件 oracle，lib 公开项走 docs/aidoc/ 投影。
 
+pub mod arerr;
 pub mod catalog;
 pub mod checksum;
 pub mod docker;
@@ -15,7 +16,6 @@ pub mod heal;
 pub mod install;
 pub mod issue;
 pub mod manifest;
-pub mod omerr;
 pub mod platform;
 pub mod render;
 pub mod resolve;

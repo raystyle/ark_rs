@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::process::{Command, Output};
 
 fn gated() -> bool {
-    ark::platform::env_var_or("ARK_TEST_REAL", "OME_TEST_REAL")
+    ark::platform::env_var("ARK_TEST_REAL")
         .map(|v| !v.is_empty() && v != "0")
         .unwrap_or(false)
 }
@@ -14,15 +14,15 @@ fn skip(reason: &str) {
     eprintln!("[SKIP] {reason}（设 ARK_TEST_REAL=1 启用真机闸门）");
 }
 
-fn ome() -> Command {
+fn ark_cli() -> Command {
     Command::new(assert_cmd::cargo::cargo_bin("ark"))
 }
 
 fn run(args: &[&str]) -> Output {
-    ome()
+    ark_cli()
         .args(args)
         .output()
-        .unwrap_or_else(|_| panic!("ome {} 应可运行", args.join(" ")))
+        .unwrap_or_else(|_| panic!("ark {} 应可运行", args.join(" ")))
 }
 
 fn stdout_text(out: &Output) -> String {
@@ -30,7 +30,7 @@ fn stdout_text(out: &Output) -> String {
 }
 
 /// 跑 ark status（真实 catalog + 默认 EnvRoot），解析 key=value 三态。
-fn ome_status() -> HashMap<String, (String, String)> {
+fn ark_status() -> HashMap<String, (String, String)> {
     let out = run(&["status"]);
     assert!(out.status.success(), "ark status 应成功");
     let text = stdout_text(&out);
@@ -58,14 +58,14 @@ fn real_status_catalog_三态可解析() {
         skip("真机闸门未开");
         return;
     }
-    let ome = ome_status();
-    assert!(!ome.is_empty(), "ark status 应解析出工具行");
+    let ark = ark_status();
+    assert!(!ark.is_empty(), "ark status 应解析出工具行");
     for agent in ["claude", "codex", "grok", "kimi"] {
-        assert!(ome.contains_key(agent), "ome 应纳管 {agent}");
+        assert!(ark.contains_key(agent), "ark 应纳管 {agent}");
     }
-    assert!(!ome.contains_key("reader"), "reader 已出册");
-    assert!(!ome.contains_key("vault"), "vault 已出册");
-    let has_installed = ome.values().any(|(_, installed)| installed != "-");
+    assert!(!ark.contains_key("reader"), "reader 已出册");
+    assert!(!ark.contains_key("vault"), "vault 已出册");
+    let has_installed = ark.values().any(|(_, installed)| installed != "-");
     assert!(has_installed, "本机 status 应至少有一项已安装");
 }
 
@@ -160,14 +160,14 @@ fn real_llms_清单含三原语() {
         return;
     }
     let out = run(&["--llms"]);
-    assert!(out.status.success(), "ome --llms 应成功");
+    assert!(out.status.success(), "ark --llms 应成功");
     let text = stdout_text(&out);
     for cmd in ["ark doctor", "ark install", "ark status"] {
         assert!(text.contains(cmd), "--llms 应含 {cmd}");
     }
-    assert!(!text.contains("ome package"), "--llms 不应再含 package");
-    assert!(!text.contains("ome deploy"), "--llms 不应再含 deploy");
-    assert!(!text.contains("ome daily"), "--llms 不应再含 daily");
+    assert!(!text.contains("ark package"), "--llms 不应再含 package");
+    assert!(!text.contains("ark deploy"), "--llms 不应再含 deploy");
+    assert!(!text.contains("ark daily"), "--llms 不应再含 daily");
     assert!(
         !text.contains("ark skill"),
         "--llms 不应再含 skill（D50 撤面）"

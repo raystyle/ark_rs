@@ -1,4 +1,4 @@
-//! 集成测试共享设施（S002 测试三件套之一）：ome 二进制运行 helper 与 expected 文件 oracle 断言。
+//! 集成测试共享设施（S002 测试三件套之一）：ark 二进制运行 helper 与 expected 文件 oracle 断言。
 //! `tests/common/mod.rs` 是 cargo 约定的共享模块，不会被当成独立测试目标（R004 一）。
 
 use std::path::{Path, PathBuf};
@@ -19,7 +19,7 @@ pub fn run_ark(args: &[&str], envs: &[(&str, &str)]) -> Output {
         cmd.env(k, v);
     }
     cmd.args(args);
-    cmd.output().expect("ome 应可运行")
+    cmd.output().expect("ark 应可运行")
 }
 
 /// 归一化：CRLF 归 LF、沙盒临时路径替换为 <SANDBOX>、home 绝对路径替换为 <HOME>、
@@ -37,7 +37,7 @@ fn normalize(text: &str, sandbox: Option<&Path>) -> String {
 }
 
 /// expected 文件 oracle：读 `tests/expected/<name>` 与 stdout 全量比对。
-/// 黄金文件内以 `##` 起首的行为来源注释，比对前剥除（ome 自身组标题是 `# ` 单行，不冲突）。
+/// 黄金文件内以 `##` 起首的行为来源注释，比对前剥除（ark 自身组标题是 `# ` 单行，不冲突）。
 /// 平台双 oracle（2026-09-01 M0 起用）：pin 视图显示当前平台 pin（R001 平台分列），
 /// 输出实质跨平台不同——非 Windows 优先 `<stem>.<platform><ext>`，无平台文件再回退原名。
 pub fn assert_stdout_eq_golden(name: &str, out: &Output, sandbox: Option<&Path>) {

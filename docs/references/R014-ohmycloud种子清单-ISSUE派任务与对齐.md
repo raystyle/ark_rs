@@ -10,7 +10,7 @@
 | --- | --- |
 | ome | `catalog\tools.toml` 为唯一清单源；用 `.tools\seed-inventory.py` 抽可入镜对象；向 `raystyle/ohmycloud` 开或回 ISSUE |
 | ohmycloud | 按 ISSUE 种子 / 下架 / 刷新 latest 段；通报对象数与差集 |
-| 对齐完成 | ark 侧 `ARK_TEST_MIRROR=1`（旧名 `OME_TEST_MIRROR` 读回）断官方源回落验收 |
+| 对齐完成 | ark 侧 `ARK_TEST_MIRROR=1` 断官方源回落验收 |
 
 ISSUE 标签用 `coordination` 加 `distribution`。中文排版：短段、列表、留白可换行。
 

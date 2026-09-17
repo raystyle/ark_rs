@@ -39,12 +39,11 @@ def _data_local_dir() -> Path:
 
 def _catalog_path() -> Path:
     """对账清单源（D37 权威在 ohmycloud catalog-seed）：仓库件（开发态）优先，miss 则
-    用户数据副本（云端同步件，D41 起 ark 主名、ohmyenv 旧位读回）；两者皆缺提示先 ark catalog sync。"""
+    用户数据副本（云端同步件，ark 主名位）；两者皆缺提示先 ark catalog sync。"""
     data = _data_local_dir()
     cands = [
         ROOT / "catalog" / "tools.toml",
         data / "ark" / "catalog" / "tools.toml",
-        data / "ohmyenv" / "catalog" / "tools.toml",
     ]
     for c in cands:
         if c.exists():
@@ -55,7 +54,7 @@ def _catalog_path() -> Path:
     )
 
 CATALOG = _catalog_path()
-EVERGREEN_EXTRACT = {"ome-self", "ark-self", "vsbuild", "rustup"}
+EVERGREEN_EXTRACT = {"ark-self", "vsbuild", "rustup"}
 
 
 def trip(t: dict, prefix: str) -> tuple[str | None, str | None, str | None]:
@@ -145,7 +144,7 @@ def emit_md(inv: dict) -> str:
         "",
         "### evergreen（沙滚段，边车即锚）",
         "",
-        "- `ark/dev/` 加 `ark/stable/`：`ark-*` 主名三资产（D41 B 双写；兼容段 `ome/dev|stable/` 配 `ome-*` 名，存量机水位清零后撤）",
+        "- `ark/dev/` 加 `ark/stable/`：`ark-*` 主名三资产（D41 B；ome 兼容段已收口 2026-09-18 剔除批）",
         "- `rust/latest/rustup-init.exe`",
         "- `vsbuild/latest/vs_buildtools.exe`",
         "",

@@ -654,7 +654,7 @@ fn check_pin_missing(cat: &Catalog, srows: &[StatusRow]) -> DoctorRow {
             || r.locked.is_some()
             || crate::vsbuild::is_vsbuild(def)
             || crate::rustup::is_rustup(def)
-            || crate::selfupdate::is_ome_self(def)
+            || crate::selfupdate::is_ark_self(def)
         {
             continue;
         }
@@ -881,7 +881,7 @@ mod tests {
         assert!(is_derived_asset(crate::rustup::INIT_EXE, &bootstraps));
         assert!(is_derived_asset("docker-compose-v5.5.0.exe", &bootstraps));
         assert!(is_derived_asset(
-            "ome-x86_64-pc-windows-msvc.exe",
+            "ark-x86_64-pc-windows-msvc.exe",
             &bootstraps
         ));
         assert!(is_derived_asset(
@@ -979,7 +979,7 @@ mod tests {
             locked: Some("1.8.2".into()),
             installed: None,
             path: false,
-            exe: Some(PathBuf::from("/definitely-missing-ome-jq.exe")),
+            exe: Some(PathBuf::from("/definitely-missing-jq.exe")),
         }];
         let row = check_probe_fail(&srows);
         assert_eq!(row.status, "OK", "未装不应报 probe-fail: {:?}", row.detail);

@@ -118,6 +118,19 @@ pub fn with_query(url: &str, kv: &str) -> String {
     format!("{url}{sep}{kv}")
 }
 
+/// D51 官方优先逃逸阀判定纯核（测试面）：值域仅 `0` 触发逃逸；`1` 为兼容 no-op
+/// （镜像默认通道转正后 =1 已是默认行为）、未设与其余值均走默认镜像优先。
+pub(crate) fn is_mirror_off(val: Option<&str>) -> bool {
+    val == Some("0")
+}
+
+/// D51 官方优先逃逸阀（`ARK_MIRROR=0`）：镜像故障时跳过镜像首试
+/// 直走官方链（下载层两条链与 selfupdate 元数据读序同阀）；解析面无需此阀——pin 驱动
+/// 本就零 API 且主通道之外的兜底本就是官方直链。
+pub(crate) fn mirror_off() -> bool {
+    is_mirror_off(crate::platform::env_var("ARK_MIRROR").as_deref())
+}
+
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -169,6 +182,10 @@ fn download_asset_with_mirror_urls(
     }
     if let Some(hit) = cache_reuse(&dest, expected_sha256, force)? {
         return Ok(hit);
+    }
+    // D51 逃逸阀：官方优先时跳过镜像首试（含边车锚解析），直走官方完整链
+    if mirror_off() {
+        return download_asset(env_root, asset_name, official_url, expected_sha256, true);
     }
     // 锚解析（对线 F1）：调用方锚优先；无锚时取镜像**版本段边车** `{url}.sha256` 作该段锚
     // （R015「无 sha 不入镜」，版本段边车在位是常态；与 latest 段口径统一）；
@@ -337,6 +354,10 @@ fn download_latest_with_sidecar_urls(
     if let Some(hit) = cache_reuse(&dest, None, false)? {
         return Ok(hit);
     }
+    // D51 逃逸阀：官方优先时跳过镜像 latest 段首试，直走官方完整链（无锚裸下，与镜像段口径一致）
+    if mirror_off() {
+        return download_asset(env_root, asset_name, official_url, None, true);
+    }
     // 镜像首试：边车锚 → 资产（CF 缓存击穿：锚值进 query）
     let mirror_step = mirror_sidecar_sha(env_root, sidecar_url).and_then(|anchor| {
         let mirror_busted = with_query(mirror_dl_url, &format!("v={anchor}"));
@@ -445,7 +466,7 @@ pub fn fetch_text_short(url: &str, timeout: Duration) -> Result<String, String> 
         .build();
     let resp = agent
         .get(url)
-        .set("User-Agent", "ome-catalog")
+        .set("User-Agent", "ark-catalog")
         .call()
         .map_err(|e| format!("HTTP 请求失败: {url}: {e}"))?;
     resp.into_string()
@@ -460,7 +481,7 @@ fn download_once(url: &str, dest: &Path) -> Result<(), String> {
         .build();
     let resp = agent
         .get(url)
-        .set("User-Agent", "ome-bootstrap")
+        .set("User-Agent", "ark-bootstrap")
         .call()
         .map_err(|e| format!("HTTP 请求失败: {url}: {e}"))?;
     let mut reader = resp.into_reader();
@@ -595,6 +616,16 @@ mod tests {
             with_query("https://env.ohmygh.com/a/b.zip?t=1", "v=ABC"),
             "https://env.ohmygh.com/a/b.zip?t=1&v=ABC"
         );
+    }
+
+    /// D51 逃逸阀判定值域：仅 `0` 触发官方优先；`1` 兼容 no-op、未设与其余值走默认镜像。
+    #[test]
+    fn 逃逸阀判定_值域仅零触发() {
+        assert!(!is_mirror_off(None), "未设走默认镜像优先");
+        assert!(!is_mirror_off(Some("1")), "=1 已是默认（no-op）");
+        assert!(!is_mirror_off(Some("")), "空串不触发");
+        assert!(!is_mirror_off(Some("true")), "非零值不触发");
+        assert!(is_mirror_off(Some("0")), "仅 0 触发官方优先逃逸");
     }
 
     /// D44 反转后双断：镜像段（边车）断→回落官方段断→双链报错（镜像在前官方在后），不落资产。
