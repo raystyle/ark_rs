@@ -17,7 +17,7 @@
 - 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py`；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/.claude/skills/dev-evo/scripts/check.py .`
 - 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL`（读回 `OME_TEST_REAL`）闸门 skip
 - 格式与静态检查：`cargo fmt --check` 与 `cargo clippy --release --locked`（改 Rust 必跑）；lib 面 `missing_docs` 为 deny（Cargo.toml lints，ADR-0006 第五十九批强制口径）
-- aidoc 投影：改 pub 项后 `cargo aidoc` 生成并同提交 `docs/aidoc/`（生成物手改被覆盖）；漂移门禁 `cargo aidoc --check --strict`
+- aidoc 投影：改 pub 项后 `cargo aidoc` 生成并同提交 `docs/aidoc/`（生成物手改被覆盖）；漂移门禁 `cargo aidoc --check --strict`（需 cargo-aidoc 与其要求的 nightly 工具链；CI linux 岗已挂此门禁）
 - 文档骨架合规：`PEVO_CHECK_ALLOW="^docs/aidoc/" uv run ~/repos/project-evo/plugins/evo-adr/skills/code-kit/scripts/check.py .`（退出码 0；豁免在册，aidoc 条目分隔符 em dash 是渲染格式无开关，真门禁是 aidoc --check --strict；路径随 project-evo 第六十六批 skill 形态重排切新，2026-09-16）
 - 提交：`feat:` / `docs:` / `fix:` / `chore:` 前缀加中文描述；一次提交只做一件事；未经指示不推远端
 
@@ -65,4 +65,4 @@
 - 分支模型：GitHub Flow 单干变体（直推 main 为基线，2026-09-08 裁）；并行会话或危险大改开短命分支，验证后 squash 进 main 并删
 - 门禁：dev-evo check.py（PE-01 至 PE-12）加本仓四件套（rumdl 加 md 三扫描）并存
 - 全平台直测：四端测试验收在局（2026-09-16），lan-mac 与 lan-ubuntu 与 lan-linux mesh 随时随地；WSL 到宿主恒走 127.0.0.1 回环 ssh 加 interop 直调，不走宿主 mesh IP（口径全文见 dev-evo env-platform.md 第十节）；各端归 ohmycloud 舰队管理，装拆前对齐；验收按需向 ohmycloud 总台要端点支撑，结论 conclusion 自取；多仓飞轮协作协议见 dev-evo flow-flywheel.md（本仓派单回执实践即其实证源）
-- 当前阶段：v1.3.0 已发（D50 skill 面撤除批：--llms 唯一 agent 发现通道，ADR-0007 与 REQ-0005 在册）；Unreleased 窗空；D41 ome 兼容面与 D46 gnu 交叉构建与 D47/D48 fork 分发链均已闭环
+- 当前阶段：v1.3.0 已发（D50 skill 面撤除批：--llms 唯一 agent 发现通道，ADR-0007 与 REQ-0005 在册）；Unreleased 窗有货（v1.3.0 补审修复批，见 CHANGELOG）；D41 ome 兼容面与 D46 gnu 交叉构建与 D47/D48 fork 分发链均已闭环
