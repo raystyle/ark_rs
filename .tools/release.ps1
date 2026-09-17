@@ -197,10 +197,12 @@ if ($IncludePackages) {
         $ha = (Get-FileHash $innerPath -Algorithm SHA256).Hash.ToLower()
         $hb = (Get-FileHash (Join-Path $dist $a.name) -Algorithm SHA256).Hash.ToLower()
         if ($ha -ne $hb) { Fail "包内二进制与裸件 sha 不等 $pkgName" }
+        # interop/exec 都要执行位：Expand-Archive 不保 +x（zip 实测 ENOENT 根因）
+        chmod +x $innerPath
         if ($triple -like '*windows*') {
             $out = @(& $innerPath --version)
         } elseif ($triple -like '*linux*') {
-            chmod +x $innerPath; $out = @(& $innerPath --version)
+            $out = @(& $innerPath --version)
         } else {
             continue  # mac 内层与裸件同物（sha 等已断言），实机冒烟走裸件面
         }
@@ -216,7 +218,7 @@ if ($IncludePackages) {
 Write-Host '== gh 直发（draft 传齐再发布，published 即齐备信号）=='
 $files = @(Get-ChildItem $dist -File | Sort-Object Name | ForEach-Object { $_.FullName })
 if ($DryRun) {
-    Write-Host "[DryRun] gh release create $Tag（6 件）--draft 后 gh release edit $Tag --draft=false --latest"
+    Write-Host "[DryRun] gh release create $Tag（$($files.Count) 件）--draft 后 gh release edit $Tag --draft=false --latest"
 } else {
     gh release create $Tag @files --draft --title "ark $Tag" `
         --notes "正式版 $Tag（release.ps1 三段式发布）。安装：ark self update --stable；agent 发现通道：ark --llms。"
