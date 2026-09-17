@@ -2,6 +2,13 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [Unreleased]
+
+v1.3.0 封版收尾批补审（herdr codex 评审闸门，2026-09-17 两轮 CONFIRM）。
+
+- **aidoc 版本面漂移根治**（补审 F1，v1.2.3/v1.3.0 二犯）：封版滚版本未再生成 aidoc 四件投影的漂移补滚至 1.3.0；CI 文档门禁新增 `cargo aidoc --check --strict` 岗（linux 岗）；REQ-0006 封版件判据补 aidoc 同提交项。
+- **镜像 stable 段空转护栏与补推**（补审 F2）：tag run 的 mirror-r2 岗先于 release 发布跑、draft 窗口三 skip 零上传仍绿，致 ark/stable 段漏切 1.3.0（镜像 fallback 面在此期间仍解析 1.2.3）；seed.py ark-stable 全 skip 零上传落显式 WARN 与补推指引；stable 段三边车 dispatch 补推（run 35180668359）。附 G 批四条文档收口（aria2 三平台口径、REQ-0006 判据形态、AGENTS D46 口径、diary 索引欠账）。
+
 ## [1.3.0] - 2026-09-16
 
 minor：D50 skill 面撤除批（命令面行为变化取 minor，判据与验收入壳见 REQ-0006）。

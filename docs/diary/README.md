@@ -42,3 +42,4 @@
 | 2026-09-16 | `docs/diary/2026-09-16-lan双端agent环境补装.md` | 插队单先装批：两端四家加 hst 落面（lan-linux 版本对齐加 pwsh 补装）、token 面总台合流（3363ff6 核证）、开放项总台闭（kimi 舰队级 revoked tombstone 债另记） |
 | 2026-09-16 | `docs/diary/2026-09-16-封版v1.3.0.md` | v1.3.0 封版（D50 批，minor 判据 REQ-0006）：ark 工位自建 codex 评审格两轮终审 CONFIRM、G 批五条全采纳（9a065ea） |
 | 2026-09-17 | `docs/diary/2026-09-17-三仓滚版舰队收敛验收.md` | 滚版验收四件全过：ark 1.3.0 五端加 hst 2.0.0 五端（init 收残留）加 aria2 1.37.2 五端（锚三方等）加 lan-mac 三工具新 pin |
+| 2026-09-17 | `docs/diary/2026-09-17-封版三笔补审与stable段补推.md` | 封版三笔 codex 补审 2F 加 4G 全修（aidoc 版本面 CI 门禁、seed 空转护栏），镜像 ark/stable 段 dispatch 补推 1.3.0 三边车实测等 |
