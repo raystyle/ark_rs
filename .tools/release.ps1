@@ -174,7 +174,9 @@ foreach ($a in $assets) {
 # 6b 包形冒烟（-IncludePackages 才跑）：解包取内层（拼名契约 ark-<净triple>/ark(.exe)），
 # 内容等价断言（包内二进制 sha 与裸件逐字等）加本平台可跑件直跑 --version
 if ($IncludePackages) {
-    $pkgVerify = Join-Path ([System.IO.Path]::GetTempPath()) 'ark-release-pkg-verify'
+    # 验证目录在仓根（dist-pkg-verify，gitignore dist-pkg*/ 已收）：WSL interop 起 PE
+    # 在 /tmp 实测 ENOENT（仓根路径正常，2026-09-17 窗一版演练实录）
+    $pkgVerify = Join-Path $root 'dist-pkg-verify'
     if (Test-Path $pkgVerify) { Remove-Item -Recurse -Force $pkgVerify }
     New-Item -ItemType Directory -Path $pkgVerify | Out-Null
     foreach ($a in $assets) {
