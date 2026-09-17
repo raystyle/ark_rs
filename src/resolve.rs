@@ -723,6 +723,15 @@ mod tests {
             linux_sha256: Some(
                 "BDC69C09CBDD6CF8B1F333D372A1F58247B3A33146406333E30C0F26E8F51377".into(),
             ),
+            // mac 平台键必齐（总台回执定性修复：本机 linux 跑绿未暴露夹具缺 mac 键，
+            // macOS 岗 pin_tag() 取 mac_tag 为 None 致「pin 三键齐应直装」断言炸；
+            // 期望值同 fixtures/tools.toml mac 节）
+            mac_tag: Some("v1.3.1".into()),
+            mac_version: Some("1.3.1".into()),
+            mac_asset: Some("age-v1.3.1-darwin-arm64.tar.gz".into()),
+            mac_sha256: Some(
+                "01120EA2CBF0463D4C6BD767F99F3271BBED1CDC8A9AA718A76BA1FE4F01998B".into(),
+            ),
             ..Tool::default()
         }
     }
