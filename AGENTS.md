@@ -65,4 +65,4 @@
 - 分支模型：GitHub Flow 单干变体（直推 main 为基线，2026-09-08 裁）；并行会话或危险大改开短命分支，验证后 squash 进 main 并删
 - 门禁：dev-evo check.py（PE-01 至 PE-12）加本仓四件套（rumdl 加 md 三扫描）并存
 - 全平台直测：四端测试验收在局（2026-09-16），lan-mac 与 lan-ubuntu 与 lan-linux mesh 随时随地；WSL 到宿主恒走 127.0.0.1 回环 ssh 加 interop 直调，不走宿主 mesh IP（口径全文见 dev-evo env-platform.md 第十节）；各端归 ohmycloud 舰队管理，装拆前对齐；验收按需向 ohmycloud 总台要端点支撑，结论 conclusion 自取；多仓飞轮协作协议见 dev-evo flow-flywheel.md（本仓派单回执实践即其实证源）
-- 当前阶段：v1.3.0 已发（D50 skill 面撤除批：--llms 唯一 agent 发现通道，ADR-0007 与 REQ-0005 在册）；Unreleased 窗空；D41 ome 兼容面与 D46/D47/D48 fork 分发链均已闭环
+- 当前阶段：v1.3.0 已发（D50 skill 面撤除批：--llms 唯一 agent 发现通道，ADR-0007 与 REQ-0005 在册）；Unreleased 窗空；D41 ome 兼容面与 D46 gnu 交叉构建与 D47/D48 fork 分发链均已闭环

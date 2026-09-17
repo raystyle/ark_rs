@@ -33,7 +33,6 @@
 | 2026-09-14 | `docs/diary/2026-09-14-临时envroot注册PATH闸.md` | 舰队报障修复：add_user_path 设 temp 闸，探测与沙盒装不落用户持久 PATH |
 | 2026-09-15 | `docs/diary/2026-09-15-双fork分发链落地.md` | OfficeCLI v1.0.151 发布（根因反转与 selftest 冒烟）与 oxvg CI 链（CI 面 CLI 一条线），双 fork 分发链通 |
 | 2026-09-15 | `docs/diary/2026-09-15-update漂移收口.md` | D49 update 三态判据（落后真装 pin 版）、HINT 文案对齐双向判据 |
-| 2026-09-14 | `docs/diary/2026-09-14-临时envroot注册PATH闸.md` | 舰队报障修复：add_user_path 设 temp 闸，探测与沙盒装不落用户持久 PATH |
 | 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批一.md` | ADR-0001 批一：AGENTS 五节合同、ADR/REQ 骨架、PRD 冻结、PE 12 全 PASS |
 | 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批二.md` | ADR-0001 批二：GOAL 与 TODO 冻结档案化、REQ-0001 回填六判据 |
 | 2026-09-15 | `docs/diary/2026-09-15-ADR0001文档体系迁移批四.md` | ADR-0001 批四：aidoc 投影强制化、v1.2.3 封版、开发仓位迁移（索引欠账补行） |
