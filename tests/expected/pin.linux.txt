@@ -1,4 +1,4 @@
-## 黄金文件：ome pin（无选项；Linux 平台 oracle——pin 视图显示 linux_* 平台 pin，见 R001 平台分列）
+## 黄金文件：ark pin（无选项；Linux 平台 oracle——pin 视图显示 linux_* 平台 pin，见 R001 平台分列）
 ## 来源纪律：2026-09-01 依 mac oracle 形态与夹具 linux_* pin 值推导冻结（tag/version 与 mac/Windows 同值、
 ## 仅 asset 与 sha256 行为 linux 值）；待 WSL 真机复跑核对后回填实证标注。
 ## 2026-09-02 七类 taxonomy 节序重排：python → vault → age。

@@ -1,4 +1,4 @@
-## 黄金文件：ome status --env-root <sandbox>（Linux 平台 oracle）
+## 黄金文件：ark status --env-root <sandbox>（Linux 平台 oracle）
 ## 来源纪律：2026-09-02 WSL 真机复跑核对（fixture posix 布局改沙盒相对目录后输出确定性：
 ## installed=- path=false，exe 解析进沙盒）。与 status.txt 的差异仅 exe 行（posix 无 .exe 后缀
 ## 与 bin/python 布局）。七类 taxonomy 重生成：单层组头，夹具节序 python→vault→age

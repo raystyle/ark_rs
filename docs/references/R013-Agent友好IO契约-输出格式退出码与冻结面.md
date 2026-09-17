@@ -39,7 +39,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 
 | 命令 | 数据块字段 |
 | --- | --- |
-| `query` | tool, tag, version, asset, size, url, sha256 |
+| `query` | tool, tag, version, asset, size, url, sha256（size 仅 API 解析路径有效；D51 起 pin 驱动零 API 恒 0） |
 | `pin` | tool, tag, version, asset, sha256 |
 | `install` / `update` | tool, action, version, dir |
 | `status` | tool, locked, installed, path, exe |
@@ -67,8 +67,8 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 取值不受影响），删除或改名视为 breaking，需在提交与 diary 显式标注。
 query 的 `sha256` 字段语义：解析 tag 与资产同 pin 时给锁定 sha256（未回填为空串），否则空串。
 
-**D41 更名 Ark 登记（2026-09-12，breaking 且带兼容层）**：命令名 `ome` 改 `ark`（数据块字段集与退出码
-零变化）；兼容层三面：`ome` 部署位同目录别名（init 与 self update 重建，旧 PATH 条目清理后仍可调）、
-环境变量仅 `ARK_*` 主名（旧名读回已撤，2026-09-18 剔除批）、镜像 `ark/` 段与 `ark-*` 资产名（ome 兼容层已收口）
-配 `ome/` 段与 `ome-*` 兼容名双写双附（停 ome/ 面（段与资产名）判据为存量机水位清零）。
-omc 侧冻结调用 `ome install` 的契约面换 `ark install` 加别名过渡窗口（herdr 知会在案）。
+**D41 更名 Ark 登记（2026-09-12 breaking；兼容层终态见 2026-09-18 剔除批）**：命令名 `ome` 改 `ark`
+（数据块字段集与退出码零变化）。兼容层三面终态：旧部署位与旧 `ome` 别名停建、init 与 self update
+顺带清扫存量（不重建）；环境变量仅 `ARK_*` 主名（`OME_*`/`OHMYENV_ROOT` 旧名读回已撤）；
+镜像仅 `ark/` 段与 `ark-*` 资产名（`ome/` 段与 `ome-*` 兼容层已收口）。omc 侧冻结调用
+`ome install` 的契约面换 `ark install`（herdr 知会在案）。

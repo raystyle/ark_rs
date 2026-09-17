@@ -39,9 +39,9 @@ tags:
 
 1. **解析面（resolve 分支 c）**：pin 驱动（无 latest/tag/version 显式选项，即 install/update/query/heal 的默认路径）零 GitHub API。catalog pin 三键（tag/version/asset）在位即直装：asset_url 为镜像资产域直拼 URL（主通道），新增 `Resolution.fallback_url` 承载 GitHub release 确定性下载直链（`github.com/{repo}/releases/download/{tag}/{asset}`，对象直链非 API、无配额面，下载层镜像失败时回落）。pin 三键缺一（数据面未 pin 完整）回落 GitHub API（镜像缺数据兜底）。D38 的「API 失败回落镜像」路径删除，被默认通道收编（pin 键齐根本不打 API，键缺回落也不成立）。
 2. **下载面**：D44 机制不动（镜像单次快速首试、锚校验、官方完整链兜底），仅官方回落地址对 pin 驱动路径改取 fallback_url。核对无回归（既有 D44 测试面全绿）。
-3. **自更新面**：release 元数据镜像段读序先行（边车即锚，读序不变：包形主名、gnu 裸件、msvc 回退、ome 兼容），未命中回落官方 API；双败报两段错误。
+3. **自更新面**：release 元数据镜像段读序先行（边车即锚；读序：包形主名、gnu 裸件、msvc 回退，ome 兼容层已随同批剔除收口、段恒 ark/），未命中回落官方 API；双败报两段错误；镜像元数据命中而资产下载失败时补拉官方 API 元数据走真官方链（对线 F2 修复，第二腿不再打同一镜像 URL）。
 4. **update 语义对齐**：update 解析从 `--latest` 改 pin 驱动，云端「最新」定义随此改指镜像与 catalog（上游滚版归数据面 omc 滚锁）；D49 三态（一致 skip、落后补装、领先如实报）与不回写锁定不动。
-5. **开关设计（你仓设计权）**：`ARK_MIRROR=1`（读回 `OME_MIRROR`）转正为默认、保留为兼容 no-op；新增 `ARK_MIRROR=0` 官方优先逃逸阀：下载层跳过镜像首试直走官方、selfupdate 元数据反转读序（官方先行镜像回落，即 D41/D44 原序）。解析面无需此阀（pin 驱动本就零 API 且兜底本就是官方直链）。
+5. **开关设计（你仓设计权）**：`ARK_MIRROR=1` 转正为默认、保留为兼容 no-op（旧名 `OME_MIRROR` 读回已随同批 ome 剔除撤除）；新增 `ARK_MIRROR=0` 官方优先逃逸阀：下载层跳过镜像首试直走官方、selfupdate 元数据反转读序（官方先行镜像回落，即 D41/D44 原序）。解析面无需此阀（pin 驱动本就零 API 且兜底本就是官方直链）。
 6. **latest 语义（待裁保留现设计）**：`--latest` 与未 pin 自动解析仍是「上游最新」语义、走 GitHub API 兜底：镜像侧无 latest 元数据（资产域仅版本段与 evergreen latest 段），catalog pin 是唯一版本真源而「比 pin 更新」只有上游知道。临时钉版工作流（`ark pin <tool> --latest` 钉上游新版）依赖此语义，不裁不动。
 
 ## Consequences
@@ -50,6 +50,7 @@ tags:
 - 好：`url=` 输出契约延续 D38「如实呈现镜像地址」，舰队脚本无感；下载层 D44 机制与锚红线零改动。
 - 坏：GitHub 上游新于 pin 时 update 不跟进（对齐 pin；领先仅在 status 漂移提示可见），跟进速度取决于数据面滚锁节奏，需 omc 运营对齐（见待裁 2）。
 - 坏：fallback_url 依赖 GitHub 下载直链形态稳定性（公开仓历史稳定；私有仓兜底本就不可达匿名，主通道镜像在位无实害）。
+- 坏（对线 G3 注记）：dev 滚动通道判新锚随镜像边车，镜像播种滞后窗口内 self update 可能回装镜像旧件（stable 通道仅判新滞后无害）；追新走 `ARK_MIRROR=0` 逃逸或等播种对齐。
 - 后续要跟：aidoc 投影重生成（Resolution 新 pub 字段）；R015 消费侧段与 README/AGENTS/llms 口径同步；五端舰队重跑 update 全量验证零 API 实效。
 
 ### 待用户裁定

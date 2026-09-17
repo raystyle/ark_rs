@@ -1,4 +1,4 @@
-## 黄金文件：ome pin（无选项；macOS 平台 oracle——pin 视图显示 mac_* 平台 pin，见 R001 平台分列）
+## 黄金文件：ark pin（无选项；macOS 平台 oracle——pin 视图显示 mac_* 平台 pin，见 R001 平台分列）
 ## 来源纪律：2026-09-01 mac 真机首跑程序取输出形态，人工核对符合 R001 pin 字段契约与
 ## key=value 输出纪律（stdout 纯数据、多工具空行分隔、sha256 截前 16 位加 ...）后冻结。
 ## 2026-09-02 七类 taxonomy 节序重排：python → vault → age。

@@ -2,14 +2,14 @@
 //! 语义：verify 判 FAIL 的维度按本表得到幂等修复动作，`ark heal <dim|all> [--dry-run]` 执行；
 //! 所有动作幂等、可无脑重跑、不破坏性（对齐 heal.ps1 原则）。
 //! 42 键四类归宿（2026-09-01/02 裁决）：
-//! - install 类 16 行（toolRoot/aria2 按平台分列，dev-rust 已建 rustup 模型）→ ome 原生安装
+//! - install 类 16 行（toolRoot/aria2 按平台分列，dev-rust 已建 rustup 模型）→ ark 原生安装
 //!   （catalog pin 驱动，与 verify 断言一致；rust 为 evergreen 引导器稳定滚动）；
 //! - 密钥载体 dsKey/akKey 与镜像源 bunfig/goproxy → heal-keys.py / heal-mirror.py 原生移植；
 //! - agent 域 12 键休眠（四件套配置归 ohmyagents）；
-//! - 非 ome 域路由（secret-guard 密钥防护、POSIX 残留清零、compileMatrix 编译验收编排、
-//!   POSIX aria2 系统位——不在 ome 自愈范围，只提示不越界）。
+//! - 非 ark 域路由（secret-guard 密钥防护、POSIX 残留清零、compileMatrix 编译验收编排、
+//!   POSIX aria2 系统位——不在 ark 自愈范围，只提示不越界）。
 //!
-//! mac-* 四键为 ps1 远端路由时代的专列；ome 在 mac 本机原生运行，归一为别名指向普通键。
+//! mac-* 四键为 ps1 远端路由时代的专列；ark 在 mac 本机原生运行，归一为别名指向普通键。
 
 use std::path::Path;
 
@@ -19,7 +19,7 @@ use crate::resolve::{resolve_tool, ResolveOptions};
 
 /// heal 动作类型（嵌入注册表条目）。
 enum HealAction {
-    /// ome 原生安装（catalog 工具组；`all` 为全量安装，对齐 ohmywsl install all）
+    /// ark 原生安装（catalog 工具组；`all` 为全量安装，对齐 ohmywsl install all）
     Install(&'static [&'static str]),
     /// 密钥载体/端点补齐（heal-keys.py 移植；明文密钥不落盘，只写现场解密指令）
     Keys,
@@ -31,7 +31,7 @@ enum HealAction {
     Alias(&'static str),
     /// 休眠（agent 域 2026-09-01 裁决）
     Dormant(&'static str),
-    /// 非 ome 自愈域（只提示不越界）
+    /// 非 ark 自愈域（只提示不越界）
     Routed(&'static str),
 }
 

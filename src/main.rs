@@ -162,7 +162,7 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
-    /// 拉云端最新版安装（锁定归数据面，不回写 pin；临时钉版走 pin）；省略工具名则全量
+    /// 对齐云端锁定安装（锁定归数据面，不回写 pin；临时钉版走 pin）；省略工具名则全量
     #[command(after_help = EX_UPDATE)]
     Update {
         /// 工具名；省略则全量
@@ -968,7 +968,7 @@ fn cmd_install(
             }
             continue;
         }
-        // ome：自管条目（self update 三通道），install 提示走 self update
+        // ark：自管条目（self update 三通道），install 提示走 self update
         if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 自管理：升级走 `ark self update`（dev/stable/git 三通道）");
             emit_block(

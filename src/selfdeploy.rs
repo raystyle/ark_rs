@@ -1,4 +1,4 @@
-//! selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ome`，
+//! selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ark`，
 //! Linux / macOS `~/.local/bin`），同步 catalog 到用户数据目录，并注册用户 PATH（幂等）。
 //! Windows 顺带清理旧自部署位 `<EnvRoot>\ome\bin` 的 PATH 残留。
 //! 幂等：目标与当前 exe 同路径则跳过复制；sha256 一致则跳过复制；PATH 注册由 envpath 幂等处理。
@@ -87,7 +87,7 @@ fn deploy_catalog() -> Result<Option<PathBuf>, String> {
     Ok(Some(dst))
 }
 
-/// 清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿 ome 别名清理模式）。
+/// 清理数据目录已部署的旧 SKILL.md（D50 撤 skill 面的幂等收尾；仿旧别名清理模式）。
 /// 在则删返回 true；不在返回 false（幂等静默；仅 NotFound 视为不在，其余元数据错误照常上抛）。
 /// 旧位语义：metadata_dir 读回规则（ark 位未建且 ohmyenv 位在则读回旧位）使「仅旧位」机器
 /// 删的是 ohmyenv/SKILL.md（与 deploy_catalog 同款收口先例）；ark 位在时旧位副本代码永不收，
@@ -131,7 +131,7 @@ pub fn self_deploy(env_root: &Path) -> Result<SelfDeployOutcome, String> {
     let path_registered = platform::add_user_path(&bin_dir)?;
     // D41 C 收口（2026-09-14）：ome 别名停建，顺带清理既有副本（全舰队 ome 水位清零）
     if let Err(e) = platform::remove_legacy_alias() {
-        eprintln!("[WARN] ome 别名清理失败（不拦部署，下次再收）: {e}");
+        eprintln!("[WARN] 旧别名清理失败（不拦部署，下次再收）: {e}");
     }
     // 清理旧自部署位 <EnvRoot>\ome\bin 的 PATH 残留（一次性迁移，幂等）
     let legacy_bin = env_root.join("ome").join("bin");

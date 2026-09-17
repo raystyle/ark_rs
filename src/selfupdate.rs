@@ -204,27 +204,37 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     if let Some(m) = asset_msvc.as_deref() {
         names.push(m);
     }
-    // D51 元数据双链：默认镜像段读序先行，未命中回落官方 API；双败报两段错误。
-    // 逃逸阀（ARK_MIRROR=0）反转读序：官方先行、镜像回落（D41/D44 原序）。
-    let (digest, dl_url, asset_used) = if crate::download::mirror_off() {
-        official_asset_meta(endpoint, &names).or_else(|api_err| {
-            mirror_fallback_meta(
-                env_root,
-                mirror_ver,
-                &asset_name,
-                asset_msvc.as_deref(),
-                &api_err,
-            )
-        })?
+    // D51 元数据双链 →（digest、下载 URL、资产名、是否镜像命中）：默认镜像段读序先行、
+    // 未命中回落官方 API，双败报两段错误；逃逸阀（ARK_MIRROR=0）反转读序（D41/D44 原序）。
+    let (digest, dl_url, asset_used, from_mirror) = if crate::download::mirror_off() {
+        match official_asset_meta(endpoint, &names) {
+            Ok((d, u, name)) => (d, u, name, false),
+            Err(api_err) => {
+                let (d, u, name) = mirror_fallback_meta(
+                    env_root,
+                    mirror_ver,
+                    &asset_name,
+                    asset_msvc.as_deref(),
+                    &api_err,
+                )?;
+                (d, u, name, true)
+            }
+        }
     } else {
-        mirror_meta(env_root, mirror_ver, &asset_name, asset_msvc.as_deref()).or_else(
-            |mirror_err| {
+        match mirror_meta(env_root, mirror_ver, &asset_name, asset_msvc.as_deref()) {
+            Ok((d, u, name)) => (d, u, name, true),
+            Err(mirror_err) => {
                 eprintln!("[WARN] 镜像段未命中（{mirror_err}），回落官方 API");
-                official_asset_meta(endpoint, &names).map_err(|api_err| {
-                    format!("镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {api_err}")
-                })
-            },
-        )?
+                match official_asset_meta(endpoint, &names) {
+                    Ok((d, u, name)) => (d, u, name, false),
+                    Err(api_err) => {
+                        return Err(format!(
+                            "镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {api_err}"
+                        ))
+                    }
+                }
+            }
+        }
     };
 
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
@@ -247,7 +257,10 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     if !is_package {
         eprintln!("[INFO] 本地 {mine} 与远端 {digest} 不同，下载更新");
     }
-    let downloaded = crate::download::download_asset_with_mirror(
+    // 下载腿：官方元数据命中时 dl_url 即官方直链（download 层仍镜像首试，双链真兜底）；
+    // 镜像元数据命中时 dl_url 是镜像地址，资产失败（未播/锚不符/CF 陈旧）补拉官方 API
+    // 元数据走真官方链——第二腿不得再打同一镜像 URL（对线 F2）。
+    let downloaded = match crate::download::download_asset_with_mirror(
         env_root,
         &asset_used,
         &dl_url,
@@ -255,7 +268,18 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
         false,
         seg_for_fallback,
         mirror_ver,
-    )?;
+    ) {
+        Ok(p) => p,
+        Err(mirror_dl_err) if from_mirror => {
+            eprintln!("[WARN] 镜像段下载失败（{mirror_dl_err}），回落官方 API 补官方链");
+            let (digest2, official_url, asset2) = official_asset_meta(endpoint, &names)?;
+            crate::download::download_asset(env_root, &asset2, &official_url, Some(&digest2), true)
+                .map_err(|official_err| {
+                    format!("镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}")
+                })?
+        }
+        Err(e) => return Err(e),
+    };
     // 包形：digest 是归档 sha（不与本地 exe 直比），归档经锚校验后解包取内层二进制，
     // 判新等值在解包后的二进制间进行——判新机制不动（REQ-0008 设计决策，解包取真身）。
     let candidate = if is_package {
@@ -496,7 +520,7 @@ fn self_update_git(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
 }
 
 /// 先替换自部署目标（用户 PATH 上的 ark），若当前进程 exe 不同再替换运行中副本（cargo run）。
-/// D41 C：随替换重建 `ome` 别名（部署位同目录同内容副本，best-effort 不拦升级）。
+/// D41 C 收口：随替换清理旧 `ome` 别名（停建不重建；正以别名运行时 Windows 删不动，warn 下次再收）。
 fn replace_deployed_and_current(new_file: &Path) -> Result<PathBuf, String> {
     let current = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let deploy = platform::self_deploy_target()?;

@@ -24,7 +24,7 @@ init、self update。catalog 为唯一 pin 源。
 - [`render`](render.md): render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。
 - [`resolve`](resolve.md): resolve：版本解析三分支（cdn_index_url / cdn_url / GitHub REST），
 - [`rustup`](rustup.md): rustup：Rust 接管（自 ohmypwsh `scripts\set-rust.ps1` 平移，2026-09-02；POSIX 接管 D42，2026-09-13）。
-- [`selfdeploy`](selfdeploy.md): selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ome`，
+- [`selfdeploy`](selfdeploy.md): selfdeploy：自部署——复制当前 exe 到用户程序目录（Windows `%LOCALAPPDATA%\Programs\ark`，
 - [`selfupdate`](selfupdate.md): selfupdate：ark 自身升级（`ark self update`），三通道：
 - [`status`](status.md): status：三态对照（locked/installed/path）。
 - [`toolver`](toolver.md): toolver：已装版本探测，移植 helpers.ps1 的 Get-InstalledVersion（888-935 行）。

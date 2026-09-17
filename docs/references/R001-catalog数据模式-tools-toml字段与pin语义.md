@@ -1,6 +1,6 @@
 # R001：catalog 数据模式，tools.toml 字段与 pin 语义
 
-> tools.toml 字段契约（D37 完全解耦 2026-09-10 终版）：权威数据面在 ohmycloud catalog-seed（仓内 catalog/tools.toml 加云端三件套，minisign 签名）；ark 仓持本契约与消费逻辑，权威件已退役为云端消费（tests fixtures 为测试夹具）。pin 字段由数据面维护；端上 `ark pin` 为**临时本地锁**（下次 sync 被云端覆盖），`ark update` 拉云端最新**不回写**（锁定单源归数据面）。
+> tools.toml 字段契约（D37 完全解耦 2026-09-10 终版）：权威数据面在 ohmycloud catalog-seed（仓内 catalog/tools.toml 加云端三件套，minisign 签名）；ark 仓持本契约与消费逻辑，权威件已退役为云端消费（tests fixtures 为测试夹具）。pin 字段由数据面维护；端上 `ark pin` 为**临时本地锁**（下次 sync 被云端覆盖），`ark update` 对齐云端 catalog 锁定安装**不回写**（D51 起云端最新定义指镜像与 catalog；锁定单源归数据面）。
 >
 > 术语（D41 定档）：**泊位（berth）**指 EnvRoot 内某工具的安装位（`dir` 字段解析所得目录）；EnvRoot 为泊位根，物理目录不随更名动。自管条目数据面现为双条目：`ark` 主条目加 `ome` 过渡条目（存量端水位清零后退役），引擎双接受 `ome-self`/`ark-self`，条目演化归 omc 数据面。
 
@@ -118,7 +118,7 @@ sha256 = "C56E8CE22F7E80CB85AD946CC82D198767B056366201D3E1A2B93D865BE38154"
 4. **平台边界**：Windows 字段为默认；平台专属字段以 `linux_` / `mac_` 前缀并列，静态字段 Linux 取 `linux_*` 回退通用，mac 取 `mac_*` 回退 `linux_*` 再回退通用；pin 字段按平台分列无回退（平台无 pin 即未锁定，`install` 不带 `--latest` 会提示先 pin）。sha256 随当前平台安装的 asset 回填到本平台键；本平台 pin 的 asset 与解析资产不一致时，该 sha256 不当作校验基准。
 5. **数据主权（M0，2026-09-01；D18 确认）**：本文件是唯一权威。历史 psd1 回流已完成，不再对照外部 catalog。
 6. **平台不适用（2026-09-01）**：单平台工具是常态数据形状（shellcheck 仅 `linux_*`、aria2/git 仅 Windows）。当前平台 effective exe 缺失即「平台不适用」：status 出空态行（installed 与 exe 渲染为 -）、install/update/pin/query 跳过（见 M106 M003）。
-7. **清单来源与部署态纪律（M0 定案；D33 与 D37 两次升格）**：**权威清单在 ohmycloud catalog-seed**（其仓 `catalog/tools.toml`，遵循本契约格式），云端 `env.ohmygh.com/ark/catalog/`（D41 起主键，兼容读 `ome/catalog/`）三件套（清单、`.sha256` 边车、`.minisig`）由 omc 流水发布；本仓已不持有权威件（D37 终态），本仓 `catalog/` 只留 tests fixtures，清单消费一律走 `ark catalog sync`、TTL 自动刷新与裸端自举（三重门：边车锚加解析加内嵌公钥验签）。端上用户数据副本是运行态落点，`ark init` 与 `self update` 的同步只是兜底，内容以云端为准。部署态 pin 回写（`ark pin`）是**临时本地锁**，下一次云端刷新即覆盖，`ark update` 不回写锁定；pin 变更须在 omc 数据面改并由其流水发布（R015 五）。
+7. **清单来源与部署态纪律（M0 定案；D33 与 D37 两次升格）**：**权威清单在 ohmycloud catalog-seed**（其仓 `catalog/tools.toml`，遵循本契约格式），云端 `env.ohmygh.com/ark/catalog/`（D41 起主键，兼容读 `ome/catalog/`）三件套（清单、`.sha256` 边车、`.minisig`）由 omc 流水发布；本仓已不持有权威件（D37 终态），本仓 `catalog/` 只留 tests fixtures，清单消费一律走 `ark catalog sync`、TTL 自动刷新与裸端自举（三重门：边车锚加解析加内嵌公钥验签）。端上用户数据副本是运行态落点，`ark init` 与 `self update` 的同步只是兜底，内容以云端为准。部署态 pin 回写（`ark pin`）是**临时本地锁**，下一次云端刷新即覆盖，`ark update` 不回写锁定（D51 起对齐 catalog pin 安装）；pin 变更须在 omc 数据面改并由其流水发布（R015 五）。
 
 ## 五、入册 checklist
 

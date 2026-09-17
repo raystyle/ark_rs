@@ -3,7 +3,7 @@ id: REQ-0010
 title: 镜像默认通道与GitHub兜底
 status: implemented
 priority: must
-trace: cargo test --release --locked 全绿 220 项；cargo fmt --check 与 cargo clippy --release --locked 零告警新增；离线集成测 query_pind驱动_零api镜像直装url；设计决策 ADR-0008
+trace: cargo test --release --locked 全绿 217 项；cargo fmt --check 与 cargo clippy --release --locked 零告警新增；离线集成测 query_pind驱动_零api镜像直装url；设计决策 ADR-0008
 ---
 
 # REQ-0010:镜像默认通道与GitHub兜底

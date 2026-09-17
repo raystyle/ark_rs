@@ -1,4 +1,4 @@
-## 黄金文件：ome status（临时 EnvRoot 沙盒；夹具无真实 exe）
+## 黄金文件：ark status（临时 EnvRoot 沙盒；夹具无真实 exe）
 ## 来源纪律：2026-09-01 首跑程序取输出形态，人工核对符合三态语义后冻结——
 ## 夹具无真实 exe 故 installed 为 -；path 只读真实用户 PATH 判定，沙盒 bin 不在 PATH 故为 false。
 ## 2026-09-02 七类 taxonomy 重生成：单层组头（夹具节序 python→vault→age 对应

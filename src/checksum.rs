@@ -145,7 +145,10 @@ pub fn official_sha256(
     // 3) 逐资产后缀文件：<asset>.sha256，全文取第一个 64-hex
     if let Some(suffix) = tool.asset_sha_suffix() {
         let sha_name = format!("{}{suffix}", res.asset_name);
-        let sha_url = format!("{}{suffix}", res.asset_url);
+        // 对线 F3：锚源走官方直链——pin 驱动解析的 asset_url 是镜像 URL（download_fresh 无
+        // 双链回落，镜像未播该版本即硬失败，踩临时钉版工作流）；fallback_url 在位时取官方。
+        let base = res.fallback_url.as_deref().unwrap_or(&res.asset_url);
+        let sha_url = format!("{base}{suffix}");
         let path = download::download_fresh(env_root, &sha_name, &sha_url)?;
         let text = fs::read_to_string(&path)
             .map_err(|e| format!("读取校验文件失败: {}: {e}", path.display()))?;

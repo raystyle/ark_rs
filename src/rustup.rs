@@ -6,7 +6,7 @@
 //! 不持久化两 HOME 变量、进程内钉解析值供引导器）。
 //! rsproxy 双镜像：rustup 分发（RUSTUP_DIST_SERVER/RUSTUP_UPDATE_ROOT，win 注册表 / POSIX profile env 块）
 //! 加 cargo sparse（config.toml，Windows 落 EnvRoot 重定位位、POSIX 落 `~/.cargo`，rsproxy 全量形态）；
-//! cargo bin 进用户 PATH（ome 惯例尾部追加；set-rust 为前置，已装机器由 ps1 前置位保持不变）。
+//! cargo bin 进用户 PATH（ark 惯例尾部追加；set-rust 为前置，已装机器由 ps1 前置位保持不变）。
 //! 幂等：rustc 在位不重跑 init（update stable 照跑保最新）；config.toml 内容一致不重写。
 
 use std::path::{Path, PathBuf};
