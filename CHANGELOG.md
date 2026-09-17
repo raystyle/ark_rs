@@ -8,6 +8,8 @@ v1.3.0 封版收尾批补审（herdr codex 评审闸门，2026-09-17 两轮 CONF
 
 - **aidoc 版本面漂移根治**（补审 F1，v1.2.3/v1.3.0 二犯）：封版滚版本未再生成 aidoc 四件投影的漂移补滚至 1.3.0；CI 文档门禁新增 `cargo aidoc --check --strict` 岗（linux 岗）；REQ-0006 封版件判据补 aidoc 同提交项。
 - **镜像 stable 段空转护栏与补推**（补审 F2）：tag run 的 mirror-r2 岗先于 release 发布跑、draft 窗口三 skip 零上传仍绿，致 ark/stable 段漏切 1.3.0（镜像 fallback 面在此期间仍解析 1.2.3）；seed.py ark-stable skip 面护栏：部分 skip 落 WARN 列名、零上传红灯拦（三段报数；ARK_SEED_ALLOW_SKIP=1 豁免旧 tag 窗口期重灌）；stable 段三边车 dispatch 补推（run 35180668359）。附 G 批四条文档收口（aria2 三平台口径、REQ-0006 判据形态、AGENTS D46 口径、diary 索引欠账）。
+- **build-release 标准对齐批一播种面**（REQ-0007，总台核准差4 裁 a）：新 r2-seed workflow（release published 触发加 dispatch tag 补推口加 prerelease 过滤）双段同灌收归自家：版本段 copy 加 immutable 长缓存头、stable 段 sync 清旧带排除清单保 D46 msvc 回退件一窗（rclone 语义实证：排除即保护、不带 --delete-excluded）、双段逐名核对齐备红灯；资产齐备轮询闸防 published 先于资产传完竞态；seed.py 段制 sync 化（--ark-stable 与 --ark-dev 同形、失败整体不灌、空源拒 sync）；dispatch run 35187398380 实证双段六件逐名在位。
+- **build-release 标准对齐批二发布面**（REQ-0007）：`.tools/release.ps1` 本地三段式发布命令面（tag 锚与工作树洁净闸、发布预检三件照 hst 1b 族规、版本一致性闸、测试闸含 md 四件套与 aidoc、linux 本职与 win-gnu 交叉本地构建、lan-mac 实机腿、逐件 .sha256 边车、跨实机冒烟逐字对、draft 挂件传齐后 edit --draft=false --latest 直发）；build.yml 撤 v* 正式构建岗与 stable 灌段留 dev 轻岗豁免（总台裁同 hst）；.gitignore 收 dist。批三包形专项立项 REQ-0008（动工前与总台对线 asset 形）。
 
 ## [1.3.0] - 2026-09-16
 
