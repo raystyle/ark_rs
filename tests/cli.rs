@@ -445,9 +445,95 @@ fn query_pin_heal_帮助_省略则全量() {
     }
 }
 
+/// cli-docs 裸调用面（REQ-0011）：无参进入是导航事件非错误——紧凑形一行定位加一行指引，
+/// exit 恒 0，不弹交互不纯报错；且先于 catalog 加载（无清单环境仍可导航）。
 #[test]
-fn dies_缺子命令_先于catalog加载() {
+fn 裸调用_紧凑导航_exit0() {
     let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
     cmd.env("ARK_CATALOG", fixture().with_file_name("nonexistent.toml"));
-    cmd.assert().failure().stderr(contains("缺少子命令"));
+    let out = cmd.assert().success().get_output().clone();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("ark --llms"),
+        "指引行应含 --llms 发现面: {stderr}"
+    );
+    assert!(
+        stderr.contains("ark --help"),
+        "指引行应含 --help 详情面: {stderr}"
+    );
+    assert!(out.stdout.is_empty(), "导航面不产数据块，stdout 保持纯净");
+}
+
+/// cli-docs 漂移守卫（REQ-0011，curated 手册形必配）：活命令树（--help 系 clap 派生）里的
+/// 每个子命令与关键长旗标必须出现在 --llms 手册中，防新增命令/旗标漏登记。
+#[test]
+fn 漂移守卫_help与llms同源() {
+    // 根帮助：命令节逐名抽取（两空格缩进条目「  name  描述」，别名行排除）
+    let root = ark_cli()
+        .args(["--help"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let text = String::from_utf8_lossy(&root.stdout);
+    let llms = ark_cli()
+        .args(["--llms"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let llms_text = String::from_utf8_lossy(&llms.stdout);
+    let mut commands = vec![];
+    let mut in_commands = false;
+    for line in text.lines() {
+        if line.starts_with("Commands:") {
+            in_commands = true;
+            continue;
+        }
+        if in_commands {
+            if line.starts_with("  ") {
+                // 条目形「  doctor    描述」；「  help」是 clap 自动项也算树面
+                if let Some(name) = line.trim_start().split_whitespace().next() {
+                    commands.push(name.to_string());
+                }
+            } else if !line.trim().is_empty() {
+                in_commands = false;
+            }
+        }
+    }
+    // clap 内建 help 子命令是导航项非业务命令（其内容即 --help 自身），手册不单列
+    commands.retain(|c| c != "help");
+    assert!(
+        commands.len() >= 12,
+        "根帮助应列出全部子命令，实得 {commands:?}"
+    );
+    for cmd in &commands {
+        assert!(
+            llms_text.contains(&format!("ark {cmd}")),
+            "子命令 {cmd} 未登记进 --llms 手册（漂移守卫拦截，补手册行）"
+        );
+    }
+    // 关键长旗标（全局四件 + 命令级高频）逐个在册
+    for flag in [
+        "--format",
+        "--json",
+        "--env-root",
+        "--llms",
+        "--latest",
+        "--dry-run",
+        "--check",
+        "--force",
+        "--stable",
+        "--git",
+    ] {
+        assert!(
+            llms_text.contains(flag),
+            "旗标 {flag} 未出现在 --llms 手册（漂移守卫拦截）"
+        );
+    }
+    // 版本注入在位（载体 Cargo.toml，禁手写）
+    assert!(
+        llms_text.contains(concat!("版本 ", env!("CARGO_PKG_VERSION"))),
+        "手册头应含载体注入版本号"
+    );
 }

@@ -21,33 +21,53 @@ use ark::status;
 use ark::toolver;
 
 /// --llms 紧凑命令清单（D09 发现层；D50 起唯一 agent 发现通道：头部含何时用与下载
-/// 纪律行，单源自持，不再有 SKILL.md 并行面）。
+/// 纪律行，单源自持，不再有 SKILL.md 并行面；REQ-0011 cli-docs 采纳节序：定位加版本
+/// 注入、读序、命令、退出码、输出契约；版本从 Cargo.toml 载体 env! 注入禁手写）。
 /// 三原语（PRD D10/D15）：doctor / install / status；其余派生面。
-const LLMS_MANIFEST: &str = "\
-# ark：命令清单（工具与 agent 二进制的部署管理诊断）
-
-原语三件：doctor 检测诊断、install 幂等安装、status 三态对照；其余为派生面。
-全局：--format kv|json|jsonl、--json、--env-root PATH、--llms。数据 stdout、提示 stderr、错误单行 JSON。
-何时用：装、查、管、诊断环境一律走 ark（不手拼官方 URL、不裸 curl release 资产、不手写 PATH 注册表）；install/update 幂等检测安装，重跑零副作用。
-下载：默认 env.ohmygh.com 镜像、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。
-
-| 命令 | 语义 | 关键输出 | 退出码 |
-| --- | --- | --- | --- |
-| ark doctor | 原语·检测诊断（系统/依赖两层+check 节：环境错误/配置健康/部署深诊/网络通连） | sys.* dep= check= verdict | 1=check 有 FAIL |
-| ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |
-| ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |
-| ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |
-| ark update [名] | 对齐云端锁定安装（catalog pin 即目标，零 GitHub API；落后补装、领先如实报，不回写锁定；省略则全量） | 同 install | 0/1 |
-| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |
-| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |
-| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |
-| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |
-| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |
-| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |
-| ark issue new\\|list\\|show | 派生·统一 issue 入口（REQ-057 契约）：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list/show 读面 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |
-
-细契约：仓库 docs\\references\\R013（输出格式/退出码/冻结面）。
-";
+const LLMS_MANIFEST: &str = concat!(
+    "# ark：命令清单（工具与 agent 二进制的部署管理诊断）\n",
+    "\n",
+    "> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI。版本 ",
+    env!("CARGO_PKG_VERSION"),
+    "。手册 curated 单源，与 --help 同源由漂移守卫测试锁定。\n",
+    "\n",
+    "## 读序\n",
+    "\n",
+    "装环境从 doctor 起、装工具 install、对齐更新 update、三态对照 status；其余按命令表直达。\n",
+    "原语三件：doctor 检测诊断、install 幂等安装、status 三态对照；其余为派生面。\n",
+    "全局：--format kv|json|jsonl、--json、--env-root PATH、--llms。数据 stdout、提示 stderr、错误单行 JSON。\n",
+    "命令级常用旗标：query/pin/install 共用 --latest、--tag、--version；install/update 另有 --force；verify 有 --check；heal 有 --dry-run。\n",
+    "何时用：装、查、管、诊断环境一律走 ark（不手拼官方 URL、不裸 curl release 资产、不手写 PATH 注册表）；install/update 幂等检测安装，重跑零副作用。\n",
+    "下载：默认 env.ohmygh.com 镜像、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。\n",
+    "\n",
+    "## 命令\n",
+    "\n",
+    "| 命令 | 语义 | 关键输出 | 退出码 |\n",
+    "| --- | --- | --- | --- |\n",
+    "| ark doctor | 原语·检测诊断（系统/依赖两层+check 节：环境错误/配置健康/部署深诊/网络通连） | sys.* dep= check= verdict | 1=check 有 FAIL |\n",
+    "| ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |\n",
+    "| ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |\n",
+    "| ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |\n",
+    "| ark update [名] | 对齐云端锁定安装（catalog pin 即目标，零 GitHub API；落后补装、领先如实报，不回写锁定；省略则全量） | 同 install | 0/1 |\n",
+    "| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |\n",
+    "| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |\n",
+    "| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |\n",
+    "| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |\n",
+    "| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |\n",
+    "| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |\n",
+    "| ark issue new\\|list\\|show | 派生·统一 issue 入口（REQ-057 契约）：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list/show 读面 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |\n",
+    "\n",
+    "## 退出码\n",
+    "\n",
+    "| 码 | 义 |\n",
+    "| --- | --- |\n\n",
+    "| 0 | 成功（含裸调用导航面） |\n",
+    "| 1 | 失败（verify/doctor 有 FAIL 项、heal 有 fail/partial、安装出错） |\n",
+    "\n",
+    "## 输出契约\n",
+    "\n",
+    "细契约：仓库 docs\\references\\R013（输出格式/退出码/冻结面）。\n",
+);
 
 // ── 帮助示例元数据（各子命令示例集中于此，经 after_help 挂进帮助）──
 const EX_QUERY: &str = "示例:\n  ark query\n  ark query gh --latest";
@@ -69,7 +89,9 @@ const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --bo
     name = "ark",
     bin_name = "ark",
     version,
-    about = "Ark（Agent Runtime Kit）：全平台 Agent 工具及运行时依赖环境的部署、管理、验收与诊断 CLI"
+    about = "Ark（Agent Runtime Kit）：全平台 Agent 工具及运行时依赖环境的部署、管理、验收与诊断 CLI",
+    // cli-docs 帮助面头行（REQ-0011）：name@version 连接一句描述（版本注入勿手写）
+    help_template = "{name}@{version} {about}\n\n{usage-heading} {usage}\n\n{all-args}{after-help}"
 )]
 struct Cli {
     /// 环境根目录覆盖，默认读取 ARK_ROOT 或平台默认路径
@@ -324,11 +346,12 @@ fn run() -> Result<(), ArkError> {
             .unwrap_or(render::Format::Kv)
     };
     render::set_format(format);
-    // 子命令可选；缺子命令在加载 catalog 之前给出 agent 友好错误（无 catalog 时仍能提示）
+    // 子命令可选；裸调用面（cli-docs 采纳，REQ-0011）：无参进入是导航事件非错误——
+    // 紧凑形一行定位加一行指引，exit 恒 0，不弹交互不纯报错。
     let Some(cmd) = cli.command else {
-        return Err(ArkError::from(
-            "缺少子命令；--llms 打印命令清单，--help 看详情".to_string(),
-        ));
+        eprintln!("ark：本机跨平台环境部署管理 CLI（装、查、管、诊断 47 工具）");
+        eprintln!("命令清单：ark --llms；详情：ark --help");
+        return Ok(());
     };
     // issue 域纯网络面（REQ-0009）：早期派发，不经 catalog 加载与签名巡检
     //（无清单环境也能一键反馈缺陷）。
