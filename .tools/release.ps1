@@ -35,6 +35,23 @@ function RunOk([string]$what) { if ($LASTEXITCODE -ne 0) { Fail $what } }
 if (-not $SkipTagCheck) {
     $at = @(git tag --points-at HEAD)
     if ($at -notcontains $Tag) { Fail "HEAD 不在 tag $Tag 指向提交（排练加 -SkipTagCheck）" }
+    # 0a 工作树洁净闸：脏树构建产物与 tag 源不一致且无迹可查（codex 批二 G1）
+    $dirty = @(git status --porcelain --untracked-files=no)
+    if ($dirty.Count -gt 0) { Fail "工作树有未提交改动（$($dirty.Count) 件），先提交或排练加 -SkipTagCheck" }
+    # 0b 发布预检（照 hst 1b 族规，codex 批二 F1）：gh 已登、远端 tag 已推且指本 sha、
+    # tag 无既有 Release——gh release create 遇远程无 tag 会自动钉默认分支 HEAD，锚链失保
+    gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) { Fail 'precheck: gh 未登录（先 gh auth login）' }
+    $remoteTag = (git ls-remote --tags origin "refs/tags/$Tag" 2>$null | Out-String).Trim()
+    if ($remoteTag -eq '') { Fail "precheck: 远端无 tag $Tag，先 git push origin $Tag（gh 会自动钉错 HEAD）" }
+    if ($remoteTag -notmatch [regex]::Escape((git rev-parse HEAD).Trim())) {
+        Fail "precheck: 远端 tag $Tag 指向别处，须自本 HEAD 重推"
+    }
+    gh release view $Tag *> $null
+    if ($LASTEXITCODE -eq 0) {
+        Fail "precheck: release $Tag 已存在，恢复路径 gh release delete $Tag --yes 后重跑，或 gh release upload $Tag <资产> --clobber"
+    }
+    Write-Host '[OK] precheck: gh 登录、远端 tag 锚本 sha、无既有 release'
 }
 
 # 1 版本一致性闸：tag 对载体 manifest（Cargo.toml 唯一权威，不一致即止红）
@@ -43,10 +60,21 @@ $cargoVer = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' 
 if ($cargoVer -ne $ver) { Fail "版本一致性闸红：Cargo.toml=$cargoVer 对 tag=$ver 不一致" }
 Write-Host "[OK] 版本一致性闸：Cargo.toml $cargoVer 与 $Tag 一致"
 
-# 2 测试闸先行（本地）
-Write-Host '== 测试闸：cargo test --release --locked =='
+# 2 测试闸先行（本地；v* tag 不再触发 CI，本闸即发布前最后门禁——md 四件与 aidoc 同入，
+# codex 批二 G2：v1.3.0 的 aidoc 漂移正是无本地门禁兜底的那一类）
+Write-Host '== 测试闸：cargo test 加 md 四件套加 aidoc =='
 cargo test --release --locked
-RunOk '测试闸红'
+RunOk '测试闸红（cargo test）'
+uv run --script .tools/mdcharlint.py .
+RunOk '测试闸红（mdcharlint）'
+uv run --script .tools/md-ref-scan.py
+RunOk '测试闸红（md-ref-scan）'
+uv run --script .tools/md-heading-scan.py
+RunOk '测试闸红（md-heading-scan）'
+rumdl check .
+RunOk '测试闸红（rumdl）'
+cargo aidoc --check --strict
+RunOk '测试闸红（aidoc 漂移）'
 
 # 3 本地编译（linux 本职加 win-gnu 交叉；mac 实机腿见第 4 步）
 foreach ($t in @('x86_64-unknown-linux-gnu', 'x86_64-pc-windows-gnu')) {
@@ -94,7 +122,9 @@ foreach ($a in $assets) {
     } else {
         $out = @(& (Join-Path $dist $a.name) --version)
     }
-    if ($LASTEXITCODE -ne 0 -or (-not (($out -join ' ') -match [regex]::Escape($ver)))) {
+    # 冒烟逐字对（codex 批二 G4）：子串匹配会把 1.3.10 判成 1.3.1 命中，改首行前缀逐字
+    $first = ($out | Select-Object -First 1).Trim()
+    if ($LASTEXITCODE -ne 0 -or $first -notmatch "^ark $([regex]::Escape($ver))(\s|$)") {
         Fail "冒烟红 $($a.name)：$($out -join ' ')"
     }
     Write-Host "[OK] 冒烟 $($a.name)：$($out -join ' ')"

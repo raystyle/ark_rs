@@ -13,3 +13,4 @@ __pycache__/
 .grok/
 .kimi-code/
 .ohmyagents/
+dist/

@@ -22,8 +22,8 @@ trace: 总台对齐派单与核准单（2026-09-17，批一批二核准、差4 �
 - [ ] 批一：双段同灌（ark/<版本>/ 段 copy 加 immutable 长缓存头；ark/stable/ 段 sync 清旧，排除清单保 D46 msvc 回退件一窗）
 - [ ] 批一：双段逐名核对齐备红灯（暂存件名在版本段与 stable 段逐名在位才过；轮询资产齐备闸防 published 先于资产传完的竞态）
 - [ ] 批一：dispatch 补推 run 对 v1.3.0 实跑，双段边车 curl 实测与 release 资产逐字等；msvc 保窗面按桶态实况验（2026-09-17 探底：stable 与 dev 段现无 msvc 件 curl 404、仅 ark/1.2.1 版本段在，排除清单为空集防御形，段内若有该件则 sync 后仍在）
-- [ ] 批二：本地发布命令面（版本一致性闸：tag 对 Cargo.toml 不一致即止红；测试闸先行；linux 本职加 win-gnu 交叉本地构建；mac 实机构建；逐件解包面冒烟 --version 对 tag）
-- [ ] 批二：gh release create --latest 直发禁 draft，逐件 .sha256 边车挂 release（Release 与镜像段同源同批）
+- [ ] 批二：本地发布命令面（远程 tag 预检三件与工作树洁净闸；版本一致性闸：tag 对 Cargo.toml 不一致即止红；测试闸先行含 md 四件套与 aidoc 漂移门禁；linux 本职加 win-gnu 交叉本地构建；mac 实机构建；逐件冒烟 --version 对 tag 逐字）
+- [ ] 批二：gh 直发：draft 挂六件传齐后 edit --draft=false --latest 发布（published 即齐备信号，与 r2-seed 齐备闸互补；终态非 draft 合标准禁 draft 形，一轮评审 F1 采纳形），逐件 .sha256 边车挂 release（Release 与镜像段同源同批）
 - [ ] 批二：build.yml 撤 v* tag 触发与正式构建岗与 stable 灌段；dev 轻岗豁免保留（main 推构建挂 dev prerelease 加 ark/dev 段 sync 形灌段）
 - [ ] 实施纪律：每批独立提交走 herdr codex 评审闸门至 CONFIRM，回执总台附 run 链接
 
