@@ -52,7 +52,7 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           miss=1
           for i in $(seq 1 30); do
-            names=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")')
+            names=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")" 2>/dev/null || true)
             miss=0
             for a in ark-x86_64-pc-windows-gnu.exe ark-x86_64-unknown-linux-gnu ark-aarch64-apple-darwin; do
               case " $names " in *" $a "*) ;; *) miss=1;; esac

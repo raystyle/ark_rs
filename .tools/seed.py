@@ -403,7 +403,9 @@ def sync_segment(stage: Path, seg: str, dry: bool, protect: tuple[str, ...] = ()
               f"{' protect=' + ','.join(protect) if protect else ''}")
         return True
     bucket = os.environ["R2_BUCKET"]
-    cmd = ["rclone", "sync", str(stage), f"seed:{bucket}/{seg}/"]
+    # --checksum 同族规（hst 参考实现同款）：源为当日下载件，size 加 modtime 风险本低，
+    # checksum 校验多一道内容级保险
+    cmd = ["rclone", "sync", str(stage), f"seed:{bucket}/{seg}/", "--checksum"]
     for p in protect:
         cmd += ["--exclude", p]
     proc = subprocess.run(cmd, env=rclone_env(), capture_output=True, text=True)
