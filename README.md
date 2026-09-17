@@ -62,6 +62,16 @@ ark catalog        # 看 catalog 与 manifest 两面：在位、锚、年龄、�
 ark catalog sync   # 立即从云端刷新（默认 TTL 24h 自动刷新；ARK_CATALOG_TTL 改，ARK_OFFLINE=1 关，旧名 OME_* 读回）
 ```
 
+## issue 反馈
+
+统一 issue 入口 issues.ohmygh.com（fleet 自管，REQ-057 契约）：使用中遇缺陷一键反馈，自动带上下文（tool=ark 与版本/平台/host），每 IP 限速防刷。
+
+```powershell
+ark issue new "doctor 报 PATH 重复" --body "重跑步骤与输出"   # 一键提交，回执 id/url
+ark issue list --tool ark    # 集中列表（按 tool/status 过滤，新到旧）
+ark issue show 3             # 单条详情（含正文）
+```
+
 ## 供给清单
 
 50 个工具（清单权威在云端 seed 与镜像三件套），agent 四家二进制 PATH 在位即跳过、存量原地纳管：

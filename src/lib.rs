@@ -13,6 +13,7 @@ pub mod envpath;
 pub mod extract;
 pub mod heal;
 pub mod install;
+pub mod issue;
 pub mod manifest;
 pub mod omerr;
 pub mod platform;

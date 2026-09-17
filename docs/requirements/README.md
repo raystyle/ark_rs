@@ -13,3 +13,4 @@
 | REQ-0006 | implemented | 封版v1.3.0 | 对线两轮 CONFIRM 加 tag run 与资产验收（回填 diary 封版篇） |
 | REQ-0007 | draft | 对齐build-release标准迁移（批一播种面加批二发布面） | 实施中（批一批二，trace 见 REQ 内） |
 | REQ-0008 | draft | 包形专项批三 | 动工前置：与总台对线 asset 形方案（catalog 随迁加 selfupdate 兼容窗口） |
+| REQ-0009 | implemented | issue命令集成 | lib 单测六件加全量全绿加真读面冒烟加实弹回执（trace 见 REQ 内） |

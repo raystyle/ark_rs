@@ -17,6 +17,7 @@ init、self update。catalog 为唯一 pin 源。
 - [`extract`](extract.md): extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。
 - [`heal`](heal.md): heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。
 - [`install`](install.md): install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
+- [`issue`](issue.md): issue 域（REQ-0009，对齐 ohmycloud REQ-057 契约）：自研命令仓统一 issue 入口
 - [`manifest`](manifest.md): manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
 - [`omerr`](omerr.md): omerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
 - [`platform`](platform.md): platform：跨平台抽象层。

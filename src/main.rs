@@ -44,6 +44,7 @@ const LLMS_MANIFEST: &str = "\
 | ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |
 | ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新，旧名 OME_* 读回） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |
 | ark self update [--stable\\|--git] | 升级自身三通道（默认走镜像对应通道段、未命中回落官方，边车即锚；ARK_MIRROR=1 为解析面跳过官方 API） | exe,sha256 | 0/1 |
+| ark issue new\\|list\\|show | 派生·统一 issue 入口（REQ-057 契约）：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list/show 读面 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |
 
 细契约：仓库 docs\\references\\R013（输出格式/退出码/冻结面）。
 ";
@@ -61,6 +62,7 @@ const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
 const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
 const EX_SELF: &str =
     "示例:\n  ark self update\n  ark self update --stable\n  ark self update --git";
+const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --body \"重跑步骤与输出\"\n  ark issue list --tool ark\n  ark issue show 3";
 
 #[derive(Parser)]
 #[command(
@@ -128,7 +130,7 @@ impl VersionOpts {
     }
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Commands {
     /// 解析工具版本与下载资产，不落盘；省略工具名则全量
     #[command(after_help = EX_QUERY)]
@@ -208,10 +210,16 @@ enum Commands {
         #[command(subcommand)]
         cmd: SelfCmd,
     },
+    /// 统一 issue 入口：new 一键提交（自动带 tool=ark 与版本/平台/host）、list/show 读面
+    #[command(after_help = EX_ISSUE)]
+    Issue {
+        #[command(subcommand)]
+        cmd: IssueCmd,
+    },
 }
 
 /// `ark catalog` 子命令面（缺省 status）。
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum CatalogCmd {
     /// 打印清单状态：解析面路径与来源、本地与云端锚、检查年龄、TTL、是否同源
     Status,
@@ -220,7 +228,7 @@ enum CatalogCmd {
 }
 
 /// `ark self` 子命令面。
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum SelfCmd {
     /// 升级自身：默认 dev 滚动源，--stable 拉 latest 正式版，--git 源码构建
     #[command(alias = "upgrade")]
@@ -231,6 +239,48 @@ enum SelfCmd {
         /// 源码安装：浅克隆仓库 cargo build 后替换（封版前通道，需 git 与 cargo）
         #[arg(long, conflicts_with = "stable")]
         git: bool,
+    },
+}
+
+/// `ark issue` 子命令面（REQ-0009，对齐 ohmycloud REQ-057 契约）。
+#[derive(Subcommand, Clone)]
+enum IssueCmd {
+    /// 一键提交 issue（自动上下文：版本/平台/host；默认 tool=ark）
+    New {
+        /// 标题（1 至 200）
+        title: String,
+        /// 正文（至多 20000）
+        #[arg(long)]
+        body: Option<String>,
+        /// 反馈对象工具名（缺省 ark）
+        #[arg(long, default_value = "ark")]
+        tool: String,
+        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
+        #[arg(long)]
+        timeout: Option<u64>,
+    },
+    /// 集中列表（按 tool/status 过滤，新到旧）
+    List {
+        /// 按工具名过滤
+        #[arg(long)]
+        tool: Option<String>,
+        /// 按状态过滤：open|closed
+        #[arg(long)]
+        status: Option<String>,
+        /// 至多行数（1 至 100，服务端封顶）
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
+        #[arg(long)]
+        timeout: Option<u64>,
+    },
+    /// 单条详情（含正文）
+    Show {
+        /// issue id
+        id: i64,
+        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
+        #[arg(long)]
+        timeout: Option<u64>,
     },
 }
 
@@ -280,6 +330,11 @@ fn run() -> Result<(), OmeError> {
             "缺少子命令；--llms 打印命令清单，--help 看详情".to_string(),
         ));
     };
+    // issue 域纯网络面（REQ-0009）：早期派发，不经 catalog 加载与签名巡检
+    //（无清单环境也能一键反馈缺陷）。
+    if let Commands::Issue { cmd } = cmd.clone() {
+        return cmd_issue(cmd).map_err(OmeError::from);
+    }
     let env_root = catalog::resolve_env_root(cli.env_root.as_deref()).map_err(OmeError::from)?;
     let cat_path = catalog::resolve_catalog_path().map_err(OmeError::from)?;
     // D33：仅当解析面就是用户数据副本时按 TTL 刷新云端清单（仓库与 ARK_CATALOG 指定面零干扰；
@@ -341,6 +396,92 @@ fn run() -> Result<(), OmeError> {
                 ark::selfupdate::Channel::Dev
             };
             cmd_self_update(&env_root, channel).map_err(OmeError::from)
+        }
+        // issue 已在 catalog 前早期派发（纯网络面），此臂不可达
+        Commands::Issue { .. } => unreachable!("issue 已早期派发"),
+    }
+}
+
+/// issue 域（REQ-0009）：统一 issue 入口三叶（new/list/show，issues.ohmygh.com）。
+fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
+    use ark::issue;
+    match cmd {
+        IssueCmd::New {
+            title,
+            body,
+            tool,
+            timeout,
+        } => {
+            let fields = issue::validate_issue(
+                &tool,
+                &title,
+                body.as_deref().unwrap_or(""),
+                &issue::self_version(),
+                &issue::self_platform(),
+                &issue::self_host(),
+            )?;
+            let agent = issue::http_client(timeout.unwrap_or(issue::TIMEOUT_MS));
+            let base = issue::issues_api_base();
+            let (id, url) = issue::post_issue(&agent, &base, &fields)?;
+            render::emit(&[
+                kv("filed", "true"),
+                kv("id", &id.to_string()),
+                kv("url", &url),
+                kv("tool", &fields.tool),
+                kv("version", &fields.version),
+                kv("endpoint", &base),
+            ]);
+            eprintln!(
+                "[OK] issue #{id} 已提交：{} {}",
+                fields.tool, fields.version
+            );
+            eprintln!("[HINT] 复核：ark issue show {id}；网页面：{url}");
+            Ok(())
+        }
+        IssueCmd::List {
+            tool,
+            status,
+            limit,
+            timeout,
+        } => {
+            let agent = issue::http_client(timeout.unwrap_or(issue::TIMEOUT_MS));
+            let base = issue::issues_api_base();
+            let rows =
+                issue::list_issues(&agent, &base, tool.as_deref(), status.as_deref(), limit)?;
+            let mut out = vec![kv("count", &rows.len().to_string()), kv("endpoint", &base)];
+            for r in &rows {
+                out.push(kv(
+                    &format!("#{}", r.id),
+                    &format!(
+                        "{} {} {} {}",
+                        r.tool,
+                        r.status,
+                        r.created_at.chars().take(16).collect::<String>(),
+                        r.title
+                    ),
+                ));
+            }
+            render::emit(&out);
+            eprintln!("[HINT] 网页面：{base}/");
+            Ok(())
+        }
+        IssueCmd::Show { id, timeout } => {
+            let agent = issue::http_client(timeout.unwrap_or(issue::TIMEOUT_MS));
+            let base = issue::issues_api_base();
+            let f = issue::show_issue(&agent, &base, id)?;
+            render::emit(&[
+                kv("id", &f.row.id.to_string()),
+                kv("title", &f.row.title),
+                kv("tool", &f.row.tool),
+                kv("version", &f.row.version),
+                kv("platform", &f.row.platform),
+                kv("host", &f.row.host),
+                kv("status", &f.row.status),
+                kv("created_at", &f.row.created_at),
+                kv("body", &f.body),
+                kv("url", &format!("{base}/i/{}", f.row.id)),
+            ]);
+            Ok(())
         }
     }
 }

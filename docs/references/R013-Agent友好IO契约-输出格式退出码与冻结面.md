@@ -46,6 +46,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | `init` | action, exe, bin_dir, catalog, path |
 | `verify` | name, verdict |
 | `heal` | dim, action, params, result, detail |
+| `issue new` | filed, id, url, tool, version, endpoint（REQ-0009；list 另出 count 与 `#id` 概览行、show 出单条全字段加 url） |
 | `query`（D38 注） | pin 锚在时 GitHub API 失败回落镜像直装（或 `ARK_MIRROR=1` 强制，旧名 `OME_MIRROR` 读回）：数据块字段不变，`url` 如实呈现镜像资产域地址 |
 | `doctor` | check, status, detail；两层节 sys.* / dep（D30 起原 agent 节移除，装态对账归 omc、token 归 oma diagnose）；收尾 verdict（ready/degraded/broken）。TTY 为人读面，数据面不变 |
 | `catalog` | status：path, origin, local_sha256, cloud_sha256, synced, age_secs, ttl_secs, offline, signature, pubkey, manifest_path, manifest_present, manifest_local_sha256, manifest_cloud_sha256, manifest_synced, manifest_age_secs, manifest_signature, manifest_cloud_error, cloud_error；sync：action, reason, sha256, path, origin |

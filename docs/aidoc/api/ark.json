@@ -448,6 +448,91 @@
       "docs": "防穿越：path 必须在允许的安全根之下。\nWindows：在 EnvRoot 之下（大小写不敏感）；\nLinux / macOS：在 $HOME 之下，或显式在 EnvRoot 之下。"
     },
     {
+      "path": "ark::issue",
+      "kind": "module",
+      "docs": "issue 域（REQ-0009，对齐 ohmycloud REQ-057 契约）：自研命令仓统一 issue 入口\nissues.ohmygh.com。new 一键提交自动带 tool=ark 与版本/平台/host；list/show 读面。\n契约文档真源 = ohmycloud docs/requirements/REQ-057 契约节（omc 客户端与 Worker\n服务端共 src/lib/issuecontract.ts 单源；本模块为其 Rust 面等价实现，校验语义对齐）。\n\n网络面统一 ureq（仓内既有依赖，零新增 crate）：提交 POST、列表与详情 GET；\n基址 env `ARK_ISSUES_API` 可覆盖（测与灰度，对齐 omc 的 OMC_ISSUES_API）。"
+    },
+    {
+      "path": "ark::issue::BODY_MAX",
+      "kind": "constant",
+      "docs": "契约上限：body 至多 20000（REQ-057）。"
+    },
+    {
+      "path": "ark::issue::ISSUES_DOMAIN",
+      "kind": "constant",
+      "docs": "统一入口域（fleet 共用 issue 入口，REQ-057）。"
+    },
+    {
+      "path": "ark::issue::IssueFields",
+      "kind": "struct",
+      "docs": "提交体六字段（POST /api/issues 的 JSON 体；回执 201 形 `{ok,id,url}`）。"
+    },
+    {
+      "path": "ark::issue::IssueFull",
+      "kind": "struct",
+      "docs": "详情（列表行加正文）。"
+    },
+    {
+      "path": "ark::issue::IssueRow",
+      "kind": "struct",
+      "docs": "列表行（list 与 show 共用面；created_at 为服务端 UTC ISO 形）。"
+    },
+    {
+      "path": "ark::issue::TIMEOUT_MS",
+      "kind": "constant",
+      "docs": "默认 HTTP 超时毫秒（对齐 omc 参考实现 20s）。"
+    },
+    {
+      "path": "ark::issue::TITLE_MAX",
+      "kind": "constant",
+      "docs": "契约上限：title trim 后至多 200（REQ-057）。"
+    },
+    {
+      "path": "ark::issue::http_client",
+      "kind": "function",
+      "docs": "HTTP 客户端（超时毫秒；ureq Agent 复用连接池）。`timeout_ms == 0` 不设整体\n超时（ureq 缺省形，即「不限时」；注意 ureq 2 的 `Duration::ZERO` 是即超时而非\n不限时，codex 二轮 F 实测 0.003 秒红）。"
+    },
+    {
+      "path": "ark::issue::issues_api_base",
+      "kind": "function",
+      "docs": "API 基址：env `ARK_ISSUES_API` 覆盖供测与灰度，缺省统一入口域。"
+    },
+    {
+      "path": "ark::issue::list_issues",
+      "kind": "function",
+      "docs": "列表：GET /api/issues?tool=&status=&limit=（新到旧；limit 1 至 100 由服务端封顶）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx、回执形不符或行解析失败。"
+    },
+    {
+      "path": "ark::issue::post_issue",
+      "kind": "function",
+      "docs": "提交：POST /api/issues；201 取 `{ok,id,url}`（429 限速与 400 校验不过带服务端文案）。\n\n# Errors\n返回 Err 当：服务不可达、序列化失败、HTTP 非 2xx（带服务端 error 文案）、回执不识别。"
+    },
+    {
+      "path": "ark::issue::self_host",
+      "kind": "function",
+      "docs": "主机名：env `HOSTNAME`（交互 shell 常在但多不导出）与 `COMPUTERNAME`（win）\n之后兜底 `hostname` 子命令（agent 非交互场景实测 env 双缺，2026-09-17 实弹 #7\nhost=unknown 教训），仍缺才 `unknown`（截断归 validate_issue 客户端收敛）。"
+    },
+    {
+      "path": "ark::issue::self_platform",
+      "kind": "function",
+      "docs": "平台串形 `linux/x86_64`（os/arch 取编译目标常量，运行态恒定）。"
+    },
+    {
+      "path": "ark::issue::self_version",
+      "kind": "function",
+      "docs": "自身版本（Cargo 包版本单一来源）。"
+    },
+    {
+      "path": "ark::issue::show_issue",
+      "kind": "function",
+      "docs": "详情：GET /api/issues/<id>（含正文）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx（含 id 不存在的 404）、回执形不符或解析失败。"
+    },
+    {
+      "path": "ark::issue::validate_issue",
+      "kind": "function",
+      "docs": "提交体校验（tool 与 title 规则拒绝；version/platform/host 客户端先截断）。\n与 REQ-057 的 validateIssue 语义对齐：拒绝项带人读原因，截断项静默收敛。\n\n# Errors\n返回 Err（人读原因串）当：tool 形不符、title 空或超 200、body 超 20000。"
+    },
+    {
       "path": "ark::manifest",
       "kind": "module",
       "docs": "manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。\n\n结构：`schema_version` 加每工具一节 `[manifest.<tool>]`，含 L1 声明原语\n（`env_set` 用户级键值表、`shims` 别名表、`mirror` 镜像源节 D42）与 L2 受控命令\n（`post_install` 分平台 argv 数组——每条是参数数组非 shell 字符串，无元字符解释）。\n\n生命周期：与 tools.toml 同目录（catalog sync 顺带拉取三件套，同锚同签）；\n文件或工具节缺失时零原语、零动作（内建双轨已于 2026-09-11 撤除，omc 数据面为唯一来源）。\n高 `schema_version` 拒载并提示升级 ome（R016 前进兼容红线）。\nmirror 节不升 schema（serde 容忍未知字段，旧引擎静默忽略零动作，前向兼容同红线）。"
