@@ -24,7 +24,7 @@ D37 完全解耦后资产播种与清单三件套运营归 ohmycloud catalog-see
 GH_TOKEN 可选（公开仓不需要）；ARK_SEED_ALLOW_SKIP=1 豁免 ark-stable 全 skip 红灯
 （旧 tag 窗口期重灌预期 skip 时用；正常 tag run 应直灌成功，v1.2.3 实录 uploaded 3）。
 
-退出码：0 全同步或 plan；1 有失败项，含 ark-stable 全 skip 零上传（stable 段未动，
+退出码：0 全同步或 plan；1 有失败项，含 ark-stable 零上传（stable 段未动，
 draft 窗口或资产名漂移，2026-09-17 补审 F2 二轮硬化）；2 catalog 解析失败。
 """
 
@@ -259,18 +259,23 @@ def main() -> int:
                 ok = all(upload_pair_seg(local, sha, seg, dry) for seg in segs)
                 results["uploaded" if ok else "failed"] += 1
         exit_code = 0 if results["failed"] == 0 else 1
-        if mode == "ark-stable" and skipped:
+        if skipped:
             names = "、".join(skipped)
-            if not results["uploaded"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
-                # 正常 tag run 应直灌 stable（v1.2.3 实录 ark-stable uploaded 3）；全 skip 零上传
+            counts = (f"uploaded {results['uploaded']}、skip {len(skipped)}、"
+                      f"failed {results['failed']}")
+            if mode == "ark-stable" and not results["uploaded"] \
+                    and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
+                # 正常 tag run 应直灌 stable（v1.2.3 实录 ark-stable uploaded 3）；零上传
                 # 即 stable 段未动（多系 draft 窗口或资产名漂移），红灯拦静默丢段
                 # （v1.3.0 漏切实录，2026-09-17 补审 F2，二轮按 v1.2.3 史实硬化）。
-                print(f"[FAIL] ark-stable 全 skip 零上传：stable 段未动（skip：{names}）。"
+                print(f"[FAIL] ark-stable 零上传（{counts}，skip：{names}）：stable 段未动。"
                       "发布后须 workflow_dispatch 带 stable_tag 补推；"
                       "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免。")
                 exit_code = 1
-            else:
+            elif mode == "ark-stable":
                 print(f"[WARN] ark-stable 有 skip 未灌（{names}），该些资产 stable 段未动")
+            else:
+                print(f"[INFO] ark-dev 有 skip 未灌（{names}），该些资产 dev 段未动")
         print(json.dumps({"mode": mode, **results}, ensure_ascii=False))
         return exit_code
 
