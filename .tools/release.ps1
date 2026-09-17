@@ -12,8 +12,9 @@ r2-seed workflow 于 release published 事件触发（版本段加 stable 段双
   pwsh -NoProfile -File .tools/release.ps1 -Tag v1.3.1 -DryRun            # 全链演练止步于发布步
   pwsh -NoProfile -File .tools/release.ps1 -Tag v1.3.1 -SkipTagCheck -DryRun  # 未打 tag 排练
 
-前置：HEAD 即 tag 指向提交（-SkipTagCheck 豁免排练）；x86_64-w64-mingw32-gcc 与
-rustup target x86_64-pc-windows-gnu 在位；lan-mac mesh 可达（mac 实机构建腿，-SkipMac 跳过）；
+前置：HEAD 即 tag 指向提交且远端 tag 已推（git push origin <tag>；-SkipTagCheck 豁免排练，
+豁免面含发布预检 0b）；x86_64-w64-mingw32-gcc 与 rustup target x86_64-pc-windows-gnu 在位；
+lan-mac mesh 可达（mac 实机构建腿，-SkipMac 跳过）；
 gh 已登录。产物形：三平台裸二进制加逐件 .sha256 边车（包形归 REQ-0008 批三）。
 #>
 [CmdletBinding()]
@@ -35,14 +36,19 @@ function RunOk([string]$what) { if ($LASTEXITCODE -ne 0) { Fail $what } }
 if (-not $SkipTagCheck) {
     $at = @(git tag --points-at HEAD)
     if ($at -notcontains $Tag) { Fail "HEAD 不在 tag $Tag 指向提交（排练加 -SkipTagCheck）" }
-    # 0a 工作树洁净闸：脏树构建产物与 tag 源不一致且无迹可查（codex 批二 G1）
-    $dirty = @(git status --porcelain --untracked-files=no)
-    if ($dirty.Count -gt 0) { Fail "工作树有未提交改动（$($dirty.Count) 件），先提交或排练加 -SkipTagCheck" }
+}
+# 0a 工作树洁净闸：脏树（含未跟踪新文件——忘 git add 的最常见漏形态）构建产物与 tag 源
+# 不一致且无迹可查；dist/ 与 __pycache__ 已 ignore 不误伤（codex 批二 G1 加 G2 收紧）
+$dirty = @(git status --porcelain)
+if ($dirty.Count -gt 0) { Fail "工作树不洁净（$($dirty.Count) 件，含未跟踪），先提交或排练加 -SkipTagCheck" }
+if (-not $SkipTagCheck) {
     # 0b 发布预检（照 hst 1b 族规，codex 批二 F1）：gh 已登、远端 tag 已推且指本 sha、
     # tag 无既有 Release——gh release create 遇远程无 tag 会自动钉默认分支 HEAD，锚链失保
     gh auth status *> $null
     if ($LASTEXITCODE -ne 0) { Fail 'precheck: gh 未登录（先 gh auth login）' }
-    $remoteTag = (git ls-remote --tags origin "refs/tags/$Tag" 2>$null | Out-String).Trim()
+    $remoteTag = git ls-remote --tags origin "refs/tags/$Tag" 2>$null
+    if ($LASTEXITCODE -ne 0) { Fail 'precheck: 远端不可达（git ls-remote 非零），查网络或 origin' }
+    $remoteTag = ($remoteTag | Out-String).Trim()
     if ($remoteTag -eq '') { Fail "precheck: 远端无 tag $Tag，先 git push origin $Tag（gh 会自动钉错 HEAD）" }
     if ($remoteTag -notmatch [regex]::Escape((git rev-parse HEAD).Trim())) {
         Fail "precheck: 远端 tag $Tag 指向别处，须自本 HEAD 重推"
@@ -122,7 +128,8 @@ foreach ($a in $assets) {
     } else {
         $out = @(& (Join-Path $dist $a.name) --version)
     }
-    # 冒烟逐字对（codex 批二 G4）：子串匹配会把 1.3.10 判成 1.3.1 命中，改首行前缀逐字
+    # 冒烟逐字对（codex 批二 G4）：子串匹配会把 1.3.10 判成 1.3.1 命中，改首行前缀逐字；
+    # ssh stdout 须干净（远端 shell 横幅打 stdout 会误红，stderr 无碍）
     $first = ($out | Select-Object -First 1).Trim()
     if ($LASTEXITCODE -ne 0 -or $first -notmatch "^ark $([regex]::Escape($ver))(\s|$)") {
         Fail "冒烟红 $($a.name)：$($out -join ' ')"
