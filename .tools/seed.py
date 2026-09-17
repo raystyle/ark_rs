@@ -11,14 +11,19 @@ D37 完全解耦后资产播种与清单三件套运营归 ohmycloud catalog-see
 - 边车自算即锚：`<hex 小写>空两格<asset>` 同名 .sha256 边车，上传前资产先过 catalog sha 锚校验；
   边车经临时目录暂存后上传（不落源资产目录，源目录可能是仓库工作树，M015）。
 - diff 走公网域面（GET 边车带 ?t= 时间戳击穿 + HEAD 资产），不需要 R2 凭据；上传走 rclone（CI 内）。
-- rclone 配方：provider=Cloudflare、endpoint=R2_ENDPOINT、NO_CHECK_BUCKET 必带（受限 token 无建桶权）、
-  Cache-Control: public, max-age=60（消费侧 ?v=/?t= 击穿双保险）。
+- rclone 配方：provider=Cloudflare、endpoint=R2_ENDPOINT、NO_CHECK_BUCKET 必带（受限 token 无建桶权）；
+  段制缓存分治（REQ-0007 批一对齐标准）：版本段 immutable 长缓存、stable 加 dev 滚动段 max-age=60
+  （消费侧 ?v=/?t= 击穿双保险）；stable 段 sync 清旧以排除清单保 D46 msvc 回退件一窗
+  （rclone 语义实证 2026-09-17：excluded 默认不删、--delete-excluded 反清保护面，故不带该旗标）。
 
 用法（uv 零安装，runner 预装 uv）：
   uv run --script .tools/seed.py --plan            # 全 catalog 域面 diff（只读，无凭据可跑）
   uv run --script .tools/seed.py                   # diff 加上传（需 R2_* 环境变量与 rclone）
   uv run --script .tools/seed.py --ark-dev --tag dev         # 路线 A：dev 产物灌 ark/dev 沙滚段（主名）
   uv run --script .tools/seed.py --ark-stable --tag v1.0.0   # 路线 A：v* 正式产物灌 ark/stable 段（主名）
+  uv run --script .tools/seed.py --ark-published --tag v1.0.0  # 发布双段：版本段 copy（immutable）
+                                                              # 加 stable sync（排除保 msvc 窗），
+                                                              # 双段零上传红灯（r2-seed workflow 用）
 
 环境变量：R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / R2_BUCKET（上传必需）；
 GH_TOKEN 可选（公开仓不需要）；ARK_SEED_ALLOW_SKIP=1 豁免 ark-stable 全 skip 红灯
@@ -93,6 +98,10 @@ RCLONE_ENV = {
     "RCLONE_CONFIG_SEED_SECRET_ACCESS_KEY": "R2_SECRET_ACCESS_KEY",
     "RCLONE_CONFIG_SEED_NO_CHECK_BUCKET": "true",
 }
+# stable 段 sync 的保窗排除清单（D46 msvc 回退件，selfupdate 回退读序依赖）：排除即保护
+# （rclone 实证 2026-09-17：excluded 默认不删）。退役点 = 下一正式版封版窗口（总台核准
+# 2026-09-17：五端 1.3.0+ 全实证后撤排除清单清段）。
+STABLE_PROTECT = ("ark-x86_64-pc-windows-msvc.exe", "ark-x86_64-pc-windows-msvc.exe.sha256")
 
 
 def http_get(url: str, timeout: int = 30) -> tuple[int, bytes]:
@@ -182,30 +191,16 @@ def stage_sidecar(stage: Path, sha_hex: str, asset_name: str) -> Path:
 
 
 def upload_pair(local_asset: Path, sha_hex: str, tool: str, version: str, dry: bool) -> bool:
-    """资产加边车成对上传（rclone copyto；Cache-Control 双保险；边车经临时目录暂存）"""
-    header = ["--header-upload", "Cache-Control: public, max-age=60", "--s3-upload-cutoff", "64MiB"]
+    """资产加边车成对上传（rclone copyto；Cache-Control 双保险；边车经临时目录暂存；
+    大件分账阈值 64MiB 沿用 B 面历史口径）"""
     ok = True
     with tempfile.TemporaryDirectory() as stage:
-        side = stage_sidecar(Path(stage), sha_hex, local_asset.name)
-        for src, key in (
-            (local_asset, f"{tool}/{version}/{local_asset.name}"),
-            (side, f"{tool}/{version}/{local_asset.name}.sha256"),
-        ):
-            args = ["copyto", str(src), key, *header]
-            env = dict(os.environ)
-            for k, v in RCLONE_ENV.items():
-                env[k] = os.environ[v] if v.startswith("R2_") else v
-            if dry:
-                print(f"[plan] rclone copyto {src.name} -> seed:$R2_BUCKET/{key}")
-                continue
-            bucket = os.environ["R2_BUCKET"]
-            proc = subprocess.run(
-                ["rclone", "copyto", str(src), f"seed:{bucket}/{key}", *header],
-                env=env, capture_output=True, text=True,
-            )
-            if proc.returncode != 0:
-                print(f"[FAIL] rclone copyto {key}: {proc.stderr.strip()[:300]}")
-                ok = False
+        stage_sidecar(Path(stage), sha_hex, local_asset.name)
+        for src, name in ((local_asset, local_asset.name),
+                          (Path(stage) / f"{local_asset.name}.sha256",
+                           f"{local_asset.name}.sha256")):
+            ok = upload_object(src, f"{tool}/{version}/{name}", dry,
+                               extra=("--s3-upload-cutoff", "64MiB")) and ok
     return ok
 
 
@@ -229,25 +224,36 @@ def main() -> int:
     ap.add_argument("--plan", action="store_true", help="只 diff 不上传")
     ap.add_argument("--ark-dev", action="store_true", help="路线 A：dev 产物灌 ark/dev 沙滚段（主名）")
     ap.add_argument("--ark-stable", action="store_true", help="路线 A：v* 正式产物灌 ark/stable 段（主名）")
+    ap.add_argument("--ark-published", action="store_true",
+                    help="发布双段：版本段 copy（immutable）加 stable sync（排除保 msvc 窗），双段零上传红灯")
     ap.add_argument("--tag", default="dev", help="路线 A 的 release tag")
     args = ap.parse_args()
     dry = args.plan
 
-    if args.ark_dev or args.ark_stable:
+    if args.ark_dev or args.ark_stable or args.ark_published:
+        if args.ark_published and not args.tag.startswith("v"):
+            print("[FAIL] --ark-published 需 v* tag（版本段名取自 tag）")
+            return 2
         repo = "raystyle/ark_rs"
         # 段与资产族配套：ark/ 段配 ark-* 主名。
         # ome/ 段与 ome-* 兼容名已停写（全舰队 ome 水位清零，2026-09-14 收口）。
         if args.ark_dev:
-            segs, assets, mode = ("ark/dev",), ARK_ASSETS, "ark-dev"
+            mode = "ark-dev"
+        elif args.ark_stable:
+            mode = "ark-stable"
         else:
-            segs, assets, mode = ("ark/stable",), ARK_ASSETS, "ark-stable"
-        results = {"synced": 0, "uploaded": 0, "failed": 0}
+            mode = "ark-published"
+        results = {"uploaded": 0, "failed": 0}
         skipped: list[str] = []
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
-            for asset in assets:
+            stage = tdp / "seg"
+            stage.mkdir()
+            # published 面 release 已发布，资产缺失即红（不走窗口期 skip 白名单）
+            for asset in ARK_ASSETS:
                 local = tdp / asset
-                st = download_asset(repo, args.tag, asset, local, missing_ok=True)
+                st = download_asset(repo, args.tag, asset, local,
+                                    missing_ok=not args.ark_published)
                 if st == "fail":
                     results["failed"] += 1
                     continue
@@ -255,27 +261,60 @@ def main() -> int:
                     skipped.append(asset)
                     continue
                 sha = sha256_file(local)
-                # 沙滚段无 version 目录：路径 <seg>/<asset>，无条件重灌（沙滚语义）
-                ok = all(upload_pair_seg(local, sha, seg, dry) for seg in segs)
-                results["uploaded" if ok else "failed"] += 1
+                (stage / asset).write_bytes(local.read_bytes())
+                stage_sidecar(stage, sha, asset)
+                results["uploaded"] += 1
+            if results["failed"]:
+                # sync 形下部分灌段会清掉未到件（sync 以源为段终态），失败即整体不灌
+                print("[FAIL] 有资产下载失败，跳过灌段（防半失败灌段）")
+            elif args.ark_published:
+                # 双段同灌（REQ-0007 批一，差4 裁 a 收归自家）：版本段 copy 加 immutable
+                # 长缓存（差8）；stable 段 sync 清旧加排除保 msvc 窗（差5）。
+                ver_seg = f"ark/{args.tag[1:]}"
+                ok = all(
+                    upload_object(p, f"{ver_seg}/{p.name}", dry,
+                                  cache="public, max-age=31536000, immutable")
+                    for p in sorted(stage.iterdir())
+                )
+                if not ok or not sync_segment(stage, "ark/stable", dry,
+                                              protect=STABLE_PROTECT):
+                    results["failed"] += 1
+            elif args.ark_dev:
+                if not sync_segment(stage, "ark/dev", dry):
+                    results["failed"] += 1
+            else:
+                if not sync_segment(stage, "ark/stable", dry,
+                                    protect=STABLE_PROTECT):
+                    results["failed"] += 1
         exit_code = 0 if results["failed"] == 0 else 1
-        if skipped:
+        if skipped and mode in ("ark-stable", "ark-published"):
             names = "、".join(skipped)
             counts = (f"uploaded {results['uploaded']}、skip {len(skipped)}、"
                       f"failed {results['failed']}")
-            if mode == "ark-stable" and not results["uploaded"] \
-                    and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
-                # 正常 tag run 应直灌 stable（v1.2.3 实录 ark-stable uploaded 3）；零上传
-                # 即 stable 段未动（多系 draft 窗口或资产名漂移），红灯拦静默丢段
-                # （v1.3.0 漏切实录，2026-09-17 补审 F2，二轮按 v1.2.3 史实硬化）。
-                print(f"[FAIL] ark-stable 零上传（{counts}，skip：{names}）：stable 段未动。"
-                      "发布后须 workflow_dispatch 带 stable_tag 补推；"
+            if not results["uploaded"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
+                # 正常 tag run 应直灌（v1.2.3 实录 ark-stable uploaded 3）；零上传即
+                # stable 段未动（多系 draft 窗口或资产名漂移），红灯拦静默丢段
+                # （v1.3.0 漏切实录，2026-09-17 补审 F2）。
+                print(f"[FAIL] {mode} 零上传（{counts}，skip：{names}）：stable 段未动。"
+                      "发布后须 r2-seed dispatch 带 tag 补推；"
                       "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免。")
                 exit_code = 1
-            elif mode == "ark-stable":
-                print(f"[WARN] ark-stable 有 skip 未灌（{names}），该些资产 stable 段未动")
             else:
-                print(f"[INFO] ark-dev 有 skip 未灌（{names}），该些资产 dev 段未动")
+                print(f"[WARN] {mode} 有 skip 未灌（{names}），该些资产段内未动")
+        elif skipped:
+            print(f"[INFO] ark-dev 有 skip 未灌（{'、'.join(skipped)}），"
+                  "该些资产 dev 段未动")
+        if not dry and args.ark_published:
+            # 双段零上传红灯（标准公共契约护栏三件之二）：版本段与 stable 段分别清点，
+            # 任一零即红（防半失败：版本段有物而 stable 漏滚仍绿）。
+            counts = {seg: segment_count(seg)
+                      for seg in (f"ark/{args.tag[1:]}", "ark/stable")}
+            if any(n <= 0 for n in counts.values()):
+                print(f"[FAIL] 镜像段清点：{counts}（任一零即红）")
+                exit_code = 1
+            else:
+                print("mirror objects: "
+                      + ", ".join(f"{k}={v}" for k, v in counts.items()))
         print(json.dumps({"mode": mode, **results}, ensure_ascii=False))
         return exit_code
 
@@ -320,34 +359,65 @@ def main() -> int:
     return 1 if (not dry and results["failed"]) else 0
 
 
-def upload_pair_seg(local_asset: Path, sha_hex: str, seg: str, dry: bool) -> bool:
-    """沙滚段上传：<seg>/<asset> 与 .sha256 边车（无 version 目录；边车经临时目录暂存）"""
-    ok = True
-    with tempfile.TemporaryDirectory() as stage:
-        side = stage_sidecar(Path(stage), sha_hex, local_asset.name)
-        for src, name in ((local_asset, local_asset.name), (side, side.name)):
-            ok = upload_object(src, f"{seg}/{name}", dry) and ok
-    return ok
-
-
-def upload_object(local: Path, key: str, dry: bool) -> bool:
-    """单对象上传（rclone copyto；Cache-Control 与其余上传一致）"""
+def upload_object(local: Path, key: str, dry: bool,
+                  cache: str = "public, max-age=60",
+                  extra: tuple[str, ...] = ()) -> bool:
+    """单对象上传（rclone copyto；cache 可覆写（版本段 immutable 长缓存））"""
     if dry:
         print(f"[plan] rclone copyto {local.name} -> seed:$R2_BUCKET/{key}")
         return True
-    env = dict(os.environ)
-    for k, v in RCLONE_ENV.items():
-        env[k] = os.environ[v] if v.startswith("R2_") else v
     bucket = os.environ["R2_BUCKET"]
     proc = subprocess.run(
         ["rclone", "copyto", str(local), f"seed:{bucket}/{key}",
-         "--header-upload", "Cache-Control: public, max-age=60"],
-        env=env, capture_output=True, text=True,
+         "--header-upload", f"Cache-Control: {cache}", *extra],
+        env=rclone_env(), capture_output=True, text=True,
     )
     if proc.returncode != 0:
         print(f"[FAIL] rclone copyto {key}: {proc.stderr.strip()[:300]}")
         return False
     return True
+
+
+def rclone_env() -> dict[str, str]:
+    """rclone 子进程环境（RCLONE_ENV 映射：命名 remote seed: 的 env 配置形）"""
+    env = dict(os.environ)
+    for k, v in RCLONE_ENV.items():
+        env[k] = os.environ[v] if v.startswith("R2_") else v
+    return env
+
+
+def sync_segment(stage: Path, seg: str, dry: bool, protect: tuple[str, ...] = ()) -> bool:
+    """整段 sync：源暂存目录即段终态（资产加边车成对）。不带 --delete-excluded：
+    排除即保护（rclone 语义实证 2026-09-17），sync 自身已清源外旧件。protect 为
+    保窗排除清单（D46 msvc 回退件）。源空即红拒绝 sync（防空段清段）。"""
+    if not any(stage.iterdir()):
+        print(f"[FAIL] {seg} 段源暂存空，拒绝 sync（防空段清段）")
+        return False
+    if dry:
+        print(f"[plan] rclone sync {stage.name}/ -> seed:$R2_BUCKET/{seg}/"
+              f"{' protect=' + ','.join(protect) if protect else ''}")
+        return True
+    bucket = os.environ["R2_BUCKET"]
+    cmd = ["rclone", "sync", str(stage), f"seed:{bucket}/{seg}/"]
+    for p in protect:
+        cmd += ["--exclude", p]
+    proc = subprocess.run(cmd, env=rclone_env(), capture_output=True, text=True)
+    if proc.returncode != 0:
+        print(f"[FAIL] rclone sync {seg}: {proc.stderr.strip()[:300]}")
+        return False
+    return True
+
+
+def segment_count(seg: str) -> int:
+    """段内对象清点（双段零上传红灯用；lsf 失败按 0 计即红）"""
+    proc = subprocess.run(
+        ["rclone", "lsf", f"seed:{os.environ['R2_BUCKET']}/{seg}/"],
+        env=rclone_env(), capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        print(f"[WARN] rclone lsf {seg}: {proc.stderr.strip()[:200]}")
+        return 0
+    return len([ln for ln in proc.stdout.splitlines() if ln.strip()])
 
 
 if __name__ == "__main__":

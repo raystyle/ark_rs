@@ -1,0 +1,47 @@
+# 对齐 build-release 标准（总台核准批一，2026-09-17，REQ-0007）：release published
+# 事件触发，从 Release 拉资产双段同灌（版本段 copy immutable 加 stable sync 排除保
+# msvc 窗）加双段零上传红灯。编译面不在 CI（批二起正式产物本地出，标准三段式）；
+# dev 滚动段不进本岗（build.yml 轻岗豁免，总台裁同 hst）。draft 窗口竞态由直发禁
+# draft（release.ps1）加 published 触发双保险根除（v1.3.0 漏切教训，补审 F2）。
+name: r2-seed
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '补推的 v* tag（从 Release 拉资产重灌双段）'
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    # prerelease（dev 滚动）不灌双段；dispatch 带 tag 时放行（补推口不受 prerelease 过滤）
+    if: ${{ !github.event.release.prerelease || inputs.tag != '' }}
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: 装 rclone 与 uv（rclone pin v1.75.1，sha 锚即 catalog linux pin）
+        run: |
+          curl -fL -o rclone.zip https://github.com/rclone/rclone/releases/download/v1.75.1/rclone-v1.75.1-linux-amd64.zip
+          echo "982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab  rclone.zip" | sha256sum -c -
+          sudo unzip -j rclone.zip 'rclone-v1.75.1-linux-amd64/rclone' -d /usr/local/bin
+          command -v rclone && rclone version | head -1
+          command -v uv || { curl -LsSf https://astral.sh/uv/install.sh | sh; echo "$HOME/.local/bin" >> "$GITHUB_PATH"; }
+          command -v uv || { echo uv 安装失败; exit 1; }
+      - name: 双段同灌（版本段 immutable 加 stable sync 保窗加双段零上传红灯）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then echo "无 tag 上下文（release 事件或 dispatch tag 入参必居其一）"; exit 1; fi
+          uv run --script .tools/seed.py --ark-published --tag "$TAG"
