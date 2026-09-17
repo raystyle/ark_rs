@@ -140,7 +140,7 @@ fn package_inner_binary(dir: &Path) -> Result<PathBuf, String> {
 
 /// 归档解包候选（REQ-0008 窗口）：归档经下载层 digest 锚校验后解到临时目录，
 /// 复用 extract 面（zip/tar.gz 与工具安装同源）；POSIX 补执行位（zip 形不保 mode）。
-/// 目录生命周期至调用方 replace 完成（错误路径残留交系统清理）。
+/// 目录生命周期至调用方 replace 完成（replace 后由调用方收尾清理，错误路径交系统清理）。
 ///
 /// # Errors
 /// 返回 Err 当：建目录、解包或拼名定位失败。
@@ -285,6 +285,10 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
         downloaded
     };
     let exe = replace_deployed_and_current(&candidate)?;
+    // 解包目录收尾清理（G3：成功路径不留残，错误路径交下次进入或系统清理）
+    let _ = std::fs::remove_dir_all(
+        std::env::temp_dir().join(format!("ark-selfupdate-unpack-{}", std::process::id())),
+    );
     // D41 C：升级后顺手搬旧元数据（幂等；失败只告警不拦升级收尾）
     if let Err(e) = platform::migrate_legacy_metadata() {
         eprintln!("[WARN] 元数据搬迁失败（旧位读回继续）: {e}");
@@ -743,7 +747,7 @@ mod tests {
     }
 
     #[test]
-    fn 镜像段读序_尝试表三态构造() {
+    fn 镜像段读序_尝试表四层构造() {
         // D41 自测 3（构造面）：ark 主先、ome 兼容回落、URL 形态、缺名层跳过；
         // D46 补 msvc 回退层：gnu 主名先、msvc 回退次、ome 兼容殿后
         let base = "https://mirror.example";
@@ -788,8 +792,11 @@ mod tests {
 
     #[test]
     fn 资产包名_平台形() {
-        let pkg = asset_package_for_this_platform().expect("测试平台有包名");
-        let t = package_triple().expect("测试平台有净三元组");
+        // 对齐 资产名_当前平台必有映射 的 Err 分支形：非三目标宿主显式报不支持后跳过
+        let (Ok(pkg), Ok(t)) = (asset_package_for_this_platform(), package_triple()) else {
+            assert!(platform_triple().is_err(), "无包名须因平台无 CI 覆盖");
+            return;
+        };
         if t.contains("windows") {
             assert_eq!(
                 pkg,
@@ -818,7 +825,7 @@ mod tests {
         let hit = package_inner_binary(&tmp).expect("拼名命中");
         assert_eq!(hit, inner_dir.join(name));
         // 空目录报拼名契约错
-        let empty = std::env::temp_dir().join("ark-test-pkg-empty");
+        let empty = std::env::temp_dir().join(format!("ark-test-pkg-empty-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&empty);
         std::fs::create_dir_all(&empty).unwrap();
         assert!(package_inner_binary(&empty)
