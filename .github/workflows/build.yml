@@ -81,6 +81,13 @@ jobs:
           uv run --script .tools/mdcharlint.py .
           uv run --script .tools/md-ref-scan.py
           uv run --script .tools/md-heading-scan.py
+      - name: aidoc 投影门禁
+        # 封版滚版本未再生成 aidoc 的漂移二犯（v1.2.3/v1.3.0），CI 挂门禁根治（2026-09-17 补审 F1）。
+        # 只挂 linux 岗：投影与平台无关，省 mac 岗装时。
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo install cargo-aidoc --version 0.4.0 --locked
+          cargo aidoc --check --strict
       - name: 归位资产名
         shell: bash
         run: |
