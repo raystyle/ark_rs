@@ -2,7 +2,7 @@
 
 > tools.toml 字段契约（D37 完全解耦 2026-09-10 终版）：权威数据面在 ohmycloud catalog-seed（仓内 catalog/tools.toml 加云端三件套，minisign 签名）；ark 仓持本契约与消费逻辑，权威件已退役为云端消费（tests fixtures 为测试夹具）。pin 字段由数据面维护；端上 `ark pin` 为**临时本地锁**（下次 sync 被云端覆盖），`ark update` 对齐云端 catalog 锁定安装**不回写**（D51 起云端最新定义指镜像与 catalog；锁定单源归数据面）。
 >
-> 术语（D41 定档）：**泊位（berth）**指 EnvRoot 内某工具的安装位（`dir` 字段解析所得目录）；EnvRoot 为泊位根，物理目录不随更名动。自管条目数据面现为双条目：`ark` 主条目加 `ome` 过渡条目（存量端水位清零后退役），引擎双接受 `ome-self`/`ark-self`，条目演化归 omc 数据面。
+> 术语（D41 定档）：**泊位（berth）**指 EnvRoot 内某工具的安装位（`dir` 字段解析所得目录）；EnvRoot 为泊位根，物理目录不随更名动。自管条目仅 `ark` 单条目（`ome` 过渡条目已随 ome 关键字剔除批收口，2026-09-18），引擎仅认 `ark-self`（云端权威 catalog 单值），条目演化归 omc 数据面。
 
 ## 一、文件级约定
 
@@ -19,7 +19,7 @@
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `category` | string | 九类 taxonomy（节序即类序）：agent 智能体依赖（claude/codex/grok/kimi）/ base 操作编排依赖（herdr；自管主条目 ark 与过渡条目 ome）/ runtime 运行时依赖 / runtime-manager 运行时管理器依赖（uv/fnm）/ compiler 编译器依赖 / mux 多路复用依赖 / service 远程服务依赖（openssh）/ security 密钥安全管理（age/sops）/ cli 命令工具依赖（含 hst，原 oma）。derived 运行时衍生在册 browser-harness 与 omc。旧值 key/project/extras 仅为转换期兜底 |
+| `category` | string | 九类 taxonomy（节序即类序）：agent 智能体依赖（claude/codex/grok/kimi）/ base 操作编排依赖（herdr；自管条目 ark）/ runtime 运行时依赖 / runtime-manager 运行时管理器依赖（uv/fnm）/ compiler 编译器依赖 / mux 多路复用依赖 / service 远程服务依赖（openssh）/ security 密钥安全管理（age/sops）/ cli 命令工具依赖（含 hst，原 oma）。derived 运行时衍生在册 browser-harness 与 omc。旧值 key/project/extras 仅为转换期兜底 |
 | `deploy` | string | Deploy.win：envroot / installer / official |
 | `dir` | string | EnvRoot 下安装目录（official 工具可省） |
 | `bin` | string | 注册进用户 PATH 的目录，相对 EnvRoot（official 可省） |

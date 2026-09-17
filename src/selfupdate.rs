@@ -183,6 +183,16 @@ pub fn self_update(env_root: &Path, channel: Channel) -> Result<SelfUpdateOutcom
     }
 }
 
+/// 元数据选源结果（D51）：digest 边车/API 锚、下载 URL、资产名、是否镜像命中（下载腿
+/// 失败时据此补官方链）、官方 API 本轮是否已失败（逃逸路径不再重试 API）。
+struct MetaPick {
+    digest: String,
+    dl_url: String,
+    asset: String,
+    from_mirror: bool,
+    api_err: Option<String>,
+}
+
 /// release 通道（dev 滚动 / latest 正式）：元数据 → digest 对比 → 下载校验 → 替换 → 刷 catalog。
 /// D51 起元数据镜像段读序先行（边车即锚），GitHub API 兜底；`ARK_MIRROR=0` 逃逸阀反转。
 fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutcome, String> {
@@ -204,29 +214,54 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     if let Some(m) = asset_msvc.as_deref() {
         names.push(m);
     }
-    // D51 元数据双链 →（digest、下载 URL、资产名、是否镜像命中）：默认镜像段读序先行、
-    // 未命中回落官方 API，双败报两段错误；逃逸阀（ARK_MIRROR=0）反转读序（D41/D44 原序）。
-    let (digest, dl_url, asset_used, from_mirror) = if crate::download::mirror_off() {
+    // D51 元数据双链选源（默认镜像段读序先行、未命中回落官方 API；逃逸阀 ARK_MIRROR=0 反转）：
+    // api_err 记本轮官方 API 是否已失败（逃逸路径镜像回落命中时在位，二段回落不再重试 API，
+    // 对线二轮 G-a2）；from_mirror 标下载腿失败时是否须补官方链（对线 F2）。
+    let pick = if crate::download::mirror_off() {
         match official_asset_meta(endpoint, &names) {
-            Ok((d, u, name)) => (d, u, name, false),
+            Ok((digest, dl_url, asset)) => MetaPick {
+                digest,
+                dl_url,
+                asset,
+                from_mirror: false,
+                api_err: None,
+            },
             Err(api_err) => {
-                let (d, u, name) = mirror_fallback_meta(
+                let (digest, dl_url, asset) = mirror_fallback_meta(
                     env_root,
                     mirror_ver,
                     &asset_name,
                     asset_msvc.as_deref(),
                     &api_err,
                 )?;
-                (d, u, name, true)
+                MetaPick {
+                    digest,
+                    dl_url,
+                    asset,
+                    from_mirror: true,
+                    api_err: Some(api_err),
+                }
             }
         }
     } else {
         match mirror_meta(env_root, mirror_ver, &asset_name, asset_msvc.as_deref()) {
-            Ok((d, u, name)) => (d, u, name, true),
+            Ok((digest, dl_url, asset)) => MetaPick {
+                digest,
+                dl_url,
+                asset,
+                from_mirror: true,
+                api_err: None,
+            },
             Err(mirror_err) => {
                 eprintln!("[WARN] 镜像段未命中（{mirror_err}），回落官方 API");
                 match official_asset_meta(endpoint, &names) {
-                    Ok((d, u, name)) => (d, u, name, false),
+                    Ok((digest, dl_url, asset)) => MetaPick {
+                        digest,
+                        dl_url,
+                        asset,
+                        from_mirror: false,
+                        api_err: None,
+                    },
                     Err(api_err) => {
                         return Err(format!(
                             "镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {api_err}"
@@ -239,47 +274,74 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
 
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let mine = sha256_file(&exe)?;
-    let is_package = asset_used.ends_with(".zip") || asset_used.ends_with(".tar.gz");
+    let pick_is_package = pick.asset.ends_with(".zip") || pick.asset.ends_with(".tar.gz");
     // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：段恒 ark/（ome/ 兼容段已收口）
     let seg_for_fallback = "ark";
     // 裸件：digest 即二进制 sha，先比后下（零下载判 current）。
-    if !is_package && mine == digest {
+    if !pick_is_package && mine == pick.digest {
         eprintln!("[OK] 已是最新构建（sha256 一致）");
         return Ok(SelfUpdateOutcome {
             action: "current",
             channel,
-            asset: asset_used,
-            sha256: sha8(&digest),
+            asset: pick.asset,
+            sha256: sha8(&pick.digest),
             exe: platform::self_deploy_target().unwrap_or(exe),
             catalog_synced: sync_catalog_from_cloud(env_root),
         });
     }
-    if !is_package {
-        eprintln!("[INFO] 本地 {mine} 与远端 {digest} 不同，下载更新");
+    if !pick_is_package {
+        eprintln!("[INFO] 本地 {mine} 与远端 {} 不同，下载更新", pick.digest);
     }
     // 下载腿：官方元数据命中时 dl_url 即官方直链（download 层仍镜像首试，双链真兜底）；
     // 镜像元数据命中时 dl_url 是镜像地址，资产失败（未播/锚不符/CF 陈旧）补拉官方 API
-    // 元数据走真官方链——第二腿不得再打同一镜像 URL（对线 F2）。
+    // 元数据走真官方链——第二腿不得再打同一镜像 URL（对线 F2）；官方 API 本轮已失败时
+    // 不再重试、直接报两段错误（二轮 G-a1/G-a2）。
+    let mut installed_digest = pick.digest.clone();
+    let mut installed_asset = pick.asset.clone();
     let downloaded = match crate::download::download_asset_with_mirror(
         env_root,
-        &asset_used,
-        &dl_url,
-        Some(&digest),
+        &pick.asset,
+        &pick.dl_url,
+        Some(&pick.digest),
         false,
         seg_for_fallback,
         mirror_ver,
     ) {
         Ok(p) => p,
-        Err(mirror_dl_err) if from_mirror => {
+        Err(mirror_dl_err) if pick.from_mirror => {
+            if let Some(prev) = &pick.api_err {
+                return Err(format!(
+                    "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {prev}"
+                ));
+            }
             eprintln!("[WARN] 镜像段下载失败（{mirror_dl_err}），回落官方 API 补官方链");
-            let (digest2, official_url, asset2) = official_asset_meta(endpoint, &names)?;
-            crate::download::download_asset(env_root, &asset2, &official_url, Some(&digest2), true)
+            match official_asset_meta(endpoint, &names) {
+                Ok((digest2, official_url, asset2)) => crate::download::download_asset(
+                    env_root,
+                    &asset2,
+                    &official_url,
+                    Some(&digest2),
+                    true,
+                )
+                .map(|p| {
+                    installed_digest = digest2;
+                    installed_asset = asset2;
+                    p
+                })
                 .map_err(|official_err| {
                     format!("镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}")
-                })?
+                })?,
+                Err(api_err) => {
+                    return Err(format!(
+                        "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {api_err}"
+                    ))
+                }
+            }
         }
         Err(e) => return Err(e),
     };
+    // 包形判定与上报随实际命中件（二段回落可能换族，二轮 G-a3/G-a4）
+    let is_package = installed_asset.ends_with(".zip") || installed_asset.ends_with(".tar.gz");
     // 包形：digest 是归档 sha（不与本地 exe 直比），归档经锚校验后解包取内层二进制，
     // 判新等值在解包后的二进制间进行——判新机制不动（REQ-0008 设计决策，解包取真身）。
     let candidate = if is_package {
@@ -289,8 +351,8 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
             return Ok(SelfUpdateOutcome {
                 action: "current",
                 channel,
-                asset: asset_used,
-                sha256: sha8(&digest),
+                asset: installed_asset,
+                sha256: sha8(&installed_digest),
                 exe: platform::self_deploy_target().unwrap_or(exe),
                 catalog_synced: sync_catalog_from_cloud(env_root),
             });
@@ -314,8 +376,8 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     Ok(SelfUpdateOutcome {
         action: "updated",
         channel,
-        asset: asset_used,
-        sha256: sha8(&digest),
+        asset: installed_asset,
+        sha256: sha8(&installed_digest),
         exe,
         catalog_synced,
     })

@@ -47,7 +47,7 @@ uv run --script .tools/md-heading-scan.py
 
 ## 四、mac 目录/PATH/提取策略
 
-1. **ome 自身（2026-09-01 安装形态整改后）**：自部署二进制 `~/.local/bin/ome`（`init` 复制并注册 PATH）；元数据与部署态 catalog 在 `~/Library/Application Support/ohmyenv`（`dirs::data_local_dir()/ohmyenv`，三平台统一），`self-deploy` 会把仓库 `catalog\tools.toml` 同步到 `<数据目录>/catalog/`，部署态二进制按解析四级（ARK_CATALOG、exe 相邻、cwd、数据目录）找 catalog，不依赖 clone 目录（[实证] Windows 侧同构实现已验证，mac 侧待真机）。
+1. **ark 自身（2026-09-01 安装形态整改后；D41 更名，现名 ark）**：自部署二进制 `~/.local/bin/ark`（`init` 复制并注册 PATH）；元数据与部署态 catalog 在 `~/Library/Application Support/ohmyenv`（`dirs::data_local_dir()/ohmyenv`，三平台统一），`self-deploy` 会把仓库 `catalog\tools.toml` 同步到 `<数据目录>/catalog/`，部署态二进制按解析四级（ARK_CATALOG、exe 相邻、cwd、数据目录）找 catalog，不依赖 clone 目录（[实证] Windows 侧同构实现已验证，mac 侧待真机）。
 2. **被管理软件安装目录**：默认单二进制绿色工具安装到 `~/.local/bin`，与 Linux 一致；复杂运行时按平台字段族解析（M1 已设 `mac_*` 专属族，回退链依次为 mac、linux、通用，见 R001；[实证] 2026-09-01 jq/fnm 首批补录）。本机 `~/.local/bin` 已有 ohmypwsh 部署的 26 个二进制，ome 按「同版本在位即跳过」幂等接管（[实证] 2026-09-01 `ome install jq --latest` 对已装 jq-1.8.2 报 skipped、零重装、仓库 catalog 零改动）。
 3. **PATH 管理**：默认 shell 在 mac 上通常为 zsh，`platform.rs` 按 `$SHELL` 检测并写入 `~/.zshrc`；若使用 bash 则回退到 `~/.bashrc`（[推断] 由 `platform.rs::profile_path()` 逻辑）。
 4. **extract 类型**：与 Linux 一致，跨平台 `zip`/`targz`/`copy`/`single`，Linux/mac 新增 `targz-bin`/`tarxz-bin`；Windows 专属类型（含 2026-09-01 新增的 `vsbuild`）在 mac 下返回明确错误。

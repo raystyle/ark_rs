@@ -79,7 +79,7 @@ ark issue show 3             # 单条详情（含正文）
 | 类 | 工具 |
 | --- | --- |
 | 智能体（4） | claude、codex、grok、kimi |
-| 自管与过渡（2） | ark（自管主条目，原 ome）、ome（更名过渡条目，存量端水位清零后退役） |
+| 自管（1） | ark（自管条目，原 ome；ome 过渡条目已收口 2026-09-18） |
 | 操作编排（1） | herdr（多 agent 并行会话宿主） |
 | agent 配置与诊断（1） | hst（原 oma；Hooks、Statusline、Trace 与只读观测） |
 | 云端控制台（1） | omc（云与内网控制台 CLI，npm-tgz 通道） |
