@@ -5,6 +5,8 @@
 //!
 //! 升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；
 //! 不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
+//! 包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后
+//! 解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。
 //! Windows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。
 
 use std::path::{Path, PathBuf};
@@ -91,6 +93,76 @@ pub fn asset_compat_for_this_platform() -> Result<String, String> {
     Ok(format!("ome-{}", platform_triple()?))
 }
 
+/// 包形净三元组（platform_triple 去 `.exe` 尾）：包名与包内目录用净 triple
+///（hst 族形一致：`ark-x86_64-pc-windows-gnu.zip`、内层 `ark.exe`），裸件名才含 .exe。
+fn package_triple() -> Result<&'static str, String> {
+    Ok(platform_triple()?.trim_end_matches(".exe"))
+}
+
+/// 包形资产名（REQ-0008 窗口，对线裁定）：`ark-<triple>` 单顶层目录（净 triple），win
+/// zip 他 tar.gz，逐包 .sha256 边车。读序主名先于裸件（双挂窗存量迁移方向），裸件为
+/// 回退臂（第三版退役删臂）。
+///
+/// # Errors
+/// 返回 Err 当：当前平台无 CI 构建资产（platform_triple 同源判）。
+pub fn asset_package_for_this_platform() -> Result<String, String> {
+    let t = package_triple()?;
+    let ext = if t.contains("windows") {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    Ok(format!("ark-{t}.{ext}"))
+}
+
+/// 包内二进制定位（拼名契约：`ark-<target>/ark(.exe)`，无版本段——REQ-0008 对线裁定，
+/// 版本由 tag、边车、catalog pin 承载，路径不重复承载）。
+///
+/// # Errors
+/// 返回 Err 当：解包目录内按拼名契约未找到二进制（包形不合规）。
+fn package_inner_binary(dir: &Path) -> Result<PathBuf, String> {
+    let t = package_triple()?;
+    let name = if t.contains("windows") {
+        "ark.exe"
+    } else {
+        "ark"
+    };
+    let p = dir.join(format!("ark-{t}")).join(name);
+    if p.exists() {
+        Ok(p)
+    } else {
+        Err(format!(
+            "包内缺 {}（拼名契约 ark-<target>/ark，REQ-0008）",
+            p.display()
+        ))
+    }
+}
+
+/// 归档解包候选（REQ-0008 窗口）：归档经下载层 digest 锚校验后解到临时目录，
+/// 复用 extract 面（zip/tar.gz 与工具安装同源）；POSIX 补执行位（zip 形不保 mode）。
+/// 目录生命周期至调用方 replace 完成（错误路径残留交系统清理）。
+///
+/// # Errors
+/// 返回 Err 当：建目录、解包或拼名定位失败。
+fn unpack_candidate(archive: &Path) -> Result<PathBuf, String> {
+    let dir = std::env::temp_dir().join(format!("ark-selfupdate-unpack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("建解包目录失败: {e}"))?;
+    if archive.extension().and_then(|e| e.to_str()) == Some("zip") {
+        crate::extract::extract_zip(archive, &dir)?;
+    } else {
+        crate::extract::extract_targz(archive, &dir)?;
+    }
+    let inner = package_inner_binary(&dir)?;
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&inner, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("补执行位失败: {e}"))?;
+    }
+    Ok(inner)
+}
+
 /// 工具链回退资产名（D46 切 gnu）：新 gnu 二进制对旧源（stable 段与历史 release 仅剩
 /// msvc 资产的窗口期）在主名未命中后试 msvc 名。仅 Windows 有此层。反向无回退：旧 msvc
 /// 二进制对新 gnu 源全 miss（其读序无 gnu 名），升级走 omc catalog 通道重装。
@@ -131,22 +203,25 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
         "dev"
     };
     let asset_name = asset_for_this_platform()?;
+    let asset_pkg = asset_package_for_this_platform()?;
     let asset_compat = asset_compat_for_this_platform().ok();
     let asset_msvc = asset_msvc_fallback();
-    // 镜像段按通道分（oma 同型，段名与通道同名）。D46 读序：ark/ 段配 ark-* gnu 主名先，
-    // 主名未命中试 ark/ 段 msvc 回退名（stable 段与历史 release 仅剩 msvc 资产的窗口期），
-    // 再回落 ome/ 段配 ome-* 兼容名（分发面已停写，仅历史残量可命中，殿后）。
-    // dev 通道禁止回落 stable，避免把正式版装进滚动源；latest 段已退役（D30 封版拆分）。
+    // 镜像段按通道分（oma 同型，段名与通道同名）。读序（REQ-0008 窗口扩包形层）：
+    // ark/ 段包形主名先（双挂窗有包用包，存量迁移方向）、ark-<triple> gnu 裸件名次
+    //（回退臂，dev 滚动源无包形落此层）、msvc 回退名再次（D46 窗口期）、ome-* 兼容名
+    // 殿后（分发面已停写，仅历史残量可命中）。dev 通道禁止回落 stable；latest 段已退役。
     let mirror_ver = if channel == "stable" { "stable" } else { "dev" };
+    let mut names = vec![asset_pkg.as_str(), asset_name.as_str()];
+    if let Some(m) = asset_msvc.as_deref() {
+        names.push(m);
+    }
+    if let Some(c) = asset_compat.as_deref() {
+        names.push(c);
+    }
     let official = if mirror_first() {
         Err("ARK_MIRROR=1 镜像优先，跳过官方 API".to_string())
     } else {
-        official_asset_meta(
-            endpoint,
-            &asset_name,
-            asset_msvc.as_deref(),
-            asset_compat.as_deref(),
-        )
+        official_asset_meta(endpoint, &names)
     };
     let (digest, dl_url, seg_used, asset_used) = match official {
         Ok((d, u, name)) => (d, u, String::new(), name),
@@ -162,7 +237,12 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
 
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let mine = sha256_file(&exe)?;
-    if mine == digest {
+    let is_package = asset_used.ends_with(".zip") || asset_used.ends_with(".tar.gz");
+    // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：镜像路径已命中则沿用其段；
+    // 官方路径按命中资产名前缀取段（纯函数 fallback_seg，三态单测覆盖）
+    let seg_for_fallback = fallback_seg(&seg_used, &asset_used);
+    // 裸件：digest 即二进制 sha，先比后下（零下载判 current）。
+    if !is_package && mine == digest {
         eprintln!("[OK] 已是最新构建（sha256 一致）");
         return Ok(SelfUpdateOutcome {
             action: "current",
@@ -173,12 +253,10 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
             catalog_synced: sync_catalog_from_cloud(env_root),
         });
     }
-
-    eprintln!("[INFO] 本地 {mine} 与远端 {digest} 不同，下载更新");
-    // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：镜像路径已命中则沿用其段；
-    // 官方路径按命中资产名前缀取段（纯函数 fallback_seg，三态单测覆盖）
-    let seg_for_fallback = fallback_seg(&seg_used, &asset_used);
-    let cached = crate::download::download_asset_with_mirror(
+    if !is_package {
+        eprintln!("[INFO] 本地 {mine} 与远端 {digest} 不同，下载更新");
+    }
+    let downloaded = crate::download::download_asset_with_mirror(
         env_root,
         &asset_used,
         &dl_url,
@@ -187,7 +265,26 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
         seg_for_fallback,
         mirror_ver,
     )?;
-    let exe = replace_deployed_and_current(&cached)?;
+    // 包形：digest 是归档 sha（不与本地 exe 直比），归档经锚校验后解包取内层二进制，
+    // 判新等值在解包后的二进制间进行——判新机制不动（REQ-0008 设计决策，解包取真身）。
+    let candidate = if is_package {
+        let inner = unpack_candidate(&downloaded)?;
+        if sha256_file(&inner)? == mine {
+            eprintln!("[OK] 已是最新构建（包内二进制 sha256 一致）");
+            return Ok(SelfUpdateOutcome {
+                action: "current",
+                channel,
+                asset: asset_used,
+                sha256: sha8(&digest),
+                exe: platform::self_deploy_target().unwrap_or(exe),
+                catalog_synced: sync_catalog_from_cloud(env_root),
+            });
+        }
+        inner
+    } else {
+        downloaded
+    };
+    let exe = replace_deployed_and_current(&candidate)?;
     // D41 C：升级后顺手搬旧元数据（幂等；失败只告警不拦升级收尾）
     if let Err(e) = platform::migrate_legacy_metadata() {
         eprintln!("[WARN] 元数据搬迁失败（旧位读回继续）: {e}");
@@ -239,6 +336,11 @@ fn mirror_attempts(
             format!("{base}/{seg}/{channel}/{asset}"),
         ));
     };
+    // REQ-0008 窗口：包形主名先（有包用包，存量迁移方向），裸件为回退臂（双挂窗保旧），
+    // 其后 D46 msvc 与 ome 兼容层照旧。dev 滚动源无包形，包名 miss 即落裸件。
+    if let Ok(pkg) = asset_package_for_this_platform() {
+        push("ark", &pkg);
+    }
     push("ark", primary);
     if let Some(f) = msvc_fallback {
         push("ark", f);
@@ -284,21 +386,14 @@ fn mirror_fallback_meta(
     Err(format!("镜像段读序全败（官方: {api_err}; {last}）"))
 }
 
-/// 官方 release 资产元数据（digest 大写 + 下载直链 + 命中资产名）；资产名读序：gnu 主名
-/// 先、msvc 回退名次（D46 窗口期，stable 段与历史 release 仅剩 msvc 资产）、ome 兼容名
-/// 殿后（历史 release 残量），全 miss 报主名错；API 段失败由调用方走镜像边车读序。
-fn official_asset_meta(
-    endpoint: &str,
-    asset_name: &str,
-    msvc_fallback: Option<&str>,
-    compat: Option<&str>,
-) -> Result<(String, String, String), String> {
+/// 官方 release 资产元数据（digest 大写 + 下载直链 + 命中资产名）；资产名读序：包形主名
+/// 先（REQ-0008 窗口，双挂窗有包用包）、gnu 裸件名次（回退臂，双挂窗保旧量与 dev 滚动源）、
+/// msvc 回退名再次（D46 窗口期，stable 段与历史 release 仅剩 msvc 资产）、ome 兼容名殿后
+///（历史 release 残量），全 miss 报首名错；API 段失败由调用方走镜像边车读序。
+fn official_asset_meta(endpoint: &str, names: &[&str]) -> Result<(String, String, String), String> {
     // release JSON 单拉一次（G2：原每层各拉一遍，窗口期 stable 稳定 2 次 API GET），
-    // 本地按名序匹配：gnu 主名先、msvc 回退名次、ome 兼容名殿后，全 miss 报主名错。
+    // 本地按名序匹配，全 miss 报首名错。
     let release = fetch_release(endpoint)?;
-    let names = [Some(asset_name), msvc_fallback, compat]
-        .into_iter()
-        .flatten();
     let mut primary_err: Option<String> = None;
     for name in names {
         match asset_in_release(&release, name) {
@@ -308,7 +403,12 @@ fn official_asset_meta(
             }
         }
     }
-    Err(primary_err.unwrap_or_else(|| format!("release 缺资产 {asset_name}（CI 是否已跑完？）")))
+    Err(primary_err.unwrap_or_else(|| {
+        format!(
+            "release 缺资产 {}（CI 是否已跑完？）",
+            names.first().copied().unwrap_or("")
+        )
+    }))
 }
 
 /// 在已拉取的 release JSON 内按名找资产（digest 大写 + 下载直链 + 名）。
@@ -647,33 +747,130 @@ mod tests {
         // D41 自测 3（构造面）：ark 主先、ome 兼容回落、URL 形态、缺名层跳过；
         // D46 补 msvc 回退层：gnu 主名先、msvc 回退次、ome 兼容殿后
         let base = "https://mirror.example";
-        let three = mirror_attempts(
+        let four = mirror_attempts(
             base,
             "dev",
             "ark-x86_64-pc-windows-gnu.exe",
             Some("ark-x86_64-pc-windows-msvc.exe"),
             Some("ome-x86_64-pc-windows-gnu.exe"),
         );
-        assert_eq!(three.len(), 3, "三层读序三尝试");
-        assert_eq!(three[0].1, "ark-x86_64-pc-windows-gnu.exe", "gnu 主名先");
-        assert_eq!(three[1].1, "ark-x86_64-pc-windows-msvc.exe", "msvc 回退次");
-        assert_eq!(three[1].0, "ark", "msvc 回退名走主段");
-        assert_eq!(three[2].0, "ome", "ome 段殿后");
+        // REQ-0008 窗口扩包形层：包形主名先、gnu 裸件次、msvc 回退再次、ome 段殿后
+        assert_eq!(four.len(), 4, "四层读序四尝试");
+        let pkg = asset_package_for_this_platform().expect("测试平台有包名");
+        assert_eq!(four[0].1, pkg, "包形主名先（有包用包）");
+        assert_eq!(four[0].0, "ark", "包形走 ark 主段");
         assert_eq!(
-            three[0].2,
+            four[1].1, "ark-x86_64-pc-windows-gnu.exe",
+            "gnu 裸件回退臂次"
+        );
+        assert_eq!(four[2].1, "ark-x86_64-pc-windows-msvc.exe", "msvc 回退再次");
+        assert_eq!(four[2].0, "ark", "msvc 回退名走主段");
+        assert_eq!(four[3].0, "ome", "ome 段殿后");
+        assert_eq!(
+            four[1].2,
             format!("{base}/ark/dev/ark-x86_64-pc-windows-gnu.exe.sha256"),
             "边车 URL 形态"
         );
         assert_eq!(
-            three[2].3,
+            four[3].3,
             format!("{base}/ome/dev/ome-x86_64-pc-windows-gnu.exe"),
             "下载 URL 形态"
         );
-        let two = mirror_attempts(base, "dev", "ark-x.exe", None, Some("ome-x.exe"));
-        assert_eq!(two.len(), 2, "无 msvc 回退名跳过该层");
-        let one = mirror_attempts(base, "stable", "ark-x.exe", None, None);
-        assert_eq!(one.len(), 1, "无兼容名单尝试");
-        assert!(one[0].2.contains("/ark/stable/"), "stable 通道段名随通道");
+        let three_now = mirror_attempts(base, "dev", "ark-x.exe", None, Some("ome-x.exe"));
+        assert_eq!(three_now.len(), 3, "无 msvc 回退名跳过该层（包加裸加兼容）");
+        let two_now = mirror_attempts(base, "stable", "ark-x.exe", None, None);
+        assert_eq!(two_now.len(), 2, "无回退名仅包加裸两层");
+        assert!(
+            two_now[0].2.contains("/ark/stable/"),
+            "stable 通道段名随通道"
+        );
+    }
+
+    #[test]
+    fn 资产包名_平台形() {
+        let pkg = asset_package_for_this_platform().expect("测试平台有包名");
+        let t = package_triple().expect("测试平台有净三元组");
+        if t.contains("windows") {
+            assert_eq!(
+                pkg,
+                format!("ark-{t}.zip"),
+                "win 形 zip（净 triple 无 .exe 尾）"
+            );
+            assert!(!pkg.ends_with(".exe.zip"), "不出现 exe.zip 疵名");
+        } else {
+            assert_eq!(pkg, format!("ark-{t}.tar.gz"), "他形 tar.gz");
+        }
+    }
+
+    #[test]
+    fn 包内定位_拼名契约() {
+        let t = package_triple().expect("测试平台有净三元组");
+        let name = if t.contains("windows") {
+            "ark.exe"
+        } else {
+            "ark"
+        };
+        let tmp = std::env::temp_dir().join("ark-test-pkg-inner");
+        let _ = std::fs::remove_dir_all(&tmp);
+        let inner_dir = tmp.join(format!("ark-{t}"));
+        std::fs::create_dir_all(&inner_dir).unwrap();
+        std::fs::write(inner_dir.join(name), b"bin").unwrap();
+        let hit = package_inner_binary(&tmp).expect("拼名命中");
+        assert_eq!(hit, inner_dir.join(name));
+        // 空目录报拼名契约错
+        let empty = std::env::temp_dir().join("ark-test-pkg-empty");
+        let _ = std::fs::remove_dir_all(&empty);
+        std::fs::create_dir_all(&empty).unwrap();
+        assert!(package_inner_binary(&empty)
+            .unwrap_err()
+            .contains("拼名契约 ark-<target>/ark"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn 解包候选_归档往返() {
+        let t = package_triple().expect("测试平台有净三元组");
+        let name = if t.contains("windows") {
+            "ark.exe"
+        } else {
+            "ark"
+        };
+        let payload = b"#!/bin/sh\necho ark-test\n";
+        let stage = std::env::temp_dir().join("ark-test-pkg-archives");
+        let _ = std::fs::remove_dir_all(&stage);
+        let src_dir = stage.join("src").join(format!("ark-{t}"));
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(src_dir.join(name), payload).unwrap();
+
+        // tar.gz 形
+        let tgz = stage.join("pkg.tar.gz");
+        let f = std::fs::File::create(&tgz).unwrap();
+        let enc = flate2::write::GzEncoder::new(f, flate2::Compression::default());
+        let mut tb = tar::Builder::new(enc);
+        tb.append_dir_all(
+            format!("ark-{t}"),
+            stage.join("src").join(format!("ark-{t}")),
+        )
+        .unwrap();
+        tb.into_inner().unwrap().finish().unwrap();
+        let inner = unpack_candidate(&tgz).expect("tar.gz 解包取内层");
+        assert_eq!(std::fs::read(&inner).unwrap(), payload, "tar.gz 内层逐字等");
+
+        // zip 形（win 资产形；全平台跑写读往返）
+        let zp = stage.join("pkg.zip");
+        let zf = std::fs::File::create(&zp).unwrap();
+        use std::io::Write as _;
+        let mut zw = zip::ZipWriter::new(zf);
+        let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        zw.start_file(format!("ark-{t}/{name}"), opts).unwrap();
+        zw.write_all(payload).unwrap();
+        zw.finish().unwrap();
+        let inner2 = unpack_candidate(&zp).expect("zip 解包取内层");
+        assert_eq!(std::fs::read(&inner2).unwrap(), payload, "zip 内层逐字等");
+        let _ = std::fs::remove_dir_all(&stage);
+        let _ = std::fs::remove_dir_all(
+            std::env::temp_dir().join(format!("ark-selfupdate-unpack-{}", std::process::id())),
+        );
     }
 
     #[test]

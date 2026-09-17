@@ -11,18 +11,22 @@ r2-seed workflow 于 release published 事件触发（版本段加 stable 段双
   pwsh -NoProfile -File .tools/release.ps1 -Tag v1.3.1                    # 全链发布
   pwsh -NoProfile -File .tools/release.ps1 -Tag v1.3.1 -DryRun            # 全链演练止步于发布步
   pwsh -NoProfile -File .tools/release.ps1 -Tag v1.3.1 -SkipTagCheck -DryRun  # 未打 tag 排练
+  pwsh -NoProfile -File .tools/release.ps1 -Tag v1.4.0 -IncludePackages        # REQ-0008 双挂窗形（包形并挂）
 
 前置：HEAD 即 tag 指向提交且远端 tag 已推（git push origin <tag>；-SkipTagCheck 豁免排练，
 豁免面含发布预检 0b）；x86_64-w64-mingw32-gcc 与 rustup target x86_64-pc-windows-gnu 在位；
 lan-mac mesh 可达（mac 实机构建腿，-SkipMac 跳过）；
-gh 已登录。产物形：三平台裸二进制加逐件 .sha256 边车（包形归 REQ-0008 批三）。
+gh 已登录。产物形：三平台裸二进制加逐件 .sha256 边车；-IncludePackages 加挂包形
+（REQ-0008 双挂窗形：单顶层目录 ark-<净triple> 直放二进制加 README 加 LICENSE，win zip 他 tar.gz）。
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$Tag,
     [switch]$DryRun,
     [switch]$SkipTagCheck,
-    [switch]$SkipMac
+    [switch]$SkipMac,
+    # REQ-0008 窗口：双挂窗开启（裸件加包形并挂）；缺省裸件单形 = 2.2.0 终版形
+    [switch]$IncludePackages
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot/..").Path
@@ -101,7 +105,7 @@ if (-not $SkipMac) {
     RunOk '回传 mac 产物红'
 }
 
-# 5 打包与逐件边车（sha256sum 原生格式：小写 hex 空两格名；裸件形，包形归批三）
+# 5 打包与逐件边车（sha256sum 原生格式：小写 hex 空两格名；裸件形）
 $dist = Join-Path $root 'dist'
 if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Path $dist | Out-Null
@@ -115,6 +119,36 @@ foreach ($a in $assets) {
     Copy-Item $a.src (Join-Path $dist $a.name)
     $hex = (Get-FileHash (Join-Path $dist $a.name) -Algorithm SHA256).Hash.ToLower()
     "$hex  $($a.name)" | Set-Content (Join-Path $dist "$($a.name).sha256") -Encoding ascii
+}
+
+# 5b 包形构建（REQ-0008 窗口，-IncludePackages 才出）：单顶层目录 ark-<净triple> 直放
+# 二进制（win 形 ark.exe）加 README 加 LICENSE，win zip 他 tar.gz，逐包边车。
+# 暂存目录在系统 temp（不进 dist 防 gh 连目录上传）。
+if ($IncludePackages) {
+    if (-not (Test-Path LICENSE)) { Fail '包形契约要 LICENSE（仓库根缺件）' }
+    $pkgStage = Join-Path ([System.IO.Path]::GetTempPath()) 'ark-release-pkg'
+    if (Test-Path $pkgStage) { Remove-Item -Recurse -Force $pkgStage }
+    New-Item -ItemType Directory -Path $pkgStage | Out-Null
+    foreach ($a in $assets) {
+        $triple = ($a.name -replace '^ark-', '') -replace '\.exe$', ''
+        $ext = if ($triple -like '*windows*') { 'zip' } else { 'tar.gz' }
+        $inner = if ($triple -like '*windows*') { 'ark.exe' } else { 'ark' }
+        $dirName = "ark-$triple"
+        New-Item -ItemType Directory -Path (Join-Path $pkgStage $dirName) | Out-Null
+        Copy-Item (Join-Path $dist $a.name) (Join-Path $pkgStage "$dirName/$inner")
+        Copy-Item README.md (Join-Path $pkgStage $dirName)
+        Copy-Item LICENSE (Join-Path $pkgStage $dirName)
+        $pkgName = "$dirName.$ext"
+        if ($ext -eq 'zip') {
+            Compress-Archive -Path (Join-Path $pkgStage $dirName) -DestinationPath (Join-Path $dist $pkgName)
+        } else {
+            Push-Location $pkgStage; tar czf (Join-Path $dist $pkgName) $dirName; Pop-Location
+            if ($LASTEXITCODE -ne 0) { Fail "tar czf $pkgName 红" }
+        }
+        $hex = (Get-FileHash (Join-Path $dist $pkgName) -Algorithm SHA256).Hash.ToLower()
+        "$hex  $pkgName" | Set-Content (Join-Path $dist "$pkgName.sha256") -Encoding ascii
+        Write-Host "[OK] 包形 $pkgName"
+    }
 }
 
 # 6 冒烟：每件 --version 对 tag（win 走 WSL interop 直调 PE；mac 在实机跑）
@@ -137,9 +171,48 @@ foreach ($a in $assets) {
     Write-Host "[OK] 冒烟 $($a.name)：$($out -join ' ')"
 }
 
+# 6b 包形冒烟（-IncludePackages 才跑）：解包取内层（拼名契约 ark-<净triple>/ark(.exe)），
+# 内容等价断言（包内二进制 sha 与裸件逐字等）加本平台可跑件直跑 --version
+if ($IncludePackages) {
+    $pkgVerify = Join-Path ([System.IO.Path]::GetTempPath()) 'ark-release-pkg-verify'
+    if (Test-Path $pkgVerify) { Remove-Item -Recurse -Force $pkgVerify }
+    New-Item -ItemType Directory -Path $pkgVerify | Out-Null
+    foreach ($a in $assets) {
+        $triple = ($a.name -replace '^ark-', '') -replace '\.exe$', ''
+        $ext = if ($triple -like '*windows*') { 'zip' } else { 'tar.gz' }
+        $inner = if ($triple -like '*windows*') { 'ark.exe' } else { 'ark' }
+        $pkgName = "ark-$triple.$ext"
+        $vdir = Join-Path $pkgVerify $triple
+        New-Item -ItemType Directory -Path $vdir | Out-Null
+        if ($ext -eq 'zip') {
+            Expand-Archive -Path (Join-Path $dist $pkgName) -DestinationPath $vdir
+        } else {
+            tar xzf (Join-Path $dist $pkgName) -C $vdir
+            if ($LASTEXITCODE -ne 0) { Fail "包形解包红 $pkgName" }
+        }
+        $innerPath = Join-Path $vdir "ark-$triple/$inner"
+        if (-not (Test-Path $innerPath)) { Fail "包内拼名未命中 $innerPath（契约 ark-<target>/ark）" }
+        $ha = (Get-FileHash $innerPath -Algorithm SHA256).Hash.ToLower()
+        $hb = (Get-FileHash (Join-Path $dist $a.name) -Algorithm SHA256).Hash.ToLower()
+        if ($ha -ne $hb) { Fail "包内二进制与裸件 sha 不等 $pkgName" }
+        if ($triple -like '*windows*') {
+            $out = @(& $innerPath --version)
+        } elseif ($triple -like '*linux*') {
+            chmod +x $innerPath; $out = @(& $innerPath --version)
+        } else {
+            continue  # mac 内层与裸件同物（sha 等已断言），实机冒烟走裸件面
+        }
+        $first = ($out | Select-Object -First 1).Trim()
+        if ($LASTEXITCODE -ne 0 -or $first -notmatch "^ark $([regex]::Escape($ver))(\s|$)") {
+            Fail "包形冒烟红 $pkgName：$($out -join ' ')"
+        }
+        Write-Host "[OK] 包形冒烟 $pkgName：$first"
+    }
+}
+
 # 7 GitHub 产物发布：draft 挂资产传齐后 edit --draft=false 加 --latest 直发
 Write-Host '== gh 直发（draft 传齐再发布，published 即齐备信号）=='
-$files = @(Get-ChildItem $dist | Sort-Object Name | ForEach-Object { $_.FullName })
+$files = @(Get-ChildItem $dist -File | Sort-Object Name | ForEach-Object { $_.FullName })
 if ($DryRun) {
     Write-Host "[DryRun] gh release create $Tag（6 件）--draft 后 gh release edit $Tag --draft=false --latest"
 } else {

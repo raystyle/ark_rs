@@ -12,6 +12,7 @@
 - 锁定：`ark pin`（省略则全量；lock 为别名）
 - 看状态：`ark status`（锁定 / 已装 / PATH 三态对照）
 - 自部署：`ark init`（self-deploy 别名；二进制进用户程序目录、catalog 同步、注册 PATH）
+- 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚，`ARK_MIRROR=1` 镜像优先）
 - 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关，旧名 `OME_*` 读回）
 - 报缺陷：`ark issue new "<标题>"`（统一入口 issues.ohmygh.com，REQ-057 契约；自动带 tool=ark 与版本/平台/host，`--body` 附正文；`ark issue list [--tool]` 与 `ark issue show <id>` 读面；遇缺陷即一键反馈，agent 纪律）
 - 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/research docs/references`；`mq -F grep '.h2' docs/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）

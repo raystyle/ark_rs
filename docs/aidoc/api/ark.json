@@ -1065,7 +1065,7 @@
     {
       "path": "ark::selfupdate",
       "kind": "module",
-      "docs": "selfupdate：ome 自身升级（`ark self update`），三通道：\n- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；\n- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；\n- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。\n\n升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；\n不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。\nWindows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。"
+      "docs": "selfupdate：ome 自身升级（`ark self update`），三通道：\n- **dev**（默认）：pre-release tag `dev` 的滚动资产——CI push main 构建上传，本地测试期升级源；\n- **stable**：`releases/latest` 正式版——CI 推 v* tag（封版）触发；\n- **git**：源码安装——浅克隆仓库 cargo build 后替换（封版前无任何 release 时的通道，需 git 与 cargo）。\n\n升级判定：release 资产的 API digest（sha256）与运行中 exe 的 sha256 对比，一致即已最新；\n不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。\n包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后\n解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。\nWindows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。"
     },
     {
       "path": "ark::selfupdate::Channel",
@@ -1091,6 +1091,11 @@
       "path": "ark::selfupdate::asset_for_this_platform",
       "kind": "function",
       "docs": "编译目标对应的 CI 资产主名（D41 B：`ark-<triple>`，release 双附主名）。\n\n# Errors\n返回 Err（人读原因串）当：ARK_MIRROR=1 镜像优先，跳过官方 API 等（完整失败面见函数体错误构造）。"
+    },
+    {
+      "path": "ark::selfupdate::asset_package_for_this_platform",
+      "kind": "function",
+      "docs": "包形资产名（REQ-0008 窗口，对线裁定）：`ark-<triple>` 单顶层目录（净 triple），win\nzip 他 tar.gz，逐包 .sha256 边车。读序主名先于裸件（双挂窗存量迁移方向），裸件为\n回退臂（第三版退役删臂）。\n\n# Errors\n返回 Err 当：当前平台无 CI 构建资产（platform_triple 同源判）。"
     },
     {
       "path": "ark::selfupdate::is_ome_self",

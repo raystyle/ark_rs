@@ -90,6 +90,11 @@ _TRIPLES = (
     "aarch64-apple-darwin",
 )
 ARK_ASSETS = [f"ark-{t}" for t in _TRIPLES]
+# REQ-0008 窗口包形名族（净 triple，hst 族形一致）：win zip 他 tar.gz。--ark-published
+# 面到则灌（裸件终版窗的 release 无包形，missing_ok 跳过即 phase 无关，无需旗标与版本阈值）。
+PACKAGE_ASSETS = [
+    f"ark-{t.removesuffix('.exe')}.{'zip' if 'windows' in t else 'tar.gz'}" for t in _TRIPLES
+]
 RCLONE_ENV = {
     "RCLONE_CONFIG_SEED_TYPE": "s3",
     "RCLONE_CONFIG_SEED_PROVIDER": "Cloudflare",
@@ -250,11 +255,13 @@ def main() -> int:
             tdp = Path(td)
             stage = tdp / "seg"
             stage.mkdir()
-            # published 面 release 已发布，资产缺失即红（不走窗口期 skip 白名单）
-            for asset in ARK_ASSETS:
+            # published 面 release 已发布，裸件缺失即红（不走窗口期 skip 白名单）；
+            # 包形到则灌（REQ-0008 窗口，裸件终版窗跳过即 phase 无关）
+            fam = [(a, not args.ark_published) for a in ARK_ASSETS]
+            fam += [(a, True) for a in PACKAGE_ASSETS]
+            for asset, mok in fam:
                 local = tdp / asset
-                st = download_asset(repo, args.tag, asset, local,
-                                    missing_ok=not args.ark_published)
+                st = download_asset(repo, args.tag, asset, local, missing_ok=mok)
                 if st == "fail":
                     results["failed"] += 1
                     continue
@@ -289,25 +296,33 @@ def main() -> int:
                     results["failed"] += 1
             staged_names = sorted(p.name for p in stage.iterdir())
         exit_code = 0 if results["failed"] == 0 else 1
-        if skipped and mode in ("ark-stable", "ark-published"):
-            names = "、".join(skipped)
+        # skip 分流：裸件 skip 是真信号（清出话术与红灯判定）；包形 skip 在裸件终版窗
+        # 是常态（REQ-0008 窗口前 release 无包形，phase 无关设计），只落 INFO 不进判定
+        bare_skipped = [a for a in skipped if a not in PACKAGE_ASSETS]
+        pkg_skipped = [a for a in skipped if a in PACKAGE_ASSETS]
+        bare_staged = sum(1 for n in staged_names if n in ARK_ASSETS)
+        if bare_skipped and mode in ("ark-stable", "ark-published"):
+            names = "、".join(bare_skipped)
             counts = (f"staged {results['staged']}、skip {len(skipped)}、"
                       f"failed {results['failed']}")
-            if not results["staged"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
-                # 正常 tag run 应直灌（v1.2.3 实录三件齐灌）；零到件即段未动
+            if not bare_staged and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
+                # 正常 tag run 应直灌（v1.2.3 实录三件齐灌）；裸件零到件即段未动
                 # （多系 draft 窗口或资产名漂移），红灯拦静默丢段
                 # （v1.3.0 漏切实录，2026-09-17 补审 F2）。
-                print(f"[FAIL] {mode} 零到件（{counts}，skip：{names}）：段未动。"
+                print(f"[FAIL] {mode} 裸件零到件（{counts}，skip：{names}）：段未动。"
                       "发布后须 r2-seed dispatch 带 tag 补推；"
                       "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免"
                       "（仅 --ark-stable/--ark-dev 面）。")
                 exit_code = 1
             else:
-                # sync 形下源即段终态：skip 件不在源内，会被 sync 按源清出段
-                print(f"[WARN] {mode} 有 skip（{names}），sync 将按源清出段外")
-        elif skipped:
-            print(f"[INFO] ark-dev 有 skip（{'、'.join(skipped)}），"
+                # sync 形下源即段终态：裸件 skip 不在源内，会被 sync 按源清出段
+                print(f"[WARN] {mode} 裸件有 skip（{names}），sync 将按源清出段外")
+        elif bare_skipped:
+            print(f"[INFO] ark-dev 裸件有 skip（{'、'.join(bare_skipped)}），"
                   "sync 将按源清出 dev 段外")
+        if pkg_skipped:
+            print(f"[INFO] 包形未在 release（{len(pkg_skipped)} 件，裸件终版窗常态），"
+                  "跳过灌段")
         if not dry and args.ark_published and exit_code == 0:
             # 双段齐备红灯（标准护栏三件之二，逐名核对收严：lsf 整段计数会把保窗
             # 排除件也计入非零，按暂存件名核对在位才算过）。
