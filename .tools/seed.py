@@ -26,11 +26,11 @@ D37 完全解耦后资产播种与清单三件套运营归 ohmycloud catalog-see
                                                               # 双段零上传红灯（r2-seed workflow 用）
 
 环境变量：R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / R2_BUCKET（上传必需）；
-GH_TOKEN 可选（公开仓不需要）；ARK_SEED_ALLOW_SKIP=1 豁免 ark-stable 全 skip 红灯
-（旧 tag 窗口期重灌预期 skip 时用；正常 tag run 应直灌成功，v1.2.3 实录 uploaded 3）。
+GH_TOKEN 可选（公开仓不需要）；ARK_SEED_ALLOW_SKIP=1 豁免 --ark-stable/--ark-dev 的全 skip
+红灯（旧 tag 窗口期重灌预期 skip 时用；--ark-published 严格面不适用——源空时防空段闸先红）。
 
-退出码：0 全同步或 plan；1 有失败项，含 ark-stable 零上传（stable 段未动，
-draft 窗口或资产名漂移，2026-09-17 补审 F2 二轮硬化）；2 catalog 解析失败。
+退出码：0 全同步或 plan；1 有失败项（含 --ark-stable 零到件红灯、--ark-published
+双段逐名核对缺件红灯）；2 catalog 解析失败或参数错。
 """
 
 from __future__ import annotations
@@ -243,8 +243,9 @@ def main() -> int:
             mode = "ark-stable"
         else:
             mode = "ark-published"
-        results = {"uploaded": 0, "failed": 0}
+        results = {"staged": 0, "failed": 0}
         skipped: list[str] = []
+        staged_names: list[str] = []
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
             stage = tdp / "seg"
@@ -263,7 +264,7 @@ def main() -> int:
                 sha = sha256_file(local)
                 (stage / asset).write_bytes(local.read_bytes())
                 stage_sidecar(stage, sha, asset)
-                results["uploaded"] += 1
+                results["staged"] += 1
             if results["failed"]:
                 # sync 形下部分灌段会清掉未到件（sync 以源为段终态），失败即整体不灌
                 print("[FAIL] 有资产下载失败，跳过灌段（防半失败灌段）")
@@ -286,35 +287,39 @@ def main() -> int:
                 if not sync_segment(stage, "ark/stable", dry,
                                     protect=STABLE_PROTECT):
                     results["failed"] += 1
+            staged_names = sorted(p.name for p in stage.iterdir())
         exit_code = 0 if results["failed"] == 0 else 1
         if skipped and mode in ("ark-stable", "ark-published"):
             names = "、".join(skipped)
-            counts = (f"uploaded {results['uploaded']}、skip {len(skipped)}、"
+            counts = (f"staged {results['staged']}、skip {len(skipped)}、"
                       f"failed {results['failed']}")
-            if not results["uploaded"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
-                # 正常 tag run 应直灌（v1.2.3 实录 ark-stable uploaded 3）；零上传即
-                # stable 段未动（多系 draft 窗口或资产名漂移），红灯拦静默丢段
+            if not results["staged"] and os.environ.get("ARK_SEED_ALLOW_SKIP") != "1":
+                # 正常 tag run 应直灌（v1.2.3 实录三件齐灌）；零到件即段未动
+                # （多系 draft 窗口或资产名漂移），红灯拦静默丢段
                 # （v1.3.0 漏切实录，2026-09-17 补审 F2）。
-                print(f"[FAIL] {mode} 零上传（{counts}，skip：{names}）：stable 段未动。"
+                print(f"[FAIL] {mode} 零到件（{counts}，skip：{names}）：段未动。"
                       "发布后须 r2-seed dispatch 带 tag 补推；"
-                      "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免。")
+                      "窗口期旧 tag 重灌预期 skip 用 ARK_SEED_ALLOW_SKIP=1 豁免"
+                      "（仅 --ark-stable/--ark-dev 面）。")
                 exit_code = 1
             else:
-                print(f"[WARN] {mode} 有 skip 未灌（{names}），该些资产段内未动")
+                # sync 形下源即段终态：skip 件不在源内，会被 sync 按源清出段
+                print(f"[WARN] {mode} 有 skip（{names}），sync 将按源清出段外")
         elif skipped:
-            print(f"[INFO] ark-dev 有 skip 未灌（{'、'.join(skipped)}），"
-                  "该些资产 dev 段未动")
-        if not dry and args.ark_published:
-            # 双段零上传红灯（标准公共契约护栏三件之二）：版本段与 stable 段分别清点，
-            # 任一零即红（防半失败：版本段有物而 stable 漏滚仍绿）。
-            counts = {seg: segment_count(seg)
-                      for seg in (f"ark/{args.tag[1:]}", "ark/stable")}
-            if any(n <= 0 for n in counts.values()):
-                print(f"[FAIL] 镜像段清点：{counts}（任一零即红）")
+            print(f"[INFO] ark-dev 有 skip（{'、'.join(skipped)}），"
+                  "sync 将按源清出 dev 段外")
+        if not dry and args.ark_published and exit_code == 0:
+            # 双段齐备红灯（标准护栏三件之二，逐名核对收严：lsf 整段计数会把保窗
+            # 排除件也计入非零，按暂存件名核对在位才算过）。
+            missing: list[str] = []
+            for seg in (f"ark/{args.tag[1:]}", "ark/stable"):
+                have = segment_listing(seg)
+                missing += [f"{seg}/{n}" for n in staged_names if n not in have]
+            if missing:
+                print(f"[FAIL] 段内核对缺件（{len(missing)}）：{', '.join(missing[:6])}")
                 exit_code = 1
             else:
-                print("mirror objects: "
-                      + ", ".join(f"{k}={v}" for k, v in counts.items()))
+                print(f"mirror objects: ver 与 stable 各 {len(staged_names)} 件逐名在位")
         print(json.dumps({"mode": mode, **results}, ensure_ascii=False))
         return exit_code
 
@@ -408,16 +413,16 @@ def sync_segment(stage: Path, seg: str, dry: bool, protect: tuple[str, ...] = ()
     return True
 
 
-def segment_count(seg: str) -> int:
-    """段内对象清点（双段零上传红灯用；lsf 失败按 0 计即红）"""
+def segment_listing(seg: str) -> set[str]:
+    """段内对象名集合（双段齐备红灯逐名核对用；lsf 失败按空集计即红）"""
     proc = subprocess.run(
         ["rclone", "lsf", f"seed:{os.environ['R2_BUCKET']}/{seg}/"],
         env=rclone_env(), capture_output=True, text=True,
     )
     if proc.returncode != 0:
         print(f"[WARN] rclone lsf {seg}: {proc.stderr.strip()[:200]}")
-        return 0
-    return len([ln for ln in proc.stdout.splitlines() if ln.strip()])
+        return set()
+    return {ln.strip() for ln in proc.stdout.splitlines() if ln.strip()}
 
 
 if __name__ == "__main__":

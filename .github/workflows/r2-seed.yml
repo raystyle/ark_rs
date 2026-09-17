@@ -1,8 +1,13 @@
 # 对齐 build-release 标准（总台核准批一，2026-09-17，REQ-0007）：release published
 # 事件触发，从 Release 拉资产双段同灌（版本段 copy immutable 加 stable sync 排除保
-# msvc 窗）加双段零上传红灯。编译面不在 CI（批二起正式产物本地出，标准三段式）；
-# dev 滚动段不进本岗（build.yml 轻岗豁免，总台裁同 hst）。draft 窗口竞态由直发禁
-# draft（release.ps1）加 published 触发双保险根除（v1.3.0 漏切教训，补审 F2）。
+# msvc 窗）加双段逐名核对齐备红灯。编译面不在 CI（批二起正式产物本地出，标准三段式）；
+# dev 滚动段不进本岗（build.yml 轻岗豁免，总台裁同 hst）。
+# 资产齐备闸：gh release create 先建档（published 事件即发）后逐件传资产，事件可早于
+# 资产齐备（v1.3.0 实测窗口约 3 分钟）；本岗轮询至三件齐再灌（有界超时红）。批二
+# release.ps1 另采 draft 上传齐后 edit --draft=false 发布形，使 published 即齐备信号
+# （终态非 draft 不违标准），本闸为其前道的独立保险。
+# 另注：GITHUB_TOKEN 建档不触发 release 事件（hst dev-release.yml 注释同源实证），
+# 事件面只对批二本地 gh 直发（用户 token）有效。
 name: r2-seed
 
 on:
@@ -20,8 +25,8 @@ permissions:
 
 jobs:
   seed:
-    # prerelease（dev 滚动）不灌双段；dispatch 带 tag 时放行（补推口不受 prerelease 过滤）
-    if: ${{ !github.event.release.prerelease || inputs.tag != '' }}
+    # prerelease（dev 滚动）不灌双段；dispatch 补推口不受 prerelease 过滤
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     env:
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -38,10 +43,24 @@ jobs:
           command -v rclone && rclone version | head -1
           command -v uv || { curl -LsSf https://astral.sh/uv/install.sh | sh; echo "$HOME/.local/bin" >> "$GITHUB_PATH"; }
           command -v uv || { echo uv 安装失败; exit 1; }
-      - name: 双段同灌（版本段 immutable 加 stable sync 保窗加双段零上传红灯）
+      - name: 资产齐备闸（轮询至三件齐，名单与 seed.py ARK_ASSETS 同源）
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.event.release.tag_name || inputs.tag }}"
           if [ -z "$TAG" ]; then echo "无 tag 上下文（release 事件或 dispatch tag 入参必居其一）"; exit 1; fi
-          uv run --script .tools/seed.py --ark-published --tag "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          miss=1
+          for i in $(seq 1 30); do
+            names=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")')
+            miss=0
+            for a in ark-x86_64-pc-windows-gnu.exe ark-x86_64-unknown-linux-gnu ark-aarch64-apple-darwin; do
+              case " $names " in *" $a "*) ;; *) miss=1;; esac
+            done
+            [ "$miss" = 0 ] && break
+            echo "资产未齐（now: $names），轮询 ${i}/30"; sleep 10
+          done
+          [ "$miss" = 0 ] || { echo "::error::release 资产 5 分钟未齐"; exit 1; }
+          echo "资产齐备：$names"
+      - name: 双段同灌（版本段 immutable 加 stable sync 保窗加双段逐名核对红灯）
+        run: uv run --script .tools/seed.py --ark-published --tag "$TAG"
