@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/raystyle/ark_rs)](https://github.com/raystyle/ark_rs/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Ark（Agent Runtime Kit，命令 `ark`）**：本机跨平台（Windows / Linux / macOS）环境部署管理 CLI：管 50 个工具与 agent 运行时的版本解析、下载校验、PATH 注册、pin 锁定、更新与 doctor 诊断，一个标准一个配置，五端（Windows/WSL/mac/ubuntu/linux）同一套验收。
+**Ark（Agent Runtime Kit，命令 `ark`）**：本机跨平台（Windows / Linux / macOS）环境部署管理 CLI：管 53 个工具与 agent 运行时的版本解析、下载校验、PATH 注册、pin 锁定、更新与 doctor 诊断，一个标准一个配置，五端（Windows/WSL/mac/ubuntu/linux）同一套验收。
 
 ## 目录
 
@@ -18,7 +18,7 @@
 
 ## 项目介绍
 
-- 50 工具全量纳管：agent 四家、运行时七家、编译器四家到命令工具廿余家（清单见[供给清单](#供给清单)表，权威在云端 catalog）
+- 53 工具全量纳管：agent 四家、运行时七家、编译器四家到命令工具廿余家（清单见[供给清单](#供给清单)表，权威在云端 catalog）
 - 幂等安装：检测驱动，已装且版本一致即跳过，重跑零副作用；PATH、注册表与配置一次写对
 - doctor 三层诊断：系统 / 依赖两层加 check 节（环境错误、配置健康、部署深诊、网络通连），列缺口与修复建议
 - 镜像默认通道：下载与元数据默认 env.ohmygh.com、GitHub 兜底、有 sha 锚必校验（五端不再撞 GitHub 匿名配额）
@@ -26,7 +26,7 @@
 
 ```powershell
 ark doctor          # 体检：列缺口与修复建议
-ark install         # 全量幂等安装（50 工具）
+ark install         # 全量幂等安装（53 工具）
 ark status          # 锁定 / 已装 / PATH 三态对照
 ```
 
@@ -93,7 +93,7 @@ ark 无配置文件：行为配置走环境变量，软件清单与工具级配�
 
 ### 供给清单
 
-50 个工具（清单权威在云端 seed 与镜像三件套），agent 四家二进制 PATH 在位即跳过、存量原地纳管：
+53 个工具（清单权威在云端 seed 与镜像三件套，2026-09-18 实况：browser-harness 已出册、reader 已回册、browse/officecli/oxvg/resvg/agent-svgtools 入册），agent 四家二进制 PATH 在位即跳过、存量原地纳管：
 
 | 类 | 工具 |
 | --- | --- |
@@ -108,8 +108,7 @@ ark 无配置文件：行为配置走环境变量，软件清单与工具级配�
 | 多路复用（1） | rmux |
 | 远程服务（1） | openssh |
 | 密钥安全（3） | age、sops、gitleaks |
-| 命令工具（22） | git、gh、aria2、7z、gsudo、oscdimg、rg、jq、mq、yq、starship、just、ast-grep、rumdl、shellcheck、zoxide、sheldon、ffmpeg、rclone、reader、lightpanda、typst |
-| 运行时衍生（1） | browser-harness（bin 名 bh） |
+| 命令工具（27） | git、gh、aria2、7z、gsudo、oscdimg、rg、jq、mq、yq、starship、just、ast-grep、rumdl、shellcheck、zoxide、sheldon、ffmpeg、rclone、reader、lightpanda、typst、browse、officecli、oxvg、resvg、agent-svgtools |
 
 平台空态如实表达：sheldon 上游无 Windows 资产、shellcheck 仅 Linux 入册、ffmpeg 官方 mac 构建仅 Intel、lightpanda 上游无 Windows 构建。
 

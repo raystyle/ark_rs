@@ -1,6 +1,6 @@
 # ark
 
-> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI（Windows/Linux/macOS）。50 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。镜像主通道 env.ohmygh.com、官方兜底。
+> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI（Windows/Linux/macOS）。53 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。镜像主通道 env.ohmygh.com、官方兜底。
 
 ## 读序
 

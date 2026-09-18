@@ -19,7 +19,7 @@
 
 | 字段 | 类型 | 含义 |
 | --- | --- | --- |
-| `category` | string | 九类 taxonomy（节序即类序）：agent 智能体依赖（claude/codex/grok/kimi）/ base 操作编排依赖（herdr；自管条目 ark）/ runtime 运行时依赖 / runtime-manager 运行时管理器依赖（uv/fnm）/ compiler 编译器依赖 / mux 多路复用依赖 / service 远程服务依赖（openssh）/ security 密钥安全管理（age/sops）/ cli 命令工具依赖（含 hst，原 oma）。derived 运行时衍生在册 browser-harness 与 omc。旧值 key/project/extras 仅为转换期兜底 |
+| `category` | string | 九类 taxonomy（节序即类序）：agent 智能体依赖（claude/codex/grok/kimi）/ base 操作编排依赖（herdr；自管条目 ark）/ runtime 运行时依赖 / runtime-manager 运行时管理器依赖（uv/fnm）/ compiler 编译器依赖 / mux 多路复用依赖 / service 远程服务依赖（openssh）/ security 密钥安全管理（age/sops）/ cli 命令工具依赖（含 hst，原 oma）。derived 运行时衍生在册 omc（browser-harness 已出册，2026-09-18）。旧值 key/project/extras 仅为转换期兜底 |
 | `deploy` | string | Deploy.win：envroot / installer / official |
 | `dir` | string | EnvRoot 下安装目录（official 工具可省） |
 | `bin` | string | 注册进用户 PATH 的目录，相对 EnvRoot（official 可省） |

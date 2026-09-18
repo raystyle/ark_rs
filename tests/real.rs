@@ -63,7 +63,10 @@ fn real_status_catalog_三态可解析() {
     for agent in ["claude", "codex", "grok", "kimi"] {
         assert!(ark.contains_key(agent), "ark 应纳管 {agent}");
     }
-    assert!(!ark.contains_key("reader"), "reader 已出册");
+    assert!(
+        ark.contains_key("reader"),
+        "reader 已回册（2026-09-18 云端清单实况）"
+    );
     assert!(!ark.contains_key("vault"), "vault 已出册");
     let has_installed = ark.values().any(|(_, installed)| installed != "-");
     assert!(has_installed, "本机 status 应至少有一项已安装");
