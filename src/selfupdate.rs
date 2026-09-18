@@ -9,7 +9,10 @@
 //! 不同则经 download_asset 下载到缓存（digest 校验）后替换部署位，并同步数据目录 catalog。
 //! 包形资产（REQ-0008 窗口，ark-<target>.zip/.tar.gz）digest 为归档 sha：归档经锚校验下载后
 //! 解包取内层二进制（拼名契约 ark-<target>/ark），判新等值在解包后的二进制间进行（机制不动）。
-//! Windows 运行中 exe 可改名不可删：旧 exe 改名 .old 保留、新 exe 就位，下次升级开头清理。
+//! Windows 运行中 exe 可改名不可删：替换全程用 rename（备份 ark-old-<pid>、暂存 ark-new-<pid>），
+//! 成功清备份、删不动留待启动收割。
+//! REQ-0012 家族自更新统一标准：stable 通道官方 API 判新加 semver 门（localNewer 不动）加镜像
+//! stable 段下载优先（digest 锚不符硬拒不回落）；自替换带 pid 锁、陈旧收割与 --version 自证回滚。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -45,7 +48,7 @@ pub fn is_ark_self(def: &crate::catalog::Tool) -> bool {
 
 /// 升级结果。
 pub struct SelfUpdateOutcome {
-    /// updated：已替换；current：已是最新
+    /// updated：已替换；current：已是最新；localNewer：本地领先远端不动（stable semver 门，REQ-0012）
     pub action: &'static str,
     /// 升级通道（dev/stable/git）
     pub channel: &'static str,
@@ -193,14 +196,109 @@ struct MetaPick {
     api_err: Option<String>,
 }
 
-/// release 通道（dev 滚动 / latest 正式）：元数据 → digest 对比 → 下载校验 → 替换 → 刷 catalog。
-/// D51 起元数据镜像段读序先行（边车即锚），GitHub API 兜底；`ARK_MIRROR=0` 逃逸阀反转。
+/// release 通道分派：stable 走家族形（REQ-0012），dev 走 D51 镜像元数据优先。
 fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutcome, String> {
-    let channel = if endpoint == "latest" {
-        "stable"
+    if endpoint == "latest" {
+        self_update_stable(env_root)
     } else {
-        "dev"
-    };
+        self_update_dev(env_root, endpoint)
+    }
+}
+
+/// stable 通道（家族自更新统一标准形，REQ-0012 差异表 #1/#2/#3）：官方 latest API
+/// 一次判新（tag 加 digest，镜像段资产名不带版本无法反查，browse 同构裁定）→
+/// semver 门（相等 current、本地领先 localNewer 不动、远端新才升级）→ 下载腿镜像
+/// stable 段优先（官方 digest 锚，CF 击穿 query），网络性失败整对回落官方；
+/// sha 不符硬拒不回落（校验性失败换道不适用：官方 digest 是唯一判新锚）。
+fn self_update_stable(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
+    let asset_name = asset_for_this_platform()?;
+    let asset_pkg = asset_package_for_this_platform()?;
+    let asset_msvc = asset_msvc_fallback();
+    let mut names = vec![asset_pkg.as_str(), asset_name.as_str()];
+    if let Some(m) = asset_msvc.as_deref() {
+        names.push(m);
+    }
+    let (digest, official_url, asset, tag) = official_release_meta_with_tag("latest", &names)?;
+    let remote_ver = strip_v(&tag);
+    let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
+    let deploy = platform::self_deploy_target().unwrap_or(exe.clone());
+    match semver_gate(remote_ver, env!("CARGO_PKG_VERSION")) {
+        Verdict::Current => {
+            eprintln!("[OK] 已是最新版（{remote_ver}）");
+            return Ok(SelfUpdateOutcome {
+                action: "current",
+                channel: "stable",
+                asset,
+                sha256: sha8(&digest),
+                exe: deploy,
+                catalog_synced: sync_catalog_from_cloud(env_root),
+            });
+        }
+        Verdict::LocalNewer => {
+            eprintln!(
+                "[INFO] 本地 {} 领先远端 {remote_ver}（localNewer），不动",
+                env!("CARGO_PKG_VERSION")
+            );
+            return Ok(SelfUpdateOutcome {
+                action: "localNewer",
+                channel: "stable",
+                asset,
+                sha256: sha8(&digest),
+                exe: deploy,
+                catalog_synced: sync_catalog_from_cloud(env_root),
+            });
+        }
+        Verdict::Upgrade => eprintln!(
+            "[INFO] 远端 {remote_ver} 新于本地 {}，升级",
+            env!("CARGO_PKG_VERSION")
+        ),
+    }
+    // 下载腿：镜像 stable 段优先（官方 digest 锚 + CF 击穿 query——stable 段同名滚动，
+    // 陈旧对象靠锚值换缓存键击穿，D44 同款）；锚不符硬拒；网络性失败整对回落官方。
+    let mirror_dl = crate::download::with_query(
+        &format!("{}/ark/stable/{asset}", crate::download::MIRROR_BASE),
+        &format!("v={digest}"),
+    );
+    let downloaded =
+        match crate::download::download_asset(env_root, &asset, &mirror_dl, Some(&digest), true) {
+            Ok(p) => p,
+            Err(e) if is_hash_mismatch(&e) => {
+                return Err(format!(
+                    "镜像 stable 段资产与官方 digest 锚不符，硬拒不回落（家族标准，REQ-0012）；\
+                 多为播种滞后，稍候重试或 ARK_MIRROR=0 走官方:\n{e}"
+                ))
+            }
+            Err(mirror_err) => {
+                eprintln!("[INFO] 镜像 stable 段未命中（{mirror_err}），整对回落官方");
+                crate::download::download_asset(
+                    env_root,
+                    &asset,
+                    &official_url,
+                    Some(&digest),
+                    true,
+                )
+                .map_err(|official_err| {
+                    format!("镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {official_err}")
+                })?
+            }
+        };
+    let mine = sha256_file(&exe)?;
+    let candidate = package_candidate(&downloaded, &asset, &digest, &mine)?;
+    let expect: Option<String> = Some(remote_ver.to_string());
+    finish_update(
+        env_root,
+        "stable",
+        candidate,
+        digest,
+        asset,
+        expect.as_deref(),
+    )
+}
+
+/// dev 通道（D51 镜像元数据优先 + REQ-0012 #2/#4 补齐）：镜像段读序（边车锚）先行、
+/// 官方 API 兜底；镜像下载腿 digest 锚硬拒（不符 Err），网络性失败补官方链（对线 F2）；
+/// 无版本语义（滚动 digest 锚，semver 门不适用），判新 digest 等值。
+fn self_update_dev(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutcome, String> {
     let asset_name = asset_for_this_platform()?;
     let asset_pkg = asset_package_for_this_platform()?;
     let asset_msvc = asset_msvc_fallback();
@@ -209,7 +307,6 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     //（回退臂，dev 滚动源无包形落此层）、msvc 回退名再次（D46 窗口期）。ome-* 兼容
     // 层已收口（ome/ 段镜像删桶边车 404、stable 已全 ark-* 名，2026-09-18 剔除批）。
     // dev 通道禁止回落 stable；latest 段已退役。
-    let mirror_ver = if channel == "stable" { "stable" } else { "dev" };
     let mut names = vec![asset_pkg.as_str(), asset_name.as_str()];
     if let Some(m) = asset_msvc.as_deref() {
         names.push(m);
@@ -229,7 +326,7 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
             Err(api_err) => {
                 let (digest, dl_url, asset) = mirror_fallback_meta(
                     env_root,
-                    mirror_ver,
+                    "dev",
                     &asset_name,
                     asset_msvc.as_deref(),
                     &api_err,
@@ -244,7 +341,7 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
             }
         }
     } else {
-        match mirror_meta(env_root, mirror_ver, &asset_name, asset_msvc.as_deref()) {
+        match mirror_meta(env_root, "dev", &asset_name, asset_msvc.as_deref()) {
             Ok((digest, dl_url, asset)) => MetaPick {
                 digest,
                 dl_url,
@@ -275,14 +372,12 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     let exe = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let mine = sha256_file(&exe)?;
     let pick_is_package = pick.asset.ends_with(".zip") || pick.asset.ends_with(".tar.gz");
-    // 镜像段内回落（官方 URL 失败时 download 层再兜一次）：段恒 ark/（ome/ 兼容段已收口）
-    let seg_for_fallback = "ark";
     // 裸件：digest 即二进制 sha，先比后下（零下载判 current）。
     if !pick_is_package && mine == pick.digest {
         eprintln!("[OK] 已是最新构建（sha256 一致）");
         return Ok(SelfUpdateOutcome {
             action: "current",
-            channel,
+            channel: "dev",
             asset: pick.asset,
             sha256: sha8(&pick.digest),
             exe: platform::self_deploy_target().unwrap_or(exe),
@@ -292,76 +387,127 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     if !pick_is_package {
         eprintln!("[INFO] 本地 {mine} 与远端 {} 不同，下载更新", pick.digest);
     }
-    // 下载腿：官方元数据命中时 dl_url 即官方直链（download 层仍镜像首试，双链真兜底）；
-    // 镜像元数据命中时 dl_url 是镜像地址，资产失败（未播/锚不符/CF 陈旧）补拉官方 API
-    // 元数据走真官方链——第二腿不得再打同一镜像 URL（对线 F2）；官方 API 本轮已失败时
-    // 不再重试、直接报两段错误（二轮 G-a1/G-a2）。
+    // 下载腿（REQ-0012 #2 硬拒形）：镜像命中腿直下镜像 URL（CF 击穿 query）加 digest 锚，
+    // sha 不符硬拒 Err；网络性失败补官方链（F2），官方 API 本轮已失败不再重试（G-a2）。
+    // 官方元数据命中腿沿用 download_asset_with_mirror（官方 URL 为主、镜像首试为辅，终态同锚硬校验）。
     let mut installed_digest = pick.digest.clone();
     let mut installed_asset = pick.asset.clone();
-    let downloaded = match crate::download::download_asset_with_mirror(
-        env_root,
-        &pick.asset,
-        &pick.dl_url,
-        Some(&pick.digest),
-        false,
-        seg_for_fallback,
-        mirror_ver,
-    ) {
-        Ok(p) => p,
-        Err(mirror_dl_err) if pick.from_mirror => {
-            if let Some(prev) = &pick.api_err {
+    let downloaded = if pick.from_mirror {
+        let busted = crate::download::with_query(&pick.dl_url, &format!("v={}", pick.digest));
+        match crate::download::download_asset(
+            env_root,
+            &pick.asset,
+            &busted,
+            Some(&pick.digest),
+            true,
+        ) {
+            Ok(p) => p,
+            Err(e) if is_hash_mismatch(&e) => {
                 return Err(format!(
-                    "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {prev}"
-                ));
+                    "镜像 dev 段资产与边车锚不符，硬拒不回落（家族标准，REQ-0012）:\n{e}"
+                ))
             }
-            eprintln!("[WARN] 镜像段下载失败（{mirror_dl_err}），回落官方 API 补官方链");
-            match official_asset_meta(endpoint, &names) {
-                Ok((digest2, official_url, asset2)) => {
-                    let p = crate::download::download_asset(
-                        env_root,
-                        &asset2,
-                        &official_url,
-                        Some(&digest2),
-                        true,
-                    )
-                    .map_err(|official_err| {
-                        format!("镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}")
-                    })?;
-                    installed_digest = digest2;
-                    installed_asset = asset2;
-                    p
-                }
-                Err(api_err) => {
+            Err(mirror_dl_err) => {
+                if let Some(prev) = &pick.api_err {
                     return Err(format!(
-                        "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {api_err}"
-                    ))
+                        "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {prev}"
+                    ));
+                }
+                eprintln!("[WARN] 镜像段下载失败（{mirror_dl_err}），回落官方 API 补官方链");
+                match official_asset_meta(endpoint, &names) {
+                    Ok((digest2, official_url, asset2)) => {
+                        let p = crate::download::download_asset(
+                            env_root,
+                            &asset2,
+                            &official_url,
+                            Some(&digest2),
+                            true,
+                        )
+                        .map_err(|official_err| {
+                            format!(
+                                "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {official_err}"
+                            )
+                        })?;
+                        installed_digest = digest2;
+                        installed_asset = asset2;
+                        p
+                    }
+                    Err(api_err) => {
+                        return Err(format!(
+                            "镜像与官方双链失败\n镜像段: {mirror_dl_err}\n官方: {api_err}"
+                        ))
+                    }
                 }
             }
         }
-        Err(e) => return Err(e),
-    };
-    // 包形判定与上报随实际命中件（二段回落可能换族，二轮 G-a3/G-a4）
-    let is_package = installed_asset.ends_with(".zip") || installed_asset.ends_with(".tar.gz");
-    // 包形：digest 是归档 sha（不与本地 exe 直比），归档经锚校验后解包取内层二进制，
-    // 判新等值在解包后的二进制间进行——判新机制不动（REQ-0008 设计决策，解包取真身）。
-    let candidate = if is_package {
-        let inner = unpack_candidate(&downloaded)?;
-        if sha256_file(&inner)? == mine {
-            eprintln!("[OK] 已是最新构建（包内二进制 sha256 一致）");
-            return Ok(SelfUpdateOutcome {
-                action: "current",
-                channel,
-                asset: installed_asset,
-                sha256: sha8(&installed_digest),
-                exe: platform::self_deploy_target().unwrap_or(exe),
-                catalog_synced: sync_catalog_from_cloud(env_root),
-            });
-        }
-        inner
     } else {
-        downloaded
+        crate::download::download_asset_with_mirror(
+            env_root,
+            &pick.asset,
+            &pick.dl_url,
+            Some(&pick.digest),
+            false,
+            "ark",
+            "dev",
+        )?
     };
-    let exe = replace_deployed_and_current(&candidate)?;
+    let candidate = package_candidate(&downloaded, &installed_asset, &installed_digest, &mine)?;
+    finish_update(
+        env_root,
+        "dev",
+        candidate,
+        installed_digest,
+        installed_asset,
+        None,
+    )
+}
+
+/// 包形候选解包与等值判新（两通道共用；包形 digest 是归档 sha，判新等值在解包后的
+/// 二进制间进行，REQ-0008 机制不动）。返回 Some(候选件) 继续替换；None 表示包内二进制
+/// 与本地等值（current，收尾由 `finish_update` 的 None 分支办）。
+fn package_candidate(
+    downloaded: &Path,
+    asset: &str,
+    digest: &str,
+    mine: &str,
+) -> Result<Option<PathBuf>, String> {
+    let _ = digest;
+    let is_package = asset.ends_with(".zip") || asset.ends_with(".tar.gz");
+    if !is_package {
+        return Ok(Some(downloaded.to_path_buf()));
+    }
+    let inner = unpack_candidate(downloaded)?;
+    if sha256_file(&inner)? == mine {
+        eprintln!("[OK] 已是最新构建（包内二进制 sha256 一致）");
+        return Ok(None);
+    }
+    Ok(Some(inner))
+}
+
+/// 升级收尾（两通道共用）：替换自证（stable 断言远端版本、dev 断言可执行）、旧元数据
+/// 搬迁、catalog 刷新。
+#[allow(clippy::too_many_arguments)]
+fn finish_update(
+    env_root: &Path,
+    channel: &'static str,
+    candidate: Option<PathBuf>,
+    digest: String,
+    asset: String,
+    expect_version: Option<&str>,
+) -> Result<SelfUpdateOutcome, String> {
+    let Some(candidate) = candidate else {
+        // 包内二进制与本地等值：current（catalog 已在上层判新后未刷，这里补刷）
+        return Ok(SelfUpdateOutcome {
+            action: "current",
+            channel,
+            asset,
+            sha256: sha8(&digest),
+            exe: platform::self_deploy_target()
+                .unwrap_or_else(|_| std::env::current_exe().unwrap_or_default()),
+            catalog_synced: sync_catalog_from_cloud(env_root),
+        });
+    };
+    let exe = replace_deployed_and_current(&candidate, expect_version)?;
     // 解包目录收尾清理（G3：成功路径不留残，错误路径交下次进入或系统清理）
     let _ = std::fs::remove_dir_all(
         std::env::temp_dir().join(format!("ark-selfupdate-unpack-{}", std::process::id())),
@@ -376,8 +522,8 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
     Ok(SelfUpdateOutcome {
         action: "updated",
         channel,
-        asset: installed_asset,
-        sha256: sha8(&installed_digest),
+        asset,
+        sha256: sha8(&digest),
         exe,
         catalog_synced,
     })
@@ -449,6 +595,60 @@ fn mirror_fallback_meta(
         .map_err(|e| format!("镜像与官方双链失败\n官方: {api_err}\n镜像段: {e}"))
 }
 
+/// tag 去 v 前缀（stable 判新用）。
+fn strip_v(tag: &str) -> &str {
+    tag.trim().trim_start_matches('v').trim()
+}
+
+/// semver 门判定（家族标准：只升不降；REQ-0012 #3）。数值段比较复用 resolve 的
+/// version_key（剥 v 加点分数值段）；解析失败的非常规 tag 保守按 Upgrade 放行
+///（官方 latest 恒 v*，异常形装官方件自带 digest 校验无害）。
+fn semver_gate(remote: &str, local: &str) -> Verdict {
+    match (
+        crate::resolve::version_key(remote),
+        crate::resolve::version_key(local),
+    ) {
+        (Some(r), Some(l)) => match r.cmp(&l) {
+            std::cmp::Ordering::Equal => Verdict::Current,
+            std::cmp::Ordering::Less => Verdict::LocalNewer,
+            std::cmp::Ordering::Greater => Verdict::Upgrade,
+        },
+        _ => Verdict::Upgrade,
+    }
+}
+
+/// stable 判新三态：相等 current、本地领先 localNewer（不动）、远端新 Upgrade。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Verdict {
+    /// 远端与本地同版：已最新
+    Current,
+    /// 本地领先远端：不动（semver 只升不降）
+    LocalNewer,
+    /// 远端更新：进下载腿
+    Upgrade,
+}
+
+/// 下载错误判型：sha 锚不符（校验性失败，家族标准硬拒不回落）与网络性失败
+///（连接错/未命中，整对回落官方）的分界（错误串判型，仓内惯例如 should_fallback_gh）。
+fn is_hash_mismatch(err: &str) -> bool {
+    err.contains("sha256 校验失败") || err.contains("sha256 与锚不符")
+}
+
+/// 官方 release 元数据带 tag（stable 家族形判新用：tag 去 v 进 semver 门）。
+fn official_release_meta_with_tag(
+    endpoint: &str,
+    names: &[&str],
+) -> Result<(String, String, String, String), String> {
+    let release = fetch_release(endpoint)?;
+    let tag = release
+        .get("tag_name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("release 缺少 tag_name: {endpoint}"))?
+        .to_string();
+    let (digest, url, asset) = asset_meta_in_release(&release, names)?;
+    Ok((digest, url, asset, tag))
+}
+
 /// 官方 release 资产元数据（digest 大写 + 下载直链 + 命中资产名）；资产名读序：包形主名
 /// 先（REQ-0008 窗口，双挂窗有包用包）、gnu 裸件名次（回退臂，双挂窗保旧量与 dev 滚动源）、
 /// msvc 回退名再次（D46 窗口期，stable 段与历史 release 仅剩 msvc 资产），全 miss 报首名错；
@@ -457,6 +657,14 @@ fn official_asset_meta(endpoint: &str, names: &[&str]) -> Result<(String, String
     // release JSON 单拉一次（G2：原每层各拉一遍，窗口期 stable 稳定 2 次 API GET），
     // 本地按名序匹配，全 miss 报首名错。
     let release = fetch_release(endpoint)?;
+    asset_meta_in_release(&release, names)
+}
+
+/// 在已拉取的 release JSON 内按名序匹配资产（official_asset_meta 的核，with_tag 变体共用）。
+fn asset_meta_in_release(
+    release: &Value,
+    names: &[&str],
+) -> Result<(String, String, String), String> {
     let mut primary_err: Option<String> = None;
     for name in names {
         match asset_in_release(&release, name) {
@@ -562,7 +770,7 @@ fn self_update_git(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
             catalog_synced,
         });
     }
-    let exe = replace_deployed_and_current(&bin)?;
+    let exe = replace_deployed_and_current(&bin, None)?;
     // D41 C：同 release 通道（幂等搬迁，失败只告警）
     if let Err(e) = platform::migrate_legacy_metadata() {
         eprintln!("[WARN] 元数据搬迁失败（旧位读回继续）: {e}");
@@ -581,18 +789,23 @@ fn self_update_git(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
     })
 }
 
-/// 先替换自部署目标（用户 PATH 上的 ark），若当前进程 exe 不同再替换运行中副本（cargo run）。
+/// 替换部署位并自证（家族自更新统一标准，REQ-0012 #4）：先替换自部署目标（用户 PATH
+/// 上的 ark，带锁/暂存/备份/自证/回滚全链），当前进程 exe 不同再 best-effort 同步运行中
+/// 副本（cargo run 场景，不背书权威位不自证）。
 /// D41 C 收口：随替换清理旧 `ome` 别名（停建不重建；正以别名运行时 Windows 删不动，warn 下次再收）。
-fn replace_deployed_and_current(new_file: &Path) -> Result<PathBuf, String> {
+fn replace_deployed_and_current(
+    new_file: &Path,
+    expect_version: Option<&str>,
+) -> Result<PathBuf, String> {
     let current = std::env::current_exe().map_err(|e| format!("定位自身 exe 失败: {e}"))?;
     let deploy = platform::self_deploy_target()?;
     if let Some(parent) = deploy.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("创建部署目录失败: {}: {e}", parent.display()))?;
     }
-    replace_exe(&deploy, new_file)?;
+    replace_with_self_verify(&deploy, new_file, expect_version)?;
     if !path_same(&current, &deploy) && current.exists() {
-        let _ = replace_exe(&current, new_file);
+        let _ = best_effort_sync_current(&current, new_file);
     }
     // D41 C 收口（2026-09-14）：ome 别名停建，升级顺带清理既有副本（水位清零；
     // 当前正以别名运行时 Windows 删不动，warn 留待下次再收）
@@ -600,6 +813,26 @@ fn replace_deployed_and_current(new_file: &Path) -> Result<PathBuf, String> {
         eprintln!("[WARN] 旧别名清理失败（不拦升级，下次再收）: {e}");
     }
     Ok(deploy)
+}
+
+/// 运行中副本 best-effort 同步（POSIX：写同目录暂存后 rename 覆盖；Windows 运行中
+/// exe 不可写不可删，跳过留待下次）。失败不拦（部署位才是权威）。
+fn best_effort_sync_current(current: &Path, new_file: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let _ = (current, new_file);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = current.with_extension(format!("ark-new-{}", std::process::id()));
+        std::fs::copy(new_file, &tmp).map_err(|e| format!("写运行中副本暂存失败: {e}"))?;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("chmod 755 失败: {e}"))?;
+        std::fs::rename(&tmp, current).map_err(|e| format!("替换运行中副本失败: {e}"))?;
+        Ok(())
+    }
 }
 
 fn path_same(a: &Path, b: &Path) -> bool {
@@ -614,40 +847,178 @@ fn path_same(a: &Path, b: &Path) -> bool {
     na.eq_ignore_ascii_case(&nb)
 }
 
-/// 替换部署位 exe：Windows 改名旧的为 .old 再 copy 新的（运行中 exe 不可删；
-/// 目标尚无前代即首次落位，直接写新件——v1.0.0 验收实证：新装机 self update 无前代可改名即败）；
-/// Unix copy 到同目录临时文件后 chmod 755 再 rename 原子覆盖。
-fn replace_exe(exe: &Path, new_file: &Path) -> Result<(), String> {
+/// 部署目录自更新锁文件名（内容 = 持锁 pid；REQ-0012 #4 防并发互踩）。
+fn selfupdate_lock_path(deploy_dir: &Path) -> PathBuf {
+    deploy_dir.join(".ark-selfupdate.lock")
+}
+
+/// pid 活性检测（unix kill -0 / win tasklist 过滤；检测失败保守视为活，防误收割）。
+fn pid_alive(pid: u32) -> bool {
+    #[cfg(not(windows))]
+    {
+        Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(true)
+    }
     #[cfg(windows)]
     {
-        if !exe.exists() {
-            // 首次落位（部署位无前代，如新装机直接 self update）：无旧可改名，直接写
-            if let Some(parent) = exe.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("建部署目录失败: {}: {e}", parent.display()))?;
+        Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}")])
+            .output()
+            .map(|o| {
+                let text = String::from_utf8_lossy(&o.stdout);
+                text.contains(&pid.to_string())
+            })
+            .unwrap_or(true)
+    }
+}
+
+/// 取自更新锁：无锁直取；锁在位且持锁 pid 活 → 拒（并发互踩）；锁在位 pid 死 → 收割重取。
+fn acquire_selfupdate_lock(lock: &Path) -> Result<(), String> {
+    if let Ok(text) = std::fs::read_to_string(lock) {
+        if let Ok(pid) = text.trim().parse::<u32>() {
+            if pid != std::process::id() && pid_alive(pid) {
+                return Err(format!(
+                    "另一自更新进程（pid {pid}）在跑，拒绝并发互踩；确属死锁可删 {}",
+                    lock.display()
+                ));
             }
-            std::fs::copy(new_file, exe).map_err(|e| format!("写入新 exe 失败: {e}"))?;
-            return Ok(());
         }
-        let old = exe.with_extension("exe.old");
-        let _ = std::fs::remove_file(&old); // 上次升级残留（进程已退出才删得掉）
-        std::fs::rename(exe, &old).map_err(|e| format!("改名旧 exe 失败: {e}"))?;
-        if let Err(e) = std::fs::copy(new_file, exe) {
-            // 回滚：把旧名改回来，不留半损状态
-            let _ = std::fs::rename(&old, exe);
-            return Err(format!("写入新 exe 失败（已回滚）: {e}"));
+        let _ = std::fs::remove_file(lock); // 死锁收割（pid 已死或内容不可读）
+    }
+    std::fs::write(lock, std::process::id().to_string())
+        .map_err(|e| format!("写自更新锁失败: {}: {e}", lock.display()))
+}
+
+/// 陈旧残留清扫（进入替换链时）：部署目录下他人 ark-new-* / ark-old-* 暂存与备份
+/// 尝试删除（Windows 运行中件删不动则跳过，留待后续收割；v1.0.0 的 .exe.old 旧残留同扫）。
+fn reap_stale_artifacts(deploy_dir: &Path) {
+    let keep = format!("-{}", std::process::id());
+    if let Ok(entries) = std::fs::read_dir(deploy_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let stale = (name.starts_with("ark-new-") || name.starts_with("ark-old-"))
+                && !name.ends_with(&keep);
+            let legacy = name.ends_with(".exe.old");
+            if stale || legacy {
+                let _ = std::fs::remove_file(entry.path());
+            }
         }
     }
+}
+
+/// 自替换全链（家族自更新统一标准，REQ-0012 #4）：同目录暂存 `ark-new-<pid>`（防跨
+/// 文件系统 rename EXDEV）→ 旧件备份 `ark-old-<pid>`（Windows 运行中 exe 可改名不可删，
+/// 全程用 rename 避删）→ 暂存 rename 就位（同目录原子）→ `--version` 自证五次重试
+/// （stable 断言含远端版本；dev 断言可执行非空；杀软瞬时锁面）→ 证败回滚备份并复核
+/// 旧件在位，回滚受阻报自救路径。成功清备份（删不动留待收割）并释放锁。
+fn replace_with_self_verify(
+    deploy: &Path,
+    new_file: &Path,
+    expect: Option<&str>,
+) -> Result<(), String> {
+    let dir = deploy
+        .parent()
+        .ok_or_else(|| format!("部署位无父目录: {}", deploy.display()))?;
+    let pid = std::process::id();
+    let lock = selfupdate_lock_path(dir);
+    acquire_selfupdate_lock(&lock)?;
+    let result = replace_inner(deploy, new_file, expect, dir, pid);
+    let _ = std::fs::remove_file(&lock); // 释放锁（best-effort；死锁收割兜底）
+    result
+}
+
+fn replace_inner(
+    deploy: &Path,
+    new_file: &Path,
+    expect: Option<&str>,
+    dir: &Path,
+    pid: u32,
+) -> Result<(), String> {
+    reap_stale_artifacts(dir);
+    let staged = dir.join(format!("ark-new-{pid}"));
+    let backup = dir.join(format!("ark-old-{pid}"));
+    let _ = std::fs::remove_file(&staged); // 本 pid 上次残留
+    std::fs::copy(new_file, &staged).map_err(|e| format!("暂存新件失败: {e}"))?;
     #[cfg(not(windows))]
     {
         use std::os::unix::fs::PermissionsExt;
-        let tmp = exe.with_extension("ark-new");
-        std::fs::copy(new_file, &tmp).map_err(|e| format!("写临时文件失败: {e}"))?;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| format!("chmod 755 失败: {e}"))?;
-        std::fs::rename(&tmp, exe).map_err(|e| format!("替换 exe 失败: {e}"))?;
+        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("暂存件 chmod 755 失败: {e}"))?;
     }
-    Ok(())
+    let had_old = deploy.exists();
+    if had_old {
+        let _ = std::fs::remove_file(&backup);
+        std::fs::rename(deploy, &backup).map_err(|e| format!("备份旧件失败: {e}"))?;
+    }
+    if let Err(e) = std::fs::rename(&staged, deploy) {
+        // 就位失败：立即回滚备份，不留空位
+        if had_old {
+            let _ = std::fs::rename(&backup, deploy);
+        }
+        return Err(format!("新件就位失败（已回滚）: {e}"));
+    }
+    match verify_by_version(deploy, expect, 5) {
+        Ok(()) => {
+            // 成功：清备份（Windows 旧件若被运行中进程占用删不动，留待收割）
+            let _ = std::fs::remove_file(&backup);
+            Ok(())
+        }
+        Err(verr) => {
+            // 证败回滚：坏件挪开、备份回位、复核可执行
+            let rolled = (|| -> Result<(), String> {
+                if deploy.exists() {
+                    let _ = std::fs::rename(deploy, &staged);
+                }
+                if had_old {
+                    std::fs::rename(&backup, deploy).map_err(|e| format!("回滚备份失败: {e}"))?;
+                } else {
+                    std::fs::remove_file(deploy).map_err(|e| format!("清首次落位坏件失败: {e}"))?;
+                }
+                Ok(())
+            })();
+            match rolled {
+                Ok(()) if verify_by_version(deploy, None, 1).is_ok() => Err(format!(
+                    "新件自证失败已回滚旧件（{verr}）；新件不完整，稍后重试或手动以 {} 自救",
+                    backup.display()
+                )),
+                _ => Err(format!(
+                    "新件自证失败且回滚受阻（{verr}）；自救：手动将 {} 覆盖 {}",
+                    backup.display(),
+                    deploy.display()
+                )),
+            }
+        }
+    }
+}
+
+/// `--version` 自证（家族标准：五次重试对杀软瞬时锁面）。expect 在位断言输出含期望
+/// 版本（stable 远端版本）；None 断言可执行且输出非空（dev 滚动源无版本语义）。
+fn verify_by_version(exe: &Path, expect: Option<&str>, tries: u32) -> Result<(), String> {
+    let mut last = String::new();
+    for attempt in 1..=tries {
+        if let Ok(out) = Command::new(exe).arg("--version").output() {
+            let text = String::from_utf8_lossy(&out.stdout).to_string();
+            let ok = out.status.success()
+                && !text.trim().is_empty()
+                && expect.map_or(true, |v| text.contains(v));
+            if ok {
+                return Ok(());
+            }
+            last = format!(
+                "退出码 {:?}，输出 {text:?}（期望含 {expect:?}）",
+                out.status.code()
+            );
+        } else {
+            last = "启动失败".to_string();
+        }
+        if attempt < tries {
+            std::thread::sleep(Duration::from_millis(400));
+        }
+    }
+    Err(format!("--version 自证 {tries} 次失败: {last}"))
 }
 
 /// 刷新数据目录 catalog（D37 终态：一律云端权威，走边车锚加解析加验签三重门）。
@@ -736,28 +1107,135 @@ fn sha8(s: &str) -> String {
 mod tests {
     use super::*;
 
-    #[cfg(windows)]
+    /// 可执行假件：输出「ark <ver>」的脚本（unix shell 形；win 用批处理形）。
+    fn fake_exec(dir: &Path, ver: &str) -> PathBuf {
+        let p = dir.join(if cfg!(windows) { "fake.bat" } else { "fake" });
+        #[cfg(not(windows))]
+        std::fs::write(&p, format!("#!/bin/sh\necho ark {ver}\n")).unwrap();
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        #[cfg(windows)]
+        std::fs::write(&p, format!("@echo off\necho ark {ver}\r\n")).unwrap();
+        p
+    }
+
+    /// REQ-0012 #4：自替换全链（暂存/备份/自证/清备份/锁释放）——好件自证过。
     #[test]
-    fn 替换exe_首次落位无前代直接写() {
-        // v1.0.0 验收实证回归：新装机 self update（部署位无前代）不得因 rename 缺文件而败
+    fn 自替换_好件自证过并清备份() {
         let dir = tempfile::tempdir().expect("临时目录");
-        let src = dir.path().join("new.exe");
-        std::fs::write(&src, b"fresh").expect("写新件");
-        let dst = dir.path().join("deploy").join("ark.exe");
-        replace_exe(&dst, &src).expect("首次落位应直接写成功");
-        assert_eq!(std::fs::read(&dst).expect("读部署位"), b"fresh");
-        // 二次替换：有前代走改名链，内容更新；.old 残留属设计（下次升级起手清）
-        std::fs::write(&src, b"v2").expect("写二代");
-        replace_exe(&dst, &src).expect("二次替换应成功");
-        assert_eq!(std::fs::read(&dst).expect("读部署位"), b"v2");
+        let deploy = dir.path().join("ark");
+        let _ = std::fs::write(&deploy, b"old"); // 旧件（内容非可执行，证败用）
+        let new = fake_exec(dir.path(), "9.9.9");
+        replace_with_self_verify(&deploy, &new, Some("9.9.9")).expect("好件应自证过");
+        let out = Command::new(&deploy).arg("--version").output().unwrap();
         assert!(
-            dst.with_extension("exe.old").exists(),
-            "旧件改名保留（下次升级起手清）"
+            String::from_utf8_lossy(&out.stdout).contains("9.9.9"),
+            "部署位应为新件"
         );
-        // 三次替换：起手清上次 .old 残留
-        std::fs::write(&src, b"v3").expect("写三代");
-        replace_exe(&dst, &src).expect("三次替换应成功");
-        assert_eq!(std::fs::read(&dst).expect("读部署位"), b"v3");
+        // 备份已清、锁已释放、无暂存残留
+        assert!(
+            !dir.path().join(".ark-selfupdate.lock").exists(),
+            "锁应释放"
+        );
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.starts_with("ark-new-") || n.starts_with("ark-old-"))
+            .collect();
+        assert!(leftovers.is_empty(), "成功路径不留暂存/备份: {leftovers:?}");
+    }
+
+    /// REQ-0012 #4：坏件（自证必败）→ 回滚旧件并复核在位（旧件是好件才回滚得过去）。
+    #[test]
+    fn 自替换_坏件自证败回滚旧件() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        let deploy = dir.path().join("ark");
+        let good_old = fake_exec(dir.path(), "1.0.0");
+        std::fs::copy(&good_old, &deploy).unwrap(); // 旧件是好件（回滚后复核要可执行）
+                                                    // 坏件：文本件（rename 就位成功但 --version 不可执行）
+        let bad = dir.path().join("bad");
+        std::fs::write(&bad, b"not an executable").unwrap();
+        let err =
+            replace_with_self_verify(&deploy, &bad, Some("9.9.9")).expect_err("坏件自证应失败");
+        assert!(err.contains("已回滚旧件"), "应报回滚: {err}");
+        let out = Command::new(&deploy).arg("--version").output().unwrap();
+        assert!(
+            String::from_utf8_lossy(&out.stdout).contains("1.0.0"),
+            "回滚后部署位应为旧好件"
+        );
+    }
+
+    /// REQ-0012 #4：锁语义——死锁收割重取（pid 近上限必死）。
+    #[test]
+    fn 自更新锁_死锁收割() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        let lock = selfupdate_lock_path(dir.path());
+        // 死 pid 取超 pid_max 的普通值（u32::MAX 在 linux 会回绕成 -1 即「全体进程」，
+        // kill -0 反而成功，不能当死 pid 用——本机 /proc/sys/kernel/pid_max 实证）
+        std::fs::write(&lock, "300000000").unwrap();
+        acquire_selfupdate_lock(&lock).expect("死锁应被收割并重取");
+        assert_eq!(
+            std::fs::read_to_string(&lock).unwrap().trim(),
+            std::process::id().to_string()
+        );
+    }
+
+    /// REQ-0012 #4：陈旧收割——他人 ark-new-*/ark-old-* 与旧 .exe.old 残留被清，本 pid 保留。
+    #[test]
+    fn 陈旧收割_他人残留清本pid保留() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        let pid = std::process::id();
+        let theirs = dir.path().join(format!("ark-new-{}", pid + 1));
+        let old_legacy = dir.path().join("ark.exe.old");
+        let mine = dir.path().join(format!("ark-old-{pid}"));
+        std::fs::write(&theirs, b"x").unwrap();
+        std::fs::write(&old_legacy, b"x").unwrap();
+        std::fs::write(&mine, b"x").unwrap();
+        reap_stale_artifacts(dir.path());
+        assert!(!theirs.exists(), "他人暂存应清");
+        assert!(!old_legacy.exists(), "旧 .exe.old 残留应清");
+        assert!(mine.exists(), "本 pid 备份保留");
+    }
+
+    /// REQ-0012 #3：semver 门三态（数值段比较）与非 semver tag 保守放行。
+    #[test]
+    fn semver门_三态与非semver放行() {
+        assert_eq!(semver_gate("1.4.1", "1.4.1"), Verdict::Current);
+        assert_eq!(
+            semver_gate("1.4.0", "1.4.1"),
+            Verdict::LocalNewer,
+            "本地领先不动"
+        );
+        assert_eq!(semver_gate("1.5.0", "1.4.1"), Verdict::Upgrade);
+        // 数值段而非字典序：1.10 > 1.9
+        assert_eq!(semver_gate("1.10.0", "1.9.9"), Verdict::Upgrade);
+        assert_eq!(
+            semver_gate("1.4.1.1", "1.4.1"),
+            Verdict::Upgrade,
+            "多段保守升级"
+        );
+        assert_eq!(
+            semver_gate("nightly", "1.4.1"),
+            Verdict::Upgrade,
+            "非 semver 保守放行"
+        );
+        assert_eq!(strip_v("v1.4.1"), "1.4.1");
+        assert_eq!(strip_v("1.4.1"), "1.4.1");
+    }
+
+    /// REQ-0012 #2：错误判型——校验性（硬拒）与网络性（回落）分界。
+    #[test]
+    fn 错误判型_校验性与网络性() {
+        assert!(is_hash_mismatch("sha256 校验失败: /x\n期望 A\n实际 B"));
+        assert!(is_hash_mismatch(
+            "镜像对象 sha256 与锚不符（已删，回落官方）: 期望 A，实际 B"
+        ));
+        assert!(!is_hash_mismatch("HTTP 请求失败: https://x: 404"));
+        assert!(!is_hash_mismatch("下载失败且 curl.exe 不可用"));
     }
 
     #[test]

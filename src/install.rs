@@ -204,6 +204,12 @@ pub fn install_tool(
             catalog::write_sha256(&cat.path, name, &sha)?;
             eprintln!("[OK] 已回填 sha256（命中缓存）");
         }
+        // REQ-0012：skip 分支补落痕（标记随目录重建自然消失，此处幂等补齐）
+        if !is_msi {
+            if let Some(dir) = exe_path.parent() {
+                let _ = mark_ark_managed(dir);
+            }
+        }
         if opts.configure {
             register_bin(def, env_root, is_official, &res.version)?;
             // 老环境补别名（bun 已存在但同目录缺 bunx.exe）：manifest shims 节唯一来源
@@ -384,6 +390,15 @@ pub fn install_tool(
         eprintln!("[OK] {name} 已锁定: {}", res.version);
     }
 
+    // REQ-0012：真身落痕（绿色与 official 型；msi 真身在系统位不落）
+    if !is_msi {
+        if let Some(dir) = exe_path.parent() {
+            if let Err(e) = mark_ark_managed(dir) {
+                eprintln!("[WARN] {e}（不拦安装）");
+            }
+        }
+    }
+
     Ok(InstallOutcome {
         action: InstallAction::Installed,
         version: installed,
@@ -488,6 +503,23 @@ fn apply_manifest_primitives(
 }
 
 /// 注册 bin 目录进用户 PATH（Windows 注册表 / Linux profile）。
+/// ark-managed 落痕（REQ-0012 生产者契约，browse 等家族自更新让位判据依赖）：
+/// ark 安装的真身二进制同目录落 `ark-managed` 标记文件，内容 = ark 版本号；
+/// 幂等（同内容零重写）。卸载语义：ark 无 uninstall 命令，标记随工具目录重建重写、
+/// 手删目录即连标记消失（doctor 孤儿检测只扫 cache 目录不受影响）。
+/// 特型（npm-tgz/uv-git/msi 与 rustup/vsbuild 专用模块）真身在他管域不落。
+fn mark_ark_managed(exe_dir: &Path) -> Result<(), String> {
+    let marker = exe_dir.join("ark-managed");
+    let version = env!("CARGO_PKG_VERSION");
+    if let Ok(existing) = std::fs::read_to_string(&marker) {
+        if existing.trim() == version {
+            return Ok(()); // 幂等：同内容零重写
+        }
+    }
+    std::fs::write(&marker, format!("{version}\n"))
+        .map_err(|e| format!("写 ark-managed 落痕失败: {}: {e}", marker.display()))
+}
+
 fn register_bin(
     def: &Tool,
     env_root: &Path,
@@ -946,5 +978,36 @@ mod user_bin_link_tests {
         )));
         assert!(!is_session_shim(Path::new("/opt/homebrew/bin/npm")));
         assert!(!is_session_shim(Path::new("/usr/local/bin/npm")));
+    }
+}
+
+#[cfg(test)]
+mod ark_managed_tests {
+    use super::mark_ark_managed;
+
+    /// REQ-0012：落痕内容 = ark 版本号，幂等同内容零重写，旧版本值覆盖为新值。
+    #[test]
+    fn 落痕_内容为版本号且幂等() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        mark_ark_managed(dir.path()).expect("首次落痕");
+        let marker = dir.path().join("ark-managed");
+        assert_eq!(
+            std::fs::read_to_string(&marker).unwrap().trim(),
+            env!("CARGO_PKG_VERSION"),
+            "内容应为 ark 版本号"
+        );
+        mark_ark_managed(dir.path()).expect("二次落痕幂等应过");
+        assert_eq!(
+            std::fs::read_to_string(&marker).unwrap().trim(),
+            env!("CARGO_PKG_VERSION")
+        );
+        // 版本变（跨版本升级）覆盖写新值
+        std::fs::write(&marker, "0.0.1\n").unwrap();
+        mark_ark_managed(dir.path()).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&marker).unwrap().trim(),
+            env!("CARGO_PKG_VERSION"),
+            "旧版本落痕应被新版本覆盖"
+        );
     }
 }

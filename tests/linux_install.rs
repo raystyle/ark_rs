@@ -114,6 +114,14 @@ fn linux_jq_安装部署状态闭环() {
 
     let bin = home.join(".local").join("bin").join("jq");
     assert!(bin.exists(), "jq 二进制应已安装到 ~/.local/bin");
+    // REQ-0012 生产者契约：真身同目录落 ark-managed 标记（内容 = ark 版本号）
+    let marker = home.join(".local").join("bin").join("ark-managed");
+    assert!(marker.exists(), "ark-managed 落痕应在位");
+    assert_eq!(
+        std::fs::read_to_string(&marker).unwrap().trim(),
+        env!("CARGO_PKG_VERSION"),
+        "落痕内容应为 ark 版本号"
+    );
     let out = std::process::Command::new(&bin)
         .arg("--version")
         .output()

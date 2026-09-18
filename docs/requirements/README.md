@@ -16,3 +16,4 @@
 | REQ-0009 | implemented | issue命令集成 | lib 单测六件加全量全绿加真读面冒烟加实弹回执（trace 见 REQ 内） |
 | REQ-0010 | implemented | 镜像默认通道与GitHub兜底 | cargo test 全绿加离线集成测零 API 面加门禁绿（trace 见 REQ 内） |
 | REQ-0011 | implemented | cli-docs标准采纳 | 对照表全件加裸调用面与漂移守卫两测加 README 四节重构（trace 见 REQ 内） |
+| REQ-0012 | implemented | 家族自更新标准对齐与ark-managed落痕 | 差异表七件加stable家族形与自替换自证回滚加落痕契约（trace 见 REQ 内） |
