@@ -15,6 +15,10 @@ use sha2::{Digest, Sha256};
 
 const MAX_ATTEMPTS: u32 = 3;
 
+/// sha 锚不符错误标记（对线 G3-1，REQ-0012）：download 层构造与 selfupdate 判型
+/// （is_hash_mismatch，校验性硬拒/网络性回落的分界）共用此常量，防文案漂移静默降级判型。
+pub(crate) const HASH_MISMATCH_MARK: &str = "sha256 校验失败";
+
 /// 缓存路径：<EnvRoot>\cache\<asset>。
 pub fn cache_path(env_root: &Path, asset_name: &str) -> PathBuf {
     env_root.join("cache").join(asset_name)
@@ -66,7 +70,7 @@ pub fn download_asset(
         let actual = sha256_file(&dest)?;
         if !actual.eq_ignore_ascii_case(exp) {
             return Err(format!(
-                "sha256 校验失败: {}\n期望 {}\n实际 {}",
+                "{HASH_MISMATCH_MARK}: {}\n期望 {}\n实际 {}",
                 dest.display(),
                 exp.to_uppercase(),
                 actual

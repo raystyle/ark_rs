@@ -25,7 +25,7 @@ trace: cargo test --release --locked 全绿 225 项（semver 门/判型/自替�
 ## Criteria
 
 - [x] stable 通道家族形：官方 API 判新（tag+digest）加 semver 门（current/localNewer/升级三态）加镜像 stable 段下载优先加网络性失败整对回落官方
-- [x] digest 锚硬拒：selfupdate 两通道镜像腿 sha 不符即 Err 不回落（网络性失败仍回落），单测覆盖判型边界
+- [x] digest 锚硬校验：dev 镜像腿同源边车锚不符硬拒不回落；stable 镜像腿不符整对回落官方（滞后常态，资产名形差异所致）、官方终腿 digest 硬校验；判型常量共用（对线 G3-1）单测覆盖
 - [x] 自替换五小件：同目录暂存 pid 后缀、更新锁与死锁收割、陈旧残留清扫、--version 自证五次重试（stable 版本断言/dev 可执行断言）、证败回滚加复核
 - [x] localNewer 机读面：SelfUpdateOutcome.action 增 localNewer 态，CLI kv 输出
 - [x] ark-managed 落痕：主链与 official 型落 exe 同目录标记文件（内容 ark 版本），幂等；特型不落入档

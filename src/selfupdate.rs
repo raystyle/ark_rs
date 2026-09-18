@@ -253,23 +253,25 @@ fn self_update_stable(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
             env!("CARGO_PKG_VERSION")
         ),
     }
-    // 下载腿：镜像 stable 段优先（官方 digest 锚 + CF 击穿 query——stable 段同名滚动，
-    // 陈旧对象靠锚值换缓存键击穿，D44 同款）；锚不符硬拒；网络性失败整对回落官方。
-    let mirror_dl = crate::download::with_query(
-        &format!("{}/ark/stable/{asset}", crate::download::MIRROR_BASE),
-        &format!("v={digest}"),
-    );
-    let downloaded =
+    // 下载腿（对线 F1/F2 修正）：ark 资产名不带版本，stable 段同名滚动，「镜像字节对官方
+    // digest」不符含播种滞后常态（对源 browse 资产名带版本、同名 404 即整对回落），故镜像腿
+    // 不符一律回落官方、由官方 digest 终腿硬校验拦坏件（官方件不符即终败，安全性等价）；
+    // dev 腿的镜像边车锚才是同源对硬拒面（见 self_update_dev）。CF 击穿 query 缓解同名陈旧。
+    // 逃逸阀 ARK_MIRROR=0：官方先行，镜像腿跳过（对齐 ADR-0008 开关语义）。
+    let downloaded = if crate::download::mirror_off() {
+        crate::download::download_asset(env_root, &asset, &official_url, Some(&digest), true)
+            .map_err(|official_err| {
+                format!("官方下载失败（ARK_MIRROR=0 官方优先）: {official_err}")
+            })?
+    } else {
+        let mirror_dl = crate::download::with_query(
+            &format!("{}/ark/stable/{asset}", crate::download::MIRROR_BASE),
+            &format!("v={digest}"),
+        );
         match crate::download::download_asset(env_root, &asset, &mirror_dl, Some(&digest), true) {
             Ok(p) => p,
-            Err(e) if is_hash_mismatch(&e) => {
-                return Err(format!(
-                    "镜像 stable 段资产与官方 digest 锚不符，硬拒不回落（家族标准，REQ-0012）；\
-                 多为播种滞后，稍候重试或 ARK_MIRROR=0 走官方:\n{e}"
-                ))
-            }
             Err(mirror_err) => {
-                eprintln!("[INFO] 镜像 stable 段未命中（{mirror_err}），整对回落官方");
+                eprintln!("[INFO] 镜像 stable 段未命中或滞后（{mirror_err}），整对回落官方");
                 crate::download::download_asset(
                     env_root,
                     &asset,
@@ -281,7 +283,8 @@ fn self_update_stable(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
                     format!("镜像与官方双链失败\n镜像段: {mirror_err}\n官方: {official_err}")
                 })?
             }
-        };
+        }
+    };
     let mine = sha256_file(&exe)?;
     let candidate = package_candidate(&downloaded, &asset, &digest, &mine)?;
     let expect: Option<String> = Some(remote_ver.to_string());
@@ -631,7 +634,8 @@ enum Verdict {
 /// 下载错误判型：sha 锚不符（校验性失败，家族标准硬拒不回落）与网络性失败
 ///（连接错/未命中，整对回落官方）的分界（错误串判型，仓内惯例如 should_fallback_gh）。
 fn is_hash_mismatch(err: &str) -> bool {
-    err.contains("sha256 校验失败") || err.contains("sha256 与锚不符")
+    // 对线 G3-1：判据引用 download 层常量（串改常量处单点同步，防文案漂移静默降级判型）
+    err.contains(crate::download::HASH_MISMATCH_MARK)
 }
 
 /// 官方 release 元数据带 tag（stable 家族形判新用：tag 去 v 进 semver 门）。
@@ -826,7 +830,11 @@ fn best_effort_sync_current(current: &Path, new_file: &Path) -> Result<(), Strin
     #[cfg(not(windows))]
     {
         use std::os::unix::fs::PermissionsExt;
-        let tmp = current.with_extension(format!("ark-new-{}", std::process::id()));
+        // 对线 G4-4：暂存名用收割面内精确形（with_extension 会拼出 ark.ark-new-<pid> 逃出谓词）
+        let tmp = current
+            .parent()
+            .map(|d| d.join(format!("ark-new-{}", std::process::id())))
+            .unwrap_or_else(|| current.with_extension("ark-new"));
         std::fs::copy(new_file, &tmp).map_err(|e| format!("写运行中副本暂存失败: {e}"))?;
         std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
             .map_err(|e| format!("chmod 755 失败: {e}"))?;
@@ -877,36 +885,69 @@ fn pid_alive(pid: u32) -> bool {
 
 /// 取自更新锁：无锁直取；锁在位且持锁 pid 活 → 拒（并发互踩）；锁在位 pid 死 → 收割重取。
 fn acquire_selfupdate_lock(lock: &Path) -> Result<(), String> {
-    if let Ok(text) = std::fs::read_to_string(lock) {
-        if let Ok(pid) = text.trim().parse::<u32>() {
-            if pid != std::process::id() && pid_alive(pid) {
-                return Err(format!(
-                    "另一自更新进程（pid {pid}）在跑，拒绝并发互踩；确属死锁可删 {}",
-                    lock.display()
-                ));
+    let mine = std::process::id().to_string();
+    // 对线 G4-1：create_new 原子取锁（防并发双取互删互写）；已存在判持锁 pid 活性，
+    // 死锁收割后重试一次
+    for attempt in 0..2 {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(lock)
+        {
+            Ok(_) => {
+                std::fs::write(lock, &mine)
+                    .map_err(|e| format!("写自更新锁失败: {}: {e}", lock.display()))?;
+                return Ok(());
             }
+            Err(_) if attempt == 0 => {
+                if let Ok(text) = std::fs::read_to_string(lock) {
+                    if let Ok(pid) = text.trim().parse::<u32>() {
+                        if pid != std::process::id() && pid_alive(pid) {
+                            return Err(format!(
+                                "另一自更新进程（pid {pid}）在跑，拒绝并发互踩；确属死锁可删 {}",
+                                lock.display()
+                            ));
+                        }
+                    }
+                }
+                let _ = std::fs::remove_file(lock); // 死锁收割（pid 死或内容不可读）
+            }
+            Err(e) => return Err(format!("取自更新锁失败: {}: {e}", lock.display())),
         }
-        let _ = std::fs::remove_file(lock); // 死锁收割（pid 已死或内容不可读）
     }
-    std::fs::write(lock, std::process::id().to_string())
-        .map_err(|e| format!("写自更新锁失败: {}: {e}", lock.display()))
+    Err("取自更新锁失败（收割重试后仍被占）".to_string())
 }
 
 /// 陈旧残留清扫（进入替换链时）：部署目录下他人 ark-new-* / ark-old-* 暂存与备份
 /// 尝试删除（Windows 运行中件删不动则跳过，留待后续收割；v1.0.0 的 .exe.old 旧残留同扫）。
 fn reap_stale_artifacts(deploy_dir: &Path) {
-    let keep = format!("-{}", std::process::id());
     if let Ok(entries) = std::fs::read_dir(deploy_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            let stale = (name.starts_with("ark-new-") || name.starts_with("ark-old-"))
-                && !name.ends_with(&keep);
-            let legacy = name.ends_with(".exe.old");
-            if stale || legacy {
+            if is_selfupdate_artifact(&name, std::process::id()) {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
     }
+}
+
+/// 收割谓词（纯函数，对线 G4-2 收敛匹配面）：仅认 ark-new-<digits> / ark-old-<digits>
+/// 精确形（他人 pid）与 v1.0.0 遗留精确名 ark.exe.old；不匹配用户同前缀自有文件。
+fn is_selfupdate_artifact(name: &str, my_pid: u32) -> bool {
+    if name == "ark.exe.old" {
+        return true;
+    }
+    for prefix in ["ark-new-", "ark-old-"] {
+        if let Some(tail) = name.strip_prefix(prefix) {
+            if !tail.is_empty()
+                && tail.bytes().all(|b| b.is_ascii_digit())
+                && tail != my_pid.to_string()
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// 自替换全链（家族自更新统一标准，REQ-0012 #4）：同目录暂存 `ark-new-<pid>`（防跨
@@ -954,11 +995,22 @@ fn replace_inner(
         std::fs::rename(deploy, &backup).map_err(|e| format!("备份旧件失败: {e}"))?;
     }
     if let Err(e) = std::fs::rename(&staged, deploy) {
-        // 就位失败：立即回滚备份，不留空位
+        // 就位失败：回滚备份并核验结果（对线 F4：不核验不得断言「已回滚」）
         if had_old {
-            let _ = std::fs::rename(&backup, deploy);
+            return match std::fs::rename(&backup, deploy) {
+                Ok(()) => Err(format!(
+                    "新件就位失败，旧件已回滚在位: {e}；新件留存 {} 供诊断",
+                    staged.display()
+                )),
+                Err(re) => Err(format!(
+                    "新件就位失败且回滚受阻: {e} / {re}\n自救：手动将 {} 移回 {}",
+                    backup.display(),
+                    deploy.display()
+                )),
+            };
         }
-        return Err(format!("新件就位失败（已回滚）: {e}"));
+        let _ = std::fs::remove_file(&staged);
+        return Err(format!("新件就位失败（首次落位无旧件，坏件已清）: {e}"));
     }
     match verify_by_version(deploy, expect, 5) {
         Ok(()) => {
@@ -981,11 +1033,16 @@ fn replace_inner(
             })();
             match rolled {
                 Ok(()) if verify_by_version(deploy, None, 1).is_ok() => Err(format!(
-                    "新件自证失败已回滚旧件（{verr}）；新件不完整，稍后重试或手动以 {} 自救",
-                    backup.display()
+                    "新件自证失败已回滚旧件在位（{verr}）；坏新件留存 {} 供诊断，稍后重试",
+                    staged.display()
                 )),
-                _ => Err(format!(
-                    "新件自证失败且回滚受阻（{verr}）；自救：手动将 {} 覆盖 {}",
+                Ok(()) => Err(format!(
+                    "新件自证失败已回滚旧件但复核未过（{verr}）；自救：手动以 {} 覆盖 {} 或重装",
+                    backup.display(),
+                    deploy.display()
+                )),
+                Err(re) => Err(format!(
+                    "新件自证失败且回滚受阻（{verr} / {re}）；自救：手动将 {} 移回 {}",
                     backup.display(),
                     deploy.display()
                 )),
@@ -1227,11 +1284,42 @@ mod tests {
         assert_eq!(strip_v("1.4.1"), "1.4.1");
     }
 
+    /// 对线 G4-2：收割谓词精确形——他人 pid 暂存/备份与遗留 .exe.old 认领，
+    /// 本 pid 保留、用户同前缀自有文件（非纯数字尾/带扩展）不误删。
+    #[test]
+    fn 收割谓词_精确形() {
+        let mine = 1000u32;
+        assert!(is_selfupdate_artifact("ark-new-1001", mine));
+        assert!(is_selfupdate_artifact("ark-old-999", mine));
+        assert!(
+            is_selfupdate_artifact("ark.exe.old", mine),
+            "v1.0.0 遗留精确名"
+        );
+        assert!(!is_selfupdate_artifact("ark-new-1000", mine), "本 pid 保留");
+        assert!(!is_selfupdate_artifact("ark-new-abc", mine), "非数字尾不认");
+        assert!(!is_selfupdate_artifact("ark-new-", mine), "空尾不认");
+        assert!(!is_selfupdate_artifact("ark-new-1.tmp", mine), "带扩展不认");
+        assert!(
+            !is_selfupdate_artifact("mytool.exe.old", mine),
+            "他人 .exe.old 不认"
+        );
+        assert!(
+            !is_selfupdate_artifact("ark-notes.txt", mine),
+            "同前缀自有文件不认"
+        );
+    }
+
     /// REQ-0012 #2：错误判型——校验性（硬拒）与网络性（回落）分界。
     #[test]
     fn 错误判型_校验性与网络性() {
-        assert!(is_hash_mismatch("sha256 校验失败: /x\n期望 A\n实际 B"));
-        assert!(is_hash_mismatch(
+        // 判据引用 download 层常量（对线 G3-1）；「镜像对象 sha256 与锚不符」由
+        // download 层镜像段内部转回落、不外泄到判型点（死分支已收）
+        let mismatch_err = format!(
+            "{}: /x\n期望 A\n实际 B",
+            crate::download::HASH_MISMATCH_MARK
+        );
+        assert!(is_hash_mismatch(&mismatch_err));
+        assert!(!is_hash_mismatch(
             "镜像对象 sha256 与锚不符（已删，回落官方）: 期望 A，实际 B"
         ));
         assert!(!is_hash_mismatch("HTTP 请求失败: https://x: 404"));

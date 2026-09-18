@@ -204,9 +204,9 @@ pub fn install_tool(
             catalog::write_sha256(&cat.path, name, &sha)?;
             eprintln!("[OK] 已回填 sha256（命中缓存）");
         }
-        // REQ-0012：skip 分支补落痕（标记随目录重建自然消失，此处幂等补齐）
-        if !is_msi {
-            if let Some(dir) = exe_path.parent() {
+        // REQ-0012：skip 分支补落痕（同资格判定，特型他管域不落，对线 F3）
+        if let Some(dir) = exe_path.parent() {
+            if should_mark_ark_managed(def, dir) {
                 let _ = mark_ark_managed(dir);
             }
         }
@@ -390,9 +390,9 @@ pub fn install_tool(
         eprintln!("[OK] {name} 已锁定: {}", res.version);
     }
 
-    // REQ-0012：真身落痕（绿色与 official 型；msi 真身在系统位不落）
-    if !is_msi {
-        if let Some(dir) = exe_path.parent() {
+    // REQ-0012：真身落痕（资格判定纯函数，对线 F3）
+    if let Some(dir) = exe_path.parent() {
+        if should_mark_ark_managed(def, dir) {
             if let Err(e) = mark_ark_managed(dir) {
                 eprintln!("[WARN] {e}（不拦安装）");
             }
@@ -508,6 +508,22 @@ fn apply_manifest_primitives(
 /// 幂等（同内容零重写）。卸载语义：ark 无 uninstall 命令，标记随工具目录重建重写、
 /// 手删目录即连标记消失（doctor 孤儿检测只扫 cache 目录不受影响）。
 /// 特型（npm-tgz/uv-git/msi 与 rustup/vsbuild 专用模块）真身在他管域不落。
+/// 落痕资格（纯函数，对线 F3）：仅绿色主链与 official 型（真身由 ark 布局）；
+/// 排除特型（npm-tgz/uv-git 真身在他管域、msi 系统位、ark-self 自管）与相对路径
+/// 落点（exe 解析为相对裸名时不落，防误写 CWD）。
+fn should_mark_ark_managed(def: &Tool, exe_dir: &Path) -> bool {
+    match def.extract() {
+        Some("npm-tgz") | Some("uv-git") | Some("msi") | Some("ark-self") | Some("ome-self") => {
+            return false
+        }
+        _ => {}
+    }
+    if crate::selfupdate::is_ark_self(def) {
+        return false;
+    }
+    exe_dir.is_absolute()
+}
+
 fn mark_ark_managed(exe_dir: &Path) -> Result<(), String> {
     let marker = exe_dir.join("ark-managed");
     let version = env!("CARGO_PKG_VERSION");
@@ -983,7 +999,34 @@ mod user_bin_link_tests {
 
 #[cfg(test)]
 mod ark_managed_tests {
-    use super::mark_ark_managed;
+    use super::{mark_ark_managed, should_mark_ark_managed};
+
+    /// 对线 F3：落痕资格——特型（npm-tgz/uv-git/msi/自管）与相对路径落点不落。
+    #[test]
+    fn 落痕资格_特型与相对路径不落() {
+        use crate::catalog::Tool;
+        let abs = std::path::Path::new("/tmp/some-bin");
+        let mk = |e: &str| Tool {
+            extract: Some(e.to_string()),
+            ..Tool::default()
+        };
+        assert!(should_mark_ark_managed(&mk("zip"), abs), "绿色 zip 型落");
+        assert!(should_mark_ark_managed(&mk("rmux"), abs), "official 型落");
+        assert!(
+            !should_mark_ark_managed(&mk("npm-tgz"), abs),
+            "npm-tgz 他管域不落"
+        );
+        assert!(
+            !should_mark_ark_managed(&mk("uv-git"), abs),
+            "uv-git 他管域不落"
+        );
+        assert!(!should_mark_ark_managed(&mk("msi"), abs), "msi 系统位不落");
+        assert!(!should_mark_ark_managed(&mk("ark-self"), abs), "自管不落");
+        assert!(
+            !should_mark_ark_managed(&mk("zip"), std::path::Path::new("")),
+            "相对路径落点不落"
+        );
+    }
 
     /// REQ-0012：落痕内容 = ark 版本号，幂等同内容零重写，旧版本值覆盖为新值。
     #[test]
