@@ -905,18 +905,26 @@ fn acquire_selfupdate_lock(lock: &Path) -> Result<(), String> {
                     .map_err(|e| format!("写自更新锁失败: {}: {e}", lock.display()))?;
                 return Ok(());
             }
-            Err(_) if attempt == 0 => {
-                // 对线 G-a：空/不可读内容一律视为持锁（保守向，防 create_new 与 write 间
-                // 的空窗被误判死锁偷锁）；仅「可解析且 pid 已死」才收割重取
+            Err(e) if attempt == 0 => {
+                // 对线 G-a 加三轮 F-3-1/G-3-1：空/不可读内容一律视为持锁（保守向，防
+                // create_new 与 write 间的空窗被误判死锁偷锁）；仅「可解析且 pid 已死」
+                // 或「可解析且 pid 即本进程」（acquire 无重入面，必为上次残留，pid 复用
+                // 撞旧锁不永久卡死）才收割重取；锁件不在位时报 create_new 真因。
+                if !lock.exists() {
+                    return Err(format!(
+                        "取自更新锁失败（部署位不可写或锁件竞争）: {}: {e}",
+                        lock.display()
+                    ));
+                }
                 if let Ok(text) = std::fs::read_to_string(lock) {
                     if let Ok(pid) = text.trim().parse::<u32>() {
-                        if pid == std::process::id() || pid_alive(pid) {
+                        if pid != std::process::id() && pid_alive(pid) {
                             return Err(format!(
                                 "另一自更新进程（pid {pid}）在跑，拒绝并发互踩；确属死锁可删 {}",
                                 lock.display()
                             ));
                         }
-                        let _ = std::fs::remove_file(lock); // 死锁收割（可解析且 pid 已死）
+                        let _ = std::fs::remove_file(lock); // 死锁/本 pid 残留收割
                     } else {
                         return Err(format!(
                             "自更新锁内容不可读（视为持锁，防误收割）：{}；确属死锁可手删",
@@ -1248,9 +1256,10 @@ mod tests {
         );
     }
 
-    /// REQ-0012 #4：锁语义——死锁收割重取（pid 近上限必死）。
+    /// REQ-0012 #4：锁语义——死锁与本 pid 残留锁均收割重取（三轮 F-3-1：acquire 无
+    /// 重入面，本 pid 锁必为上次残留；pid 复用撞旧锁不得永久卡死）。
     #[test]
-    fn 自更新锁_死锁收割() {
+    fn 自更新锁_死锁与本pid残留收割() {
         let dir = tempfile::tempdir().expect("临时目录");
         let lock = selfupdate_lock_path(dir.path());
         // 死 pid 取超 pid_max 的普通值（u32::MAX 在 linux 会回绕成 -1 即「全体进程」，
@@ -1261,6 +1270,9 @@ mod tests {
             std::fs::read_to_string(&lock).unwrap().trim(),
             std::process::id().to_string()
         );
+        // 本 pid 残留锁（上次升级中断）：同样收割重取，不报「另一进程在跑」
+        std::fs::write(&lock, std::process::id().to_string()).unwrap();
+        acquire_selfupdate_lock(&lock).expect("本 pid 残留锁应被收割并重取");
     }
 
     /// REQ-0012 #4：陈旧收割——他人 ark-new-*/ark-old-* 与旧 .exe.old 残留被清，本 pid 保留。
