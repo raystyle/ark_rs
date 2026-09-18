@@ -14,7 +14,8 @@ D51 镜像默认通道：release 元数据镜像段读序先行（边车即锚�
 Windows 运行中 exe 可改名不可删：替换全程用 rename（备份 ark-old-<pid>、暂存 ark-new-<pid>），
 成功清备份、删不动留待启动收割。
 REQ-0012 家族自更新统一标准：stable 通道官方 API 判新加 semver 门（localNewer 不动）加镜像
-stable 段下载优先（digest 锚不符硬拒不回落）；自替换带 pid 锁、陈旧收割与 --version 自证回滚。
+stable 段下载优先（镜像腿任一步失败整对回落官方、官方 digest 终腿硬校验；dev 腿镜像边车
+同源锚不符硬拒不回落）；自替换带 pid 锁、陈旧收割与 --version 自证回滚。
 
 ## Functions
 

@@ -12,7 +12,8 @@
 //! Windows 运行中 exe 可改名不可删：替换全程用 rename（备份 ark-old-<pid>、暂存 ark-new-<pid>），
 //! 成功清备份、删不动留待启动收割。
 //! REQ-0012 家族自更新统一标准：stable 通道官方 API 判新加 semver 门（localNewer 不动）加镜像
-//! stable 段下载优先（digest 锚不符硬拒不回落）；自替换带 pid 锁、陈旧收割与 --version 自证回滚。
+//! stable 段下载优先（镜像腿任一步失败整对回落官方、官方 digest 终腿硬校验；dev 腿镜像边车
+//! 同源锚不符硬拒不回落）；自替换带 pid 锁、陈旧收割与 --version 自证回滚。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -208,8 +209,8 @@ fn self_update_release(env_root: &Path, endpoint: &str) -> Result<SelfUpdateOutc
 /// stable 通道（家族自更新统一标准形，REQ-0012 差异表 #1/#2/#3）：官方 latest API
 /// 一次判新（tag 加 digest，镜像段资产名不带版本无法反查，browse 同构裁定）→
 /// semver 门（相等 current、本地领先 localNewer 不动、远端新才升级）→ 下载腿镜像
-/// stable 段优先（官方 digest 锚，CF 击穿 query），网络性失败整对回落官方；
-/// sha 不符硬拒不回落（校验性失败换道不适用：官方 digest 是唯一判新锚）。
+/// stable 段优先（官方 digest 锚，CF 击穿 query）；镜像腿任一步失败（未命中或锚不符，
+/// 含播种滞后常态）整对回落官方，官方终腿 digest 硬校验拒坏件（对线 F1 裁定）。
 fn self_update_stable(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
     let asset_name = asset_for_this_platform()?;
     let asset_pkg = asset_package_for_this_platform()?;
@@ -271,7 +272,12 @@ fn self_update_stable(env_root: &Path) -> Result<SelfUpdateOutcome, String> {
         match crate::download::download_asset(env_root, &asset, &mirror_dl, Some(&digest), true) {
             Ok(p) => p,
             Err(mirror_err) => {
-                eprintln!("[INFO] 镜像 stable 段未命中或滞后（{mirror_err}），整对回落官方");
+                if is_hash_mismatch(&mirror_err) {
+                    // 对线 G-c：锚不符（可能篡改或滞后）升 WARN 保留报警反射；回落行为不变
+                    eprintln!("[WARN] 镜像 stable 段资产与官方锚不符（篡改或滞后），回落官方（终腿官方锚校验）: {mirror_err}");
+                } else {
+                    eprintln!("[INFO] 镜像 stable 段未命中（{mirror_err}），整对回落官方");
+                }
                 crate::download::download_asset(
                     env_root,
                     &asset,
@@ -900,17 +906,29 @@ fn acquire_selfupdate_lock(lock: &Path) -> Result<(), String> {
                 return Ok(());
             }
             Err(_) if attempt == 0 => {
+                // 对线 G-a：空/不可读内容一律视为持锁（保守向，防 create_new 与 write 间
+                // 的空窗被误判死锁偷锁）；仅「可解析且 pid 已死」才收割重取
                 if let Ok(text) = std::fs::read_to_string(lock) {
                     if let Ok(pid) = text.trim().parse::<u32>() {
-                        if pid != std::process::id() && pid_alive(pid) {
+                        if pid == std::process::id() || pid_alive(pid) {
                             return Err(format!(
                                 "另一自更新进程（pid {pid}）在跑，拒绝并发互踩；确属死锁可删 {}",
                                 lock.display()
                             ));
                         }
+                        let _ = std::fs::remove_file(lock); // 死锁收割（可解析且 pid 已死）
+                    } else {
+                        return Err(format!(
+                            "自更新锁内容不可读（视为持锁，防误收割）：{}；确属死锁可手删",
+                            lock.display()
+                        ));
                     }
+                } else {
+                    return Err(format!(
+                        "自更新锁不可读（视为持锁，防误收割）：{}；确属死锁可手删",
+                        lock.display()
+                    ));
                 }
-                let _ = std::fs::remove_file(lock); // 死锁收割（pid 死或内容不可读）
             }
             Err(e) => return Err(format!("取自更新锁失败: {}: {e}", lock.display())),
         }
@@ -924,30 +942,35 @@ fn reap_stale_artifacts(deploy_dir: &Path) {
     if let Ok(entries) = std::fs::read_dir(deploy_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if is_selfupdate_artifact(&name, std::process::id()) {
-                let _ = std::fs::remove_file(entry.path());
+            if let Some(pid) = artifact_owner_pid(&name, std::process::id()) {
+                // 对线 G-a 护栏：仅持件 pid 已死才清（在飞 peer 的暂存/备份不伤；
+                // 偷锁极端下也不误删）；无 pid 的遗留精确名恒清
+                if pid == 0 || !pid_alive(pid) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
             }
         }
     }
 }
 
-/// 收割谓词（纯函数，对线 G4-2 收敛匹配面）：仅认 ark-new-<digits> / ark-old-<digits>
-/// 精确形（他人 pid）与 v1.0.0 遗留精确名 ark.exe.old；不匹配用户同前缀自有文件。
-fn is_selfupdate_artifact(name: &str, my_pid: u32) -> bool {
+/// 收割件归属 pid（Some=他人 pid 的暂存/备份、Some(0)=无 pid 遗留名恒清、None=非本链件）。
+fn artifact_owner_pid(name: &str, my_pid: u32) -> Option<u32> {
     if name == "ark.exe.old" {
-        return true;
+        return Some(0); // v1.0.0 遗留精确名：无 pid，恒清
     }
     for prefix in ["ark-new-", "ark-old-"] {
         if let Some(tail) = name.strip_prefix(prefix) {
-            if !tail.is_empty()
-                && tail.bytes().all(|b| b.is_ascii_digit())
-                && tail != my_pid.to_string()
-            {
-                return true;
+            if !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_digit()) {
+                if let Ok(pid) = tail.parse::<u32>() {
+                    if pid != my_pid {
+                        return Some(pid);
+                    }
+                    return None; // 本 pid 件保留
+                }
             }
         }
     }
-    false
+    None
 }
 
 /// 自替换全链（家族自更新统一标准，REQ-0012 #4）：同目录暂存 `ark-new-<pid>`（防跨
@@ -1037,8 +1060,7 @@ fn replace_inner(
                     staged.display()
                 )),
                 Ok(()) => Err(format!(
-                    "新件自证失败已回滚旧件但复核未过（{verr}）；自救：手动以 {} 覆盖 {} 或重装",
-                    backup.display(),
+                    "新件自证失败已回滚旧件但复核未过（{verr}）；建议 `ark init` 重装部署位（{}）",
                     deploy.display()
                 )),
                 Err(re) => Err(format!(
@@ -1284,27 +1306,42 @@ mod tests {
         assert_eq!(strip_v("1.4.1"), "1.4.1");
     }
 
-    /// 对线 G4-2：收割谓词精确形——他人 pid 暂存/备份与遗留 .exe.old 认领，
-    /// 本 pid 保留、用户同前缀自有文件（非纯数字尾/带扩展）不误删。
+    /// 对线 G4-2 加 G-a 护栏：收割件归属判定精确形——他人 pid 暂存/备份归属该 pid
+    /// （由调用方判活性再清）、遗留 .exe.old 恒清（Some(0)）、本 pid 与非本链件保留。
     #[test]
-    fn 收割谓词_精确形() {
+    fn 收割归属_精确形() {
         let mine = 1000u32;
-        assert!(is_selfupdate_artifact("ark-new-1001", mine));
-        assert!(is_selfupdate_artifact("ark-old-999", mine));
-        assert!(
-            is_selfupdate_artifact("ark.exe.old", mine),
-            "v1.0.0 遗留精确名"
+        assert_eq!(artifact_owner_pid("ark-new-1001", mine), Some(1001));
+        assert_eq!(artifact_owner_pid("ark-old-999", mine), Some(999));
+        assert_eq!(
+            artifact_owner_pid("ark.exe.old", mine),
+            Some(0),
+            "遗留精确名恒清"
         );
-        assert!(!is_selfupdate_artifact("ark-new-1000", mine), "本 pid 保留");
-        assert!(!is_selfupdate_artifact("ark-new-abc", mine), "非数字尾不认");
-        assert!(!is_selfupdate_artifact("ark-new-", mine), "空尾不认");
-        assert!(!is_selfupdate_artifact("ark-new-1.tmp", mine), "带扩展不认");
-        assert!(
-            !is_selfupdate_artifact("mytool.exe.old", mine),
+        assert_eq!(
+            artifact_owner_pid("ark-new-1000", mine),
+            None,
+            "本 pid 保留"
+        );
+        assert_eq!(
+            artifact_owner_pid("ark-new-abc", mine),
+            None,
+            "非数字尾不认"
+        );
+        assert_eq!(artifact_owner_pid("ark-new-", mine), None, "空尾不认");
+        assert_eq!(
+            artifact_owner_pid("ark-new-1.tmp", mine),
+            None,
+            "带扩展不认"
+        );
+        assert_eq!(
+            artifact_owner_pid("mytool.exe.old", mine),
+            None,
             "他人 .exe.old 不认"
         );
-        assert!(
-            !is_selfupdate_artifact("ark-notes.txt", mine),
+        assert_eq!(
+            artifact_owner_pid("ark-notes.txt", mine),
+            None,
             "同前缀自有文件不认"
         );
     }
