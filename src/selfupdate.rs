@@ -671,7 +671,7 @@ fn asset_meta_in_release(
 ) -> Result<(String, String, String), String> {
     let mut primary_err: Option<String> = None;
     for name in names {
-        match asset_in_release(&release, name) {
+        match asset_in_release(release, name) {
             Ok(hit) => return Ok(hit),
             Err(e) => {
                 primary_err.get_or_insert(e);
@@ -1060,7 +1060,7 @@ fn verify_by_version(exe: &Path, expect: Option<&str>, tries: u32) -> Result<(),
             let text = String::from_utf8_lossy(&out.stdout).to_string();
             let ok = out.status.success()
                 && !text.trim().is_empty()
-                && expect.map_or(true, |v| text.contains(v));
+                && expect.is_none_or(|v| text.contains(v));
             if ok {
                 return Ok(());
             }
