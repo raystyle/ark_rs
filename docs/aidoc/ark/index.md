@@ -1,4 +1,4 @@
-# ark 1.4.0
+# ark 1.4.1
 
 ark：Ark（Agent Runtime Kit）本机跨平台环境部署管理 CLI。
 三原语 doctor / install / status；派生 query、update、pin、verify、heal、

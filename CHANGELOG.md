@@ -2,6 +2,13 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [1.4.1] - 2026-09-18
+
+patch：家族自更新统一标准对齐批（REQ-0012，总台标准轮）。
+
+- **家族自更新标准对齐**（标准权威 browse-rs REQ-005 加 build-release 公共契约第六节；差异表七件全文见 REQ-0012）：stable 通道改家族形：官方 latest API 一次判新（tag 加 digest）加 semver 门（相等 current、本地领先 localNewer 不动）加镜像 stable 段下载优先（官方 digest 锚加 CF 击穿），镜像腿任一步失败整对回落官方、官方终腿 digest 硬校验；dev 通道镜像边车同源锚不符硬拒不回落（D51 读序不变）。自替换五小件：同目录暂存与备份 ark-new/old-<pid>（全程 rename，POSIX 亦有备份）、.ark-selfupdate.lock 原子取加 pid 活性检测加死锁与本 pid 残留收割、陈旧残留归属判活清扫、--version 自证五次重试（stable 断言远端版本）、证败回滚并复核加自救路径。对线三轮 CONFIRM（ark-codex-review：一轮 F1 至 F4 加 G 全修、二轮文档真相与保守向、三轮锁判定回正）。
+- **ark-managed 落痕生产者契约**（browse 等家族自更新让位判据依赖）：install/update 绿色主链与 official 型真身同目录落 `ark-managed` 标记文件（内容 = ark 版本号，幂等）；资格纯函数排除特型（npm-tgz/uv-git/msi/自管）与相对路径落点；卸载语义 = 标记随目录重建重写、手删目录即消失。
+
 ## [1.4.0] - 2026-09-18
 
 minor：镜像默认通道翻转批（D51/ADR-0008/REQ-0010）加 ome 关键字剔除批（用户令）加 cli-docs 标准采纳批（REQ-0011）；并入 v1.3.0 后补审修复批（herdr codex 评审闸门 2026-09-17 两轮 CONFIRM）。本版对线三轮 CONFIRM（ark-codex-review）。
