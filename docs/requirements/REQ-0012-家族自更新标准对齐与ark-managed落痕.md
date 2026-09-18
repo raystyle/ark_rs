@@ -10,7 +10,7 @@ trace: cargo test --release --locked 全绿 227 项；门禁全绿；对线两�
 
 总台派单（2026-09-18 家族自更新统一标准轮，用户裁「采纳推广」加「两件全派」）。标准权威：browse-rs REQ-005 加 build-release 公共契约第六节。验收判据：同工具 self update 与管理器 update 同报已最新，各端终态同 digest。
 
-## 差异表（ark selfupdate.rs 对照标准口径逐条）
+## 差异表 ark selfupdate 对照标准口径逐条
 
 | # | 标准口径 | ark 现状（截至 v1.4.0） | 差异裁决与本批改动 |
 | --- | --- | --- | --- |
