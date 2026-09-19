@@ -269,7 +269,7 @@ pub fn install_tool(
     // D51：pin 驱动解析的 asset_url 是镜像主通道 URL，官方回落地址取 fallback_url（在位时）
     let force_download = def.pin_tag() != Some(res.tag.as_str());
     let official_url = res.fallback_url.as_deref().unwrap_or(&res.asset_url);
-    let cache = download::download_asset_with_mirror(
+    let cache = download::download_asset_with_mirror_at(
         env_root,
         &res.asset_name,
         official_url,
@@ -277,6 +277,7 @@ pub fn install_tool(
         force_download,
         name,
         &res.version,
+        def.mirror_base(),
     )?;
 
     // 额外 bootstrap 资产（如 7z 的 7zr.exe）：仅 Windows 下 7z-extra 使用；先下载最小解压器，MZ 头校验
@@ -765,7 +766,7 @@ fn install_npm_tgz(
     let expected = checksum::expected_sha256(def, res, env_root)?;
     // D51：官方回落地址取 fallback_url（pin 驱动解析在位），asset_url 为镜像主通道
     let official_url = res.fallback_url.as_deref().unwrap_or(&res.asset_url);
-    let cache = download::download_asset_with_mirror(
+    let cache = download::download_asset_with_mirror_at(
         env_root,
         &res.asset_name,
         official_url,
@@ -773,6 +774,7 @@ fn install_npm_tgz(
         true,
         name,
         &res.version,
+        def.mirror_base(),
     )?;
 
     eprintln!(

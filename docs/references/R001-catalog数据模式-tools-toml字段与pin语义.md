@@ -26,6 +26,7 @@
 | `exe` | string | 版本探测 exe 路径，相对 EnvRoot；official 可含 `%VAR%` 环境变量 |
 | `extract` | string | 解压/安装方式：zip / targz / targz-bin / tarxz-bin / zip-bin / zip-dir（Windows 版本目录树不展平，zig 用）/ targz-dir / tarxz-dir / copy / gsudo / 7z-extra / 7zsfx / msi / rmux / single / vsbuild（见五） |
 | `repo` | string | GitHub 仓库 `owner/name`（纯 cdn 工具可省） |
+| `mirror_domain` | string（可选） | 独立分发域基址（如 `https://reader.ohmygh.com`）：在位即该工具镜像腿专属域（键形 `/<tool>/<version>/<asset>` 加 `.sha256` 边车不变），缺省回落 `env.ohmygh.com`；真源云端 catalog 单键，引擎侧无第二份域表 |
 | `desc` | string | 一行用途说明（D25 入册；D50 起数据面保留，真源云端 ohmycloud，ark 侧无渲染消费者） |
 | `guide_env` | string[] | 引导提示的环境变量键清单（用户级优先、进程级兜底；含 TOKEN/KEY/SECRET/PASSWORD 的键只显在否不显值，凭据纪律；D50 起数据面保留） |
 | `guide_dirs` | string[] | 引导提示的安装/数据目录清单（支持 `~` 与 `%VAR%` 展开；D50 起数据面保留） |

@@ -38,6 +38,10 @@ pub struct Tool {
     pub extract: Option<String>,
     /// GitHub 仓坐标 owner/name（resolve 与自更新源）
     pub repo: Option<String>,
+    /// 独立分发域基址（REQ-0013，如 https://reader.ohmygh.com）：在位即该工具镜像腿
+    /// 专属域（键形 /<tool>/<version>/<asset> 加 .sha256 边车不变）；缺省回落
+    /// env.ohmygh.com。单一真源在云端 catalog，仓内禁第二份域表。
+    pub mirror_domain: Option<String>,
     /// release tag 前缀（缺省 v）
     pub tag_prefix: Option<String>,
     /// 资产名匹配正则（release 资产检索）
@@ -195,6 +199,15 @@ impl Tool {
             return Some(v);
         }
         self.repo.as_deref()
+    }
+
+    /// 工具镜像基址（REQ-0013 独立分发域）：节键 mirror_domain 非空即该工具专属域，
+    /// 缺省回落全局 env.ohmygh.com（真源云端 catalog，仓内无第二份域表）。
+    pub fn mirror_base(&self) -> &str {
+        self.mirror_domain
+            .as_deref()
+            .filter(|d| !d.trim().is_empty())
+            .unwrap_or(crate::download::MIRROR_BASE)
     }
 
     /// 当前平台适用的 asset_pattern（回退链同 `repo()`）。
@@ -1766,6 +1779,22 @@ mod tests {
     fn env_root_显式参数优先_并裁尾斜杠() {
         let root = resolve_env_root(Some(r"E:\env\")).expect("显式参数应生效");
         assert_eq!(root, PathBuf::from(r"E:\env"));
+    }
+
+    /// REQ-0013：mirror_base 访问器——节键非空走专属域，空串/空白/缺省回落全局 env 域。
+    #[test]
+    fn 镜像基址_独立域与回落() {
+        let mk = |d: Option<&str>| Tool {
+            mirror_domain: d.map(str::to_string),
+            ..Tool::default()
+        };
+        assert_eq!(mk(None).mirror_base(), "https://env.ohmygh.com");
+        assert_eq!(
+            mk(Some("https://reader.ohmygh.com")).mirror_base(),
+            "https://reader.ohmygh.com"
+        );
+        assert_eq!(mk(Some("")).mirror_base(), "https://env.ohmygh.com");
+        assert_eq!(mk(Some("  ")).mirror_base(), "https://env.ohmygh.com");
     }
 
     #[test]

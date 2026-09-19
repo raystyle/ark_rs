@@ -87,7 +87,7 @@ ark 无配置文件：行为配置走环境变量，软件清单与工具级配�
 3. minisign 验签：公钥内嵌二进制，签名不过不收
 4. seq 单调门：顶层 seq 低于已见拒收（防回滚重放旧但签名有效的清单对）
 
-**下载与元数据默认走 env.ohmygh.com 自建镜像、GitHub 兜底**（D44 下载链反转，2026-09-13；D51 全链转正，2026-09-18：解析面 pin 驱动零 GitHub API、self update 元数据镜像段读序先行、update 对齐 catalog pin）；镜像未命中或失败秒级回落官方（下载走官方直链与完整链，无 API 配额面）；有 sha 锚（catalog pin、镜像边车或官方清单）必校验，锚不符视同失败回落。
+**下载与元数据默认走自建镜像、GitHub 兜底**（D44 下载链反转，2026-09-13；D51 全链转正，2026-09-18：解析面 pin 驱动零 GitHub API、self update 元数据镜像段读序先行、update 对齐 catalog pin；有专属分发域的工具（catalog 节键 `mirror_domain`，如 reader.ohmygh.com）镜像腿走专属域、缺省回落 env.ohmygh.com）；镜像未命中或失败秒级回落官方（下载走官方直链与完整链，无 API 配额面）；有 sha 锚（catalog pin、镜像边车或官方清单）必校验，锚不符视同失败回落。
 
 运行时工具族的中国源配置走 manifest `mirror` 节（数据面声明、引擎落源，D42）：fnm 面 FNM_NODE_DIST_MIRROR 与 npm registry（npmmirror）、uv / pip 清华 TUNA 加 python 安装 NJU、bun npmmirror；win 落用户环境变量与各工具原生配置位、POSIX 落 shell rc（profile env 块）与 XDG 配置位。rust 由 rustup 接管模块原生落 rsproxy 全量。幂等：内容一致零重写，存量端 `ark install` / `ark update` 即得。
 

@@ -102,10 +102,16 @@ pub fn download_fresh(env_root: &Path, asset_name: &str, url: &str) -> Result<Pa
 /// 自建分发镜像基址（种子终态 69/69，ohmycloud#2）。
 pub const MIRROR_BASE: &str = "https://env.ohmygh.com";
 
-/// 镜像段 URL：`{MIRROR_BASE}/{tool}/{version}/{asset}`。
+/// 镜像段 URL（全局域 env.ohmygh.com）：`{base}/{tool}/{version}/{asset}`。
 /// evergreen 引导器走 latest 段（`rust/latest/rustup-init.exe` 同构，version 传 "latest"）。
 pub fn mirror_url(tool: &str, version: &str, asset: &str) -> String {
-    format!("{MIRROR_BASE}/{tool}/{version}/{asset}")
+    mirror_url_at(MIRROR_BASE, tool, version, asset)
+}
+
+/// 镜像段 URL 显式基址形（REQ-0013 独立分发域）：基址取 catalog 节键 mirror_domain
+///（`Tool::mirror_base()`），键形 /<tool>/<version>/<asset> 与边车形不变。
+pub fn mirror_url_at(base: &str, tool: &str, version: &str, asset: &str) -> String {
+    format!("{base}/{tool}/{version}/{asset}")
 }
 
 /// 镜像 latest 段边车 URL：`{MIRROR_BASE}/{tool}/latest/{asset}.sha256`。
@@ -166,6 +172,32 @@ pub fn download_asset_with_mirror(
         asset_name,
         url,
         &mirror_url(tool, version, asset_name),
+        expected_sha256,
+        force,
+    )
+}
+
+/// 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain
+///（调用方传 `def.mirror_base()`），锚校验与回落链与全局域形同构。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：镜像与官方双链失败（锚不符、网络错）等（完整失败面见函数体错误构造）。
+#[allow(clippy::too_many_arguments)] // 显式基址形多一参（与全局域形同构派生，拆结构体反增面）
+pub fn download_asset_with_mirror_at(
+    env_root: &Path,
+    asset_name: &str,
+    url: &str,
+    expected_sha256: Option<&str>,
+    force: bool,
+    tool: &str,
+    version: &str,
+    mirror_base: &str,
+) -> Result<PathBuf, String> {
+    download_asset_with_mirror_urls(
+        env_root,
+        asset_name,
+        url,
+        &mirror_url_at(mirror_base, tool, version, asset_name),
         expected_sha256,
         force,
     )

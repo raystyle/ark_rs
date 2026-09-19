@@ -1,6 +1,6 @@
 # ark
 
-> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI（Windows/Linux/macOS）。53 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。镜像主通道 env.ohmygh.com、官方兜底。
+> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI（Windows/Linux/macOS）。53 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。镜像主通道自建域族（工具专属分发域或 env.ohmygh.com）、官方兜底。
 
 ## 读序
 
@@ -28,7 +28,7 @@
 | `src/arerr.rs` | 机器可读错误四元组（code/message/hint/exit_code），main 按 exit_code 退出 |
 | `src/render.rs` | 单一渲染层：stdout 只走 key=value 数据，组标题走 # 注释行 |
 | `src/catalog.rs` | `catalog/tools.toml` 读写、EnvRoot 解析、pin 回写 |
-| `src/resolve.rs` | 版本解析三分支（GitHub REST / cdn 模板 / HashiCorp index）；D51 镜像默认通道：GitHub 分支 pin 驱动零 API 直装（镜像 URL 主通道加 fallback_url 官方直链兜底），API 仅显式 latest/tag/version 或 pin 缺键兜底 |
+| `src/resolve.rs` | 版本解析三分支（GitHub REST / cdn 模板 / HashiCorp index）；D51 镜像默认通道：GitHub 分支 pin 驱动零 API 直装（镜像 URL 主通道加 fallback_url 官方直链兜底；工具镜像基址按 catalog 节键 mirror_domain 走专属域、缺省 env 域），API 仅显式 latest/tag/version 或 pin 缺键兜底 |
 | `src/download.rs` | 资产下载与缓存复用；D44 反转镜像优先链（env.ohmygh.com 单次快速首试、官方完整链兜底、有锚必校验）；D51 `ARK_MIRROR=0` 官方优先逃逸阀（跳过镜像首试） |
 | `src/checksum.rs` | sha256 校验与官方校验源 |
 | `src/install.rs` | 安装主编排（幂等、防穿越、验版本、回写） |

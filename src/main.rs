@@ -38,7 +38,7 @@ const LLMS_MANIFEST: &str = concat!(
     "全局：--format kv|json|jsonl、--json、--env-root PATH、--llms。数据 stdout、提示 stderr、错误单行 JSON。\n",
     "命令级常用旗标：query/pin/install 共用 --latest、--tag、--version；install/update 另有 --force；verify 有 --check；heal 有 --dry-run。\n",
     "何时用：装、查、管、诊断环境一律走 ark（不手拼官方 URL、不裸 curl release 资产、不手写 PATH 注册表）；install/update 幂等检测安装，重跑零副作用。\n",
-    "下载：默认 env.ohmygh.com 镜像、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。\n",
+    "下载：默认自建镜像（工具专属分发域或 env.ohmygh.com）、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。\n",
     "\n",
     "## 命令\n",
     "\n",

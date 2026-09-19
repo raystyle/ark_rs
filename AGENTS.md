@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> Ark（Agent Runtime Kit，CLI 名 `ark`；D41 前名 ome/Oh My Env）是本机跨平台环境部署管理 CLI（Windows / Linux / macOS），独立仓库。统一分发体系分工（用户裁 2026-09-16）：omc 管资源分发运维与版本分发管理（catalog 真源、种子签发、镜像运维、版本对齐表），**ark 是执行引擎面**：各端 install/update/status/doctor 的实际执行与验收回执：53 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。一个标准、一个配置；下载默认走兄弟仓 ohmycloud 的 env.ohmygh.com 镜像、官方渠道兜底（D44）。本文件是协作规则的**最高约束**（五节合同，dev-evo 形态，ADR-0001 迁移）；细则唯一权威在对应 G/R 文档（摘要层铁律：双份并行必漂移）。
+> Ark（Agent Runtime Kit，CLI 名 `ark`；D41 前名 ome/Oh My Env）是本机跨平台环境部署管理 CLI（Windows / Linux / macOS），独立仓库。统一分发体系分工（用户裁 2026-09-16）：omc 管资源分发运维与版本分发管理（catalog 真源、种子签发、镜像运维、版本对齐表），**ark 是执行引擎面**：各端 install/update/status/doctor 的实际执行与验收回执：53 个工具的版本解析、下载、校验、解压、PATH 注册、pin 锁定、更新与 doctor 诊断。一个标准、一个配置；下载默认走兄弟仓 ohmycloud 的自建镜像（有专属域的工具按 catalog 节键 mirror_domain 走专属域、缺省 env.ohmygh.com）、官方渠道兜底（D44/REQ-0013）。本文件是协作规则的**最高约束**（五节合同，dev-evo 形态，ADR-0001 迁移）；细则唯一权威在对应 G/R 文档（摘要层铁律：双份并行必漂移）。
 
 ## Commands
 

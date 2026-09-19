@@ -426,7 +426,8 @@ fn pin_direct(name: &str, tool: &Tool, opts: &ResolveOptions, repo: &str) -> Opt
         version: ver.to_string(),
         asset_name: asset.to_string(),
         asset_size: 0,
-        asset_url: crate::download::mirror_url(name, ver, asset),
+        // REQ-0013 独立分发域：镜像主通道基址取 catalog 节键 mirror_domain（缺省 env 域）
+        asset_url: crate::download::mirror_url_at(tool.mirror_base(), name, ver, asset),
         shasums_url: None,
         official_sha256: None,
         fallback_url: Some(format!(
@@ -762,6 +763,41 @@ mod tests {
             tool.pin_asset().unwrap()
         );
         assert_eq!(res.fallback_url.as_deref(), Some(expect_fallback.as_str()));
+    }
+
+    /// REQ-0013 独立分发域：节键 mirror_domain 在位即镜像主通道走专属域，缺省回落
+    /// env.ohmygh.com（两面各一例；键形与边车形不变）。
+    #[test]
+    fn pin驱动_独立分发域两面() {
+        let mut tool = age_fixture();
+        let res = pin_direct("age", &tool, &ResolveOptions::default(), "FiloSottile/age")
+            .expect("缺省域应直装");
+        assert_eq!(
+            res.asset_url,
+            format!(
+                "https://env.ohmygh.com/age/{}/{}",
+                tool.pin_version().unwrap(),
+                tool.pin_asset().unwrap()
+            ),
+            "键缺失回落全局 env 域"
+        );
+        tool.mirror_domain = Some("https://reader.ohmygh.com".into());
+        let res2 = pin_direct("age", &tool, &ResolveOptions::default(), "FiloSottile/age")
+            .expect("独立域应直装");
+        assert_eq!(
+            res2.asset_url,
+            format!(
+                "https://reader.ohmygh.com/age/{}/{}",
+                tool.pin_version().unwrap(),
+                tool.pin_asset().unwrap()
+            ),
+            "节键在位走专属域"
+        );
+        // 空串与空白键视同缺失（回落全局域）
+        tool.mirror_domain = Some("  ".into());
+        let res3 = pin_direct("age", &tool, &ResolveOptions::default(), "FiloSottile/age")
+            .expect("空白键应回落直装");
+        assert!(res3.asset_url.starts_with("https://env.ohmygh.com/age/"));
     }
 
     /// D51：显式 latest/tag/version 请求不走镜像直装（上游最新语义仍走 GitHub API 兜底）。

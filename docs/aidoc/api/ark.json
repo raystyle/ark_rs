@@ -313,6 +313,11 @@
       "docs": "带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：\n- 缓存三分支照常（命中即复用，与渠道无关）；\n- 镜像段**单次快速首试**（不退避不 curl：镜像未播该版本是常态而非异常，\n  404 须秒级回落官方，不能拖满重试链）；\n- 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；\n- 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，\n  CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
+      "path": "ark::download::download_asset_with_mirror_at",
+      "kind": "function",
+      "docs": " 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain\n（调用方传 `def.mirror_base()`），锚校验与回落链与全局域形同构。"
+    },
+    {
       "path": "ark::download::download_fresh",
       "kind": "function",
       "docs": "强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
@@ -340,7 +345,12 @@
     {
       "path": "ark::download::mirror_url",
       "kind": "function",
-      "docs": "镜像段 URL：`{MIRROR_BASE}/{tool}/{version}/{asset}`。\nevergreen 引导器走 latest 段（`rust/latest/rustup-init.exe` 同构，version 传 \"latest\"）。"
+      "docs": "镜像段 URL（全局域 env.ohmygh.com）：`{base}/{tool}/{version}/{asset}`。\nevergreen 引导器走 latest 段（`rust/latest/rustup-init.exe` 同构，version 传 \"latest\"）。"
+    },
+    {
+      "path": "ark::download::mirror_url_at",
+      "kind": "function",
+      "docs": " 镜像段 URL 显式基址形（REQ-0013 独立分发域）：基址取 catalog 节键 mirror_domain\n（`Tool::mirror_base()`），键形 /<tool>/<version>/<asset> 与边车形不变。"
     },
     {
       "path": "ark::download::parse_sidecar_sha",
