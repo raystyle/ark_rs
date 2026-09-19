@@ -2,6 +2,12 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [1.4.2] - 2026-09-19
+
+patch：独立分发域集成改向批（REQ-0013 改向记录加 REQ-0014 委托自升级通道；用户裁 2026-09-19「自维护自升级 CLI 走 CLI 自升级渠道、其余对齐 omc 维护 env」）。
+
+- **委托自升级通道**（REQ-0014）：家族自研 CLI（hst/browse/reader/officecli）的 `ark update <tool>` 委托调用其自身自升级命令（hst `self update`、browse `update`、reader `self update`、officecli `__update-check__` 内部入口），吃其独立域通道与既有锚校验回滚自证；让位契约 ark 侧零接触（委托前撤 ark-managed 落痕、完成含失败后恢复，家族仓零改动）；未装回落镜像安装腿首装；机读面 channel=self-update 加 action 诚实裁定（updated/skipped/failed）；家族子进程 stdout 转 ark stderr（--format json 恒纯净）。REQ-0013 的 mirror_domain 下载腿方案按改令撤回（键留 omc 元数据真源、ark 不消费，字段在位保解析与 R001 契约）。对线三轮 CONFIRM 加记录面补齐。实弹：update reader 委托链全绿（家族域通道日志在证、落痕恢复、status 与 --version 同报 pin）；让位互锁正向证（reader 直跑被落痕拦指回 ark）；空 PATH 裸环境回落首装实证。
+
 ## [1.4.1] - 2026-09-18
 
 patch：家族自更新统一标准对齐批（REQ-0012，总台标准轮）。

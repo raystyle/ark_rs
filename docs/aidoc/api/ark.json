@@ -1,6 +1,6 @@
 {
   "crate": "ark",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "items": [
     {
       "path": "ark::arerr",
