@@ -12,6 +12,7 @@ init、self update。catalog 为唯一 pin 源。
 - [`arerr`](arerr.md): arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
 - [`catalog`](catalog.md): catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
 - [`checksum`](checksum.md): checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。
+- [`delegate`](delegate.md): delegate：家族自研 CLI 的 update 委托腿（用户裁定 2026-09-19「我们自己维护的
 - [`docker`](docker.md): docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。
 - [`doctor`](doctor.md): doctor：部署异常诊断（2026-09-02 用户需求：检测部署的错误异常）。
 - [`download`](download.md): download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。
@@ -123,6 +124,27 @@ checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha
 - `official_sha256` — 官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。
 
 
+<!-- ark/delegate.md -->
+# ark::delegate
+
+delegate：家族自研 CLI 的 update 委托腿（用户裁定 2026-09-19「我们自己维护的
+自升级的 CLI，ark 对齐也走 CLI 自升级渠道；其余不是我们维护的 CLI 对齐 omc 维护 env」）。
+家族五员（ark 自身、hst、browse、reader、officecli）在 `ark update <tool>` 面委托
+调用该 CLI 自身的自升级命令，吃其独立域通道与既有锚校验、回滚与自证（家族标准形）；
+ark 不为五员自建镜像下载腿。其余非自研工具照旧镜像优先加官方兜底（D44 面不变）。
+让位契约联动（家族仓零改动）：家族自更新检出 ark-managed 落痕即拒自升，故委托前
+临时撤落痕（rename 挪开）、自升级完成（含失败）后恢复落痕。
+
+## Functions
+
+- `run` — 委托执行一次家族自升级：定位真身 exe → 临时撤 ark-managed 落痕 → 调家族自升级命令
+- `self_update_args` — 家族五员自升级命令路由（exe 后参数；改令 2026-09-19）：返回 None 即走镜像腿。
+
+## Types
+
+- `DelegateOutcome` — 委托腿结果。
+
+
 <!-- ark/docker.md -->
 # ark::docker
 
@@ -179,7 +201,6 @@ download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-Relea
 - `cache_path` — 缓存路径：<EnvRoot>\cache\<asset>。
 - `download_asset` — 下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。
 - `download_asset_with_mirror` — 带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：
-- `download_asset_with_mirror_at` — 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain
 - `download_fresh` — 强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。
 - `download_latest_with_sidecar` — 带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：
 - `fetch_text_short` — 单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。

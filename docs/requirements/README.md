@@ -18,3 +18,4 @@
 | REQ-0011 | implemented | cli-docs标准采纳 | 对照表全件加裸调用面与漂移守卫两测加 README 四节重构（trace 见 REQ 内） |
 | REQ-0012 | implemented | 家族自更新标准对齐与ark-managed落痕 | 差异表七件加stable家族形与自替换自证回滚加落痕契约（trace 见 REQ 内） |
 | REQ-0013 | implemented | 独立分发域集成 | catalog 节键 mirror_domain 加镜像基址访问器加解析下载两面接线（trace 见 REQ 内） |
+| REQ-0014 | implemented | 委托自升级通道 | 家族四员委托命令路由加撤痕复痕舞蹈加 channel 机读面（trace 见 REQ 内） |

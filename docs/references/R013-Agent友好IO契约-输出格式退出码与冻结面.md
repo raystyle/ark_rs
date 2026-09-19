@@ -41,7 +41,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | --- | --- |
 | `query` | tool, tag, version, asset, size, url, sha256（size 仅 API 解析路径有效；D51 起 pin 驱动零 API 恒 0） |
 | `pin` | tool, tag, version, asset, sha256 |
-| `install` / `update` | tool, action, version, dir |
+| `install` / `update` | tool, action, version, dir（update 委托腿另出 channel=self-update：家族自研 CLI 走其自身自升级；镜像腿缺省无 channel 字段） |
 | `status` | tool, locked, installed, path, exe |
 | `init` | action, exe, bin_dir, catalog, path |
 | `verify` | name, verdict |

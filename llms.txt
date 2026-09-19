@@ -43,6 +43,7 @@
 | `src/rustup.rs` | Rust 接管（rustup 引导器型：rsproxy 直链 stable 滚动、cargo sparse 镜像全平台；Windows RUSTUP_HOME/CARGO_HOME 重定位 EnvRoot，POSIX 系统标准位 `~/.rustup` 与 `~/.cargo`（D42）；自 set-rust.ps1 迁移） |
 | `src/docker.rs` | Docker Engine 接管（自 set-docker.ps1 迁移：static zip + Windows 服务注册 + daemon.json 合并 + compose 插件 + 机器级 PATH；gsudo 提权；与 vsbuild 差异在有 pin 非 evergreen） |
 | `src/verify.rs` | 部署域验收维度注册表（catalog 三态加文件存在判定，`dim=PASS/FAIL/NA` 收割行；流式输出） |
+| `src/delegate.rs` | 家族自研 CLI 的 update 委托腿（hst/browse/reader/officecli 走其自身自升级命令，撤 ark-managed 落痕让位、完成复痕，家族仓零改动；未装回落镜像安装腿首装；输出 channel=self-update） |
 | `src/heal.rs` | 部署维度幂等自愈（install 类原生安装、密钥载体/镜像源 heal-keys/heal-mirror、agent 域休眠、外域只提示、mac-* 别名归一） |
 | `src/doctor.rs` | 核心诊断命令两层（D07 三层，D30 收窄去 agent 层：装态对账归 omc、token 归 oma diagnose）加 check 节：环境错误、配置健康（D11）、部署深诊（D12）、网络通连（D13 并行 HEAD、5s 总超时）；verdict=ready/degraded/broken；FAIL 即 exit 1 |
 | `tests/cli.rs` | CLI 集成冒烟（离线夹具 catalog，断退出码与 key=value 标记行） |

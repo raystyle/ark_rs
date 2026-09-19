@@ -128,7 +128,7 @@ ark verify                    # 4 部署域验收，FAIL 退出码非零可进�
 
 ```bash
 ark query ffmpeg --latest     # 只解析最新版与资产，不下载（显式 latest 走 GitHub API 兜底）
-ark update [名]               # 对齐云端锁定安装（catalog pin 即目标、零 GitHub API；落后补装、领先如实报，D49/D51；不回写锁定）
+ark update [名]               # 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级；其余对齐云端锁定（零 GitHub API；落后补装、领先如实报，D49/D51）
 ark pin rg --version 14.1.1   # 临时本地锁（下次 sync 被云端覆盖；lock 为别名）
 ```
 

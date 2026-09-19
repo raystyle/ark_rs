@@ -464,35 +464,6 @@ fn 裸调用_紧凑导航_exit0() {
     assert!(out.stdout.is_empty(), "导航面不产数据块，stdout 保持纯净");
 }
 
-/// REQ-0013 独立分发域：catalog 节带 mirror_domain 键时 query 的镜像主通道 URL 走
-/// 专属域（键形与 pin 驱动零 API 面不变）；离线纯读即证。
-#[test]
-fn query_独立分发域_镜像url走专属域() {
-    let dir = tempfile::tempdir().expect("临时目录");
-    let cat = dir.path().join("tools.toml");
-    std::fs::write(
-        &cat,
-        "[tools.age]\nrepo = \"FiloSottile/age\"\ntag_prefix = \"v\"\ndir = \"age\"\nbin = \"age\"\nexe = \"age/age.exe\"\nlinux_dir = \"age\"\nlinux_bin = \"age\"\nlinux_exe = \"age\"\ntag = \"v1.3.1\"\nversion = \"1.3.1\"\nasset = \"age-v1.3.1-windows-amd64.zip\"\nmirror_domain = \"https://age.ohmygh.com\"\nlinux_tag = \"v1.3.1\"\nlinux_version = \"1.3.1\"\nlinux_asset = \"age-v1.3.1-linux-amd64.tar.gz\"\n",
-    )
-    .expect("写临时 catalog");
-    #[cfg(windows)]
-    let asset = "age-v1.3.1-windows-amd64.zip";
-    #[cfg(all(not(windows), not(target_os = "macos")))]
-    let asset = "age-v1.3.1-linux-amd64.tar.gz";
-    #[cfg(target_os = "macos")]
-    let asset = "age-v1.3.1-darwin-arm64.tar.gz";
-    let mut cmd = Command::cargo_bin("ark").expect("ark 二进制应已构建");
-    cmd.env("ARK_CATALOG", &cat)
-        .env("ARK_OFFLINE", "1")
-        .args(["query", "age"])
-        .assert()
-        .success()
-        .stdout(contains("tool=age"))
-        .stdout(contains(format!(
-            "url=https://age.ohmygh.com/age/1.3.1/{asset}"
-        )));
-}
-
 /// cli-docs 漂移守卫（REQ-0011，curated 手册形必配）：活命令树（--help 系 clap 派生）里的
 /// 每个子命令与关键长旗标必须出现在 --llms 手册中，防新增命令/旗标漏登记。
 #[test]

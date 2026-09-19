@@ -48,7 +48,7 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |\n",
     "| ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |\n",
     "| ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |\n",
-    "| ark update [名] | 对齐云端锁定安装（catalog pin 即目标，零 GitHub API；落后补装、领先如实报，不回写锁定；省略则全量） | 同 install | 0/1 |\n",
+    "| ark update [名] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合 | 同 install 加 channel | 0/1 |\n",
     "| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |\n",
     "| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |\n",
     "| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |\n",
@@ -1166,6 +1166,49 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
                 ],
             );
             continue;
+        }
+        // 家族自研 CLI 委托腿（用户裁定 2026-09-19：自维护自升级 CLI 的 ark update 走
+        // 其自身自升级通道，吃其独立域与锚校验回滚自证；其余非自研照旧镜像腿）：
+        // 未装回落镜像安装腿首装；让位契约靠临时撤 ark-managed 落痕、完成（含失败）复痕。
+        if ark::delegate::self_update_args(name).is_some() {
+            match ark::delegate::run(name, def, env_root) {
+                Ok(Some(out)) => {
+                    if out.ok {
+                        eprintln!("[OK] {name} 委托自升级完成: {}", out.via);
+                    } else {
+                        eprintln!(
+                            "[WARN] {name} 委托自升级未成功: {}（详见上方家族 CLI 输出）",
+                            out.via
+                        );
+                    }
+                    // action 诚实裁定：版本变化 updated、家族成功但版本未动 skipped（已最新）、失败 failed
+                    let action = if !out.ok {
+                        "failed"
+                    } else if out.version != out.version_before {
+                        "updated"
+                    } else {
+                        "skipped"
+                    };
+                    let mut rows = vec![
+                        kv("tool", name),
+                        kv("action", action),
+                        kv("channel", "self-update"),
+                    ];
+                    rows.push(kv("version", out.version.as_deref().unwrap_or("-")));
+                    emit_block(&mut first, rows);
+                    if !out.ok && tool != "all" {
+                        errors.push(format!("{name}: 委托自升级失败（{}）", out.via));
+                    }
+                    continue;
+                }
+                Ok(None) => {
+                    eprintln!("[INFO] {name} 家族 CLI 未装，回落镜像安装腿首装");
+                }
+                Err(e) => {
+                    skip_or_fail(tool, name, e, &mut errors)?;
+                    continue;
+                }
+            }
         }
         // PATH 存量已达锁定版纳管（REQ-0003，对线修正批）：自管位工具（hst 族
         // self-update 通道等）PATH 版本已达 pin 而 EnvRoot 未装时，视为已达态跳过

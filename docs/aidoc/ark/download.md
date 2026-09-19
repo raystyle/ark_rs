@@ -12,7 +12,6 @@ download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-Relea
 - `cache_path` — 缓存路径：<EnvRoot>\cache\<asset>。
 - `download_asset` — 下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。
 - `download_asset_with_mirror` — 带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：
-- `download_asset_with_mirror_at` — 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain
 - `download_fresh` — 强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。
 - `download_latest_with_sidecar` — 带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：
 - `fetch_text_short` — 单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。

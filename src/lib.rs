@@ -7,6 +7,7 @@
 pub mod arerr;
 pub mod catalog;
 pub mod checksum;
+pub mod delegate;
 pub mod docker;
 pub mod doctor;
 pub mod download;

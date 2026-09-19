@@ -8,6 +8,7 @@
 - [ark::arerr](ark/arerr.md): arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
 - [ark::catalog](ark/catalog.md): catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
 - [ark::checksum](ark/checksum.md): checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha256。
+- [ark::delegate](ark/delegate.md): delegate：家族自研 CLI 的 update 委托腿（用户裁定 2026-09-19「我们自己维护的
 - [ark::docker](ark/docker.md): docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。
 - [ark::doctor](ark/doctor.md): doctor：部署异常诊断（2026-09-02 用户需求：检测部署的错误异常）。
 - [ark::download](ark/download.md): download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。

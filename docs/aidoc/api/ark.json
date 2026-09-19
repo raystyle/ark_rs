@@ -218,6 +218,26 @@
       "docs": "官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
+      "path": "ark::delegate",
+      "kind": "module",
+      "docs": "delegate：家族自研 CLI 的 update 委托腿（用户裁定 2026-09-19「我们自己维护的\n自升级的 CLI，ark 对齐也走 CLI 自升级渠道；其余不是我们维护的 CLI 对齐 omc 维护 env」）。\n家族五员（ark 自身、hst、browse、reader、officecli）在 `ark update <tool>` 面委托\n调用该 CLI 自身的自升级命令，吃其独立域通道与既有锚校验、回滚与自证（家族标准形）；\nark 不为五员自建镜像下载腿。其余非自研工具照旧镜像优先加官方兜底（D44 面不变）。\n让位契约联动（家族仓零改动）：家族自更新检出 ark-managed 落痕即拒自升，故委托前\n临时撤落痕（rename 挪开）、自升级完成（含失败）后恢复落痕。"
+    },
+    {
+      "path": "ark::delegate::DelegateOutcome",
+      "kind": "struct",
+      "docs": "委托腿结果。"
+    },
+    {
+      "path": "ark::delegate::run",
+      "kind": "function",
+      "docs": "委托执行一次家族自升级：定位真身 exe → 临时撤 ark-managed 落痕 → 调家族自升级命令\n（继承 stdio，家族自身日志为证）→ 恢复落痕（成功失败皆恢复）→ 探活新版本。\nexe 缺位返回 Ok(None)（未装：调用方回落镜像安装腿做首装）。\n\n# Errors\n返回 Err（人读原因串）当：定位 exe 路径失败或落痕恢复受阻（进程失败不 Err，走 ok=false）。"
+    },
+    {
+      "path": "ark::delegate::self_update_args",
+      "kind": "function",
+      "docs": "家族五员自升级命令路由（exe 后参数；改令 2026-09-19）：返回 None 即走镜像腿。\nark 自身是自管条目（update 面 is_ark_self 分支提示 `ark self update`），不入本表。\nofficecli 无用户面自升级子命令，其内部自升级入口 `__update-check__`（检新并自更，\nOFFICECLI_SKIP_UPDATE 不设即执行）为委托命令（其仓 UpdateChecker 在册契约）。"
+    },
+    {
       "path": "ark::docker",
       "kind": "module",
       "docs": "docker：Windows 容器 Docker Engine 接管（自 ohmypwsh set-docker.ps1 完整迁移，2026-09-02）。\n形态：官方 static zip（download.docker.com CDN 直链，pin 驱动，dotnet/oscdimg 同族）+\nWindows 服务注册 + daemon.json 合并 + docker-users 组 + compose 插件 + 机器级 PATH。\n需管理员：未提权且 gsudo 在位时经 gsudo 重跑 `ark install docker`（vsbuild 同模式）。\n与 vsbuild 的差异：docker 有版本与 pin（非 evergreen），resolve 走 cdn_url 分支。"
@@ -311,11 +331,6 @@
       "path": "ark::download::download_asset_with_mirror",
       "kind": "function",
       "docs": "带镜像优先的资产下载（D44 反转，2026-09-13 用户裁定「安装默认走 ohmygh，官方是兜底」）：\n- 缓存三分支照常（命中即复用，与渠道无关）；\n- 镜像段**单次快速首试**（不退避不 curl：镜像未播该版本是常态而非异常，\n  404 须秒级回落官方，不能拖满重试链）；\n- 镜像失败（未命中 / 网络错 / 锚不符）回落官方完整链（ureq 三次退避加 curl 兜底）；\n- 校验锚语义不变：expected_sha256 在位则镜像段同锚校验（锚不符视同镜像失败回落，\n  CF 陈旧对象被锚拦下）；双链全败才报错，错误信息带两段。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
-    },
-    {
-      "path": "ark::download::download_asset_with_mirror_at",
-      "kind": "function",
-      "docs": " 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain\n（调用方传 `def.mirror_base()`），锚校验与回落链与全局域形同构。"
     },
     {
       "path": "ark::download::download_fresh",

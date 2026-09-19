@@ -177,32 +177,6 @@ pub fn download_asset_with_mirror(
     )
 }
 
-/// 上一函数的独立分发域形（REQ-0013）：镜像基址取 catalog 节键 mirror_domain
-///（调用方传 `def.mirror_base()`），锚校验与回落链与全局域形同构。
-///
-/// # Errors
-/// 返回 Err（人读原因串）当：镜像与官方双链失败（锚不符、网络错）等（完整失败面见函数体错误构造）。
-#[allow(clippy::too_many_arguments)] // 显式基址形多一参（与全局域形同构派生，拆结构体反增面）
-pub fn download_asset_with_mirror_at(
-    env_root: &Path,
-    asset_name: &str,
-    url: &str,
-    expected_sha256: Option<&str>,
-    force: bool,
-    tool: &str,
-    version: &str,
-    mirror_base: &str,
-) -> Result<PathBuf, String> {
-    download_asset_with_mirror_urls(
-        env_root,
-        asset_name,
-        url,
-        &mirror_url_at(mirror_base, tool, version, asset_name),
-        expected_sha256,
-        force,
-    )
-}
-
 /// 上一函数的显式 URL 形态（测试注入不可达地址用，不拼镜像段）。
 fn download_asset_with_mirror_urls(
     env_root: &Path,
