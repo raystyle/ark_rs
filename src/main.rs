@@ -48,7 +48,7 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |\n",
     "| ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |\n",
     "| ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |\n",
-    "| ark update [名] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合 | 同 install 加 channel | 0/1 |\n",
+    "| ark update [名] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注，--force 不作用）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合 | 同 install 加 channel | 0/1 |\n",
     "| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |\n",
     "| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |\n",
     "| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |\n",
@@ -1181,10 +1181,15 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
                             out.via
                         );
                     }
-                    // action 诚实裁定：版本变化 updated、家族成功但版本未动 skipped（已最新）、失败 failed
+                    // action 诚实裁定（对线 F4）：失败 failed；升级后探活在位且与升级前
+                    // 不同 updated；其余（家族成功版本未动、或探活失败无法证变）skipped
+                    let changed = matches!(
+                        (&out.version_before, &out.version),
+                        (Some(a), Some(b)) if a != b
+                    );
                     let action = if !out.ok {
                         "failed"
-                    } else if out.version != out.version_before {
+                    } else if changed {
                         "updated"
                     } else {
                         "skipped"
@@ -1196,8 +1201,15 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
                     ];
                     rows.push(kv("version", out.version.as_deref().unwrap_or("-")));
                     emit_block(&mut first, rows);
-                    if !out.ok && tool != "all" {
-                        errors.push(format!("{name}: 委托自升级失败（{}）", out.via));
+                    if !out.ok {
+                        // 对线 F1：与镜像腿同走 skip_or_fail（all 计项、单工具即败，
+                        // 退出码契约 1=失败两面一致）
+                        skip_or_fail(
+                            tool,
+                            name,
+                            format!("{name}: 委托自升级失败（{}）", out.via),
+                            &mut errors,
+                        )?;
                     }
                     continue;
                 }

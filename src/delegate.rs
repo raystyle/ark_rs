@@ -54,10 +54,10 @@ pub fn run(name: &str, def: &Tool, env_root: &Path) -> Result<Option<DelegateOut
             .filter(|p| p.exists())
             .or_else(|| toolver::find_on_path(name).map(|p| p.to_path_buf()))
     };
-    let exe: PathBuf = locate().ok_or_else(|| format!("{name} 无法定位真身 exe（委托腿需要）"))?;
-    if !exe.exists() {
-        return Ok(None); // 未装：回落镜像安装腿首装
-    }
+    // 对线 F2：定位不到（未装）回落镜像安装腿首装（Ok(None)）；Err 只留「定位到但起不来」
+    let Some(exe) = locate() else {
+        return Ok(None);
+    };
     let probe = || locate().and_then(|p| toolver::installed_version(&p, def));
     let version_before = probe();
     let exe_dir = exe
@@ -68,14 +68,27 @@ pub fn run(name: &str, def: &Tool, env_root: &Path) -> Result<Option<DelegateOut
     let marker = exe_dir.join("ark-managed");
     let stashed = marker.exists().then(|| stash_marker(&marker));
     eprintln!("[INFO] {name} 家族自研 CLI，委托其自升级通道: {via}（临时撤 ark-managed 落痕让位）");
-    let status = Command::new(&exe).args(args).status();
+    // 对线 F3：家族面 stdout 收走转 ark stderr（结构化模式下 stdout 恒纯数据，R013 红线；
+    // hst 等家族面是 stdout kv，直接继承会污染 --format json）；家族 stderr 保持继承。
+    let child = Command::new(&exe)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("启动 {via} 失败: {e}"))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("等待 {via} 失败: {e}"))?;
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        eprintln!("[{name}] {line}");
+    }
+    let status = Ok::<_, std::io::Error>(out.status);
     // 恢复落痕（含失败路径：家族仓零改动契约靠 ark 侧复原）
     if let Some(stash) = stashed.as_ref() {
         restore_marker(stash, &marker)?;
     }
     let ok = status
         .map(|s| s.success())
-        .map_err(|e| format!("启动 {via} 失败: {e}"))?;
+        .map_err(|e| format!("{via}: {e}"))?;
     let version = probe();
     Ok(Some(DelegateOutcome {
         ok,
