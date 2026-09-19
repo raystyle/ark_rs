@@ -3,7 +3,7 @@ id: REQ-0009
 title: issue命令集成
 status: implemented
 priority: must
-trace: 总台对齐单（issue 命令集成，REQ-057 契约，2026-09-17）；src/issue.rs（契约校验与 ureq 客户端面，零新增 crate）加 main.rs 三叶接线（new/list/show，catalog 前早期派发）；lib 单测六件全绿（tool 形与 title/body 边界与截断与编码）加全量 cargo test 全绿；真读面冒烟（list 对 issues.ohmygh.com count=0 退出 0）加实弹提交回执见 diary
+trace: 总台对齐单（issue 命令集成，REQ-057 契约，2026-09-17）；src/issue.rs（契约校验与 ureq 客户端面，零新增 crate）加 main.rs 三叶接线（new/list/show，catalog 前早期派发）；lib 单测六件全绿（tool 形与 title/body 边界与截断与编码）加全量 cargo test 全绿；真读面冒烟（list 对 issues.ohmygh.com count=0 退出 0）加实弹提交回执见 diary；issue 对齐批（#52/#53）：默认 100、--before 游标、饱和提示、count 入册，实弹三验与单测两件（2026-09-19）
 ---
 
 # REQ-0009:issue命令集成
@@ -18,7 +18,7 @@ trace: 总台对齐单（issue 命令集成，REQ-057 契约，2026-09-17）；s
 
 - [x] `ark issue new "<标题>" [--body] [--tool]`：一键提交自动带 tool=ark（缺省）与版本（Cargo 包版本）/平台（os/arch）/host（HOSTNAME 或 COMPUTERNAME）
 - [x] 契约校验客户端面（tool 形拒绝、title trim 后 1 至 200、body 至多 20000、version 40 与 platform/host 64 客户端截断），与 REQ-057 validateIssue 语义对齐
-- [x] `ark issue list [--tool] [--status] [--limit]` 与 `ark issue show <id>` 读面（limit 缺省 20）
+- [x] `ark issue list [--tool] [--status] [--limit] [--before <id>]` 与 `ark issue show <id>` 读面（limit 缺省 100 即服务端上限；恰打满夹取后 limit 时 stderr 出截断提示；count 是本次返回条数非在册总数；--before keyset 游标翻更早一页；家族统一标准 #52/#53，2026-09-19 对齐批）
 - [x] 网络面零新增 crate（ureq 既有依赖）；基址 env `ARK_ISSUES_API` 覆盖（测与灰度）
 - [x] catalog 前早期派发：无清单环境也能一键反馈（issue 域纯网络面）
 - [x] agent 使用纪律入仓合同（AGENTS：遇缺陷即 ark issue new 一键反馈）
