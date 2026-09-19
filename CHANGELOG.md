@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **issue 通道家族统一标准对齐**（上游 issues.ohmygh.com #52/#53，参照 browse-rs 0167e8c）：`ark issue list` 默认 limit 20 改 100（服务端上限）；新增 `--before <id>` keyset 游标（取该 id 之前更旧一页，非法值 400 透传，旧形请求回执不变）；饱和提示（返回条数恰打满夹取后 limit 时 stderr 一行截断提示，指向 `--status`/`--tool` 收窄与 `--before` 翻页，未打满零提示）；count 语义入册（命令面与文档写明是本次返回条数非在册总数）。
 - **落痕版本刷新**（总台核收观察 a）：`ark self update --stable` 成功后刷新部署目录 `ark-managed` 落痕内容为远端现版（此前滞留装时版本；dev 滚动源无版本语义不刷，留待下次装面幂等刷）。
 
 ## [1.4.2] - 2026-09-19

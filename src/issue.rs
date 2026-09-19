@@ -256,25 +256,50 @@ pub fn post_issue(
     }
 }
 
-/// 列表：GET /api/issues?tool=&status=&limit=（新到旧；limit 1 至 100 由服务端封顶）。
-///
-/// # Errors
-/// 返回 Err 当：服务不可达、HTTP 非 2xx、回执形不符或行解析失败。
-pub fn list_issues(
-    agent: &ureq::Agent,
+/// 列表 URL 拼接（纯函数）：limit 夹取 1 至 100（与服务端 Math.min(100, Math.max(1, …))
+/// 同口径，codex 评审 G4）；before 在位追加 keyset 游标参数（家族统一标准 #53）。
+pub fn build_list_url(
     base: &str,
     tool: Option<&str>,
     status: Option<&str>,
     limit: u32,
-) -> Result<Vec<IssueRow>, String> {
-    // 客户端夹取 1 至 100（与服务端 Math.min(100, Math.max(1, …)) 同口径，codex 评审 G4）
-    let mut url = format!("{base}/api/issues?limit={}", limit.clamp(1, 100));
+    before: Option<i64>,
+) -> String {
+    let clamped = limit.clamp(1, 100);
+    let mut url = format!("{base}/api/issues?limit={clamped}");
     if let Some(t) = tool {
         url.push_str(&format!("&tool={}", urlencode(t)));
     }
     if let Some(s) = status {
         url.push_str(&format!("&status={}", urlencode(s)));
     }
+    if let Some(b) = before {
+        url.push_str(&format!("&before={b}"));
+    }
+    url
+}
+
+/// 饱和判定（纯函数，家族统一标准 #52）：返回条数恰打满夹取后 limit 即饱和
+///（旧条目可能仍被截断；count 只报本次返回数非在册总数）。
+pub fn list_saturated(returned: usize, limit: u32) -> bool {
+    returned == limit.clamp(1, 100) as usize
+}
+
+/// 列表：GET /api/issues?tool=&status=&limit=&before=（新到旧；limit 1 至 100 由
+/// 服务端封顶；`before` 是 keyset 游标（#53 家族统一标准），取该 id 之前更旧的一页，
+/// 非法值服务端回 400；不带 before 的旧形请求回执不变）。
+///
+/// # Errors
+/// 返回 Err 当：服务不可达、HTTP 非 2xx（含 before 非法 400）、回执形不符或行解析失败。
+pub fn list_issues(
+    agent: &ureq::Agent,
+    base: &str,
+    tool: Option<&str>,
+    status: Option<&str>,
+    limit: u32,
+    before: Option<i64>,
+) -> Result<Vec<IssueRow>, String> {
+    let url = build_list_url(base, tool, status, limit, before);
     let resp = unwrap_http(agent.get(&url).call(), "列表失败")?;
     let v = read_json(resp, "列表失败")?;
     let rows = v
@@ -318,6 +343,40 @@ fn urlencode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 家族统一标准 #52/#53：URL 拼接 clamp 与 before 游标形、饱和判定边界。
+    #[test]
+    fn 列表url_clamp与before游标形() {
+        let base = "https://issues.ohmygh.com";
+        assert_eq!(
+            build_list_url(base, None, None, 20, None),
+            format!("{base}/api/issues?limit=20"),
+            "旧形无 before 回执面不变"
+        );
+        assert_eq!(
+            build_list_url(base, None, None, 500, None),
+            format!("{base}/api/issues?limit=100"),
+            "超界夹到服务端上限"
+        );
+        assert_eq!(
+            build_list_url(base, None, None, 0, None),
+            format!("{base}/api/issues?limit=1"),
+            "零值夹到下界"
+        );
+        assert_eq!(
+            build_list_url(base, Some("ark"), Some("open"), 3, Some(51)),
+            format!("{base}/api/issues?limit=3&tool=ark&status=open&before=51"),
+            "keyset 游标参数在位"
+        );
+    }
+
+    #[test]
+    fn 饱和判定_恰打满夹取界() {
+        assert!(list_saturated(3, 3), "恰打满即饱和");
+        assert!(list_saturated(100, 500), "打满夹取后上限即饱和");
+        assert!(!list_saturated(2, 3), "未打满零提示");
+        assert!(!list_saturated(0, 3), "空集不饱和");
+    }
 
     #[test]
     fn 校验_tool形接受与拒绝() {

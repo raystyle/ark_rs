@@ -55,7 +55,7 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |\n",
     "| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |\n",
     "| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |\n",
-    "| ark issue new\\|list\\|show | 派生·统一 issue 入口（REQ-057 契约）：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list/show 读面 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |\n",
+    "| ark issue new\\|list\\|show | 派生·统一 issue 入口：new 一键提交自动带 tool=ark 与版本/平台/host 到 issues.ohmygh.com，遇缺陷即此反馈；list 读面（默认 limit 100 即服务端上限，count 是本次返回条数非在册总数，恰打满出截断提示；--before <id> 翻更早一页）；show 单条 | filed,id,url 或 count,#id 行 或 单条全字段 | 0/1 |\n",
     "\n",
     "## 退出码\n",
     "\n",
@@ -82,7 +82,7 @@ const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
 const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
 const EX_SELF: &str =
     "示例:\n  ark self update\n  ark self update --stable\n  ark self update --git";
-const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --body \"重跑步骤与输出\"\n  ark issue list --tool ark\n  ark issue show 3";
+const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --body \"重跑步骤与输出\"\n  ark issue list --tool ark\n  ark issue list --limit 3 --before 51\n  ark issue show 3";
 
 #[derive(Parser)]
 #[command(
@@ -281,7 +281,7 @@ enum IssueCmd {
         #[arg(long)]
         timeout: Option<u64>,
     },
-    /// 集中列表（按 tool/status 过滤，新到旧）
+    /// 集中列表（按 tool/status 过滤，新到旧；count 是本次返回条数非在册总数）
     List {
         /// 按工具名过滤
         #[arg(long)]
@@ -289,9 +289,12 @@ enum IssueCmd {
         /// 按状态过滤：open|closed
         #[arg(long)]
         status: Option<String>,
-        /// 至多行数（1 至 100，服务端封顶）
-        #[arg(long, default_value_t = 20)]
+        /// 至多行数（1 至 100 服务端封顶；默认 100 即上限；count 是本次返回条数非在册总数）
+        #[arg(long, default_value_t = 100)]
         limit: u32,
+        /// keyset 游标：取该 id 之前（更旧）一页
+        #[arg(long)]
+        before: Option<i64>,
         /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
         #[arg(long)]
         timeout: Option<u64>,
@@ -465,12 +468,27 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             tool,
             status,
             limit,
+            before,
             timeout,
         } => {
             let agent = issue::http_client(timeout.unwrap_or(issue::TIMEOUT_MS));
             let base = issue::issues_api_base();
-            let rows =
-                issue::list_issues(&agent, &base, tool.as_deref(), status.as_deref(), limit)?;
+            let rows = issue::list_issues(
+                &agent,
+                &base,
+                tool.as_deref(),
+                status.as_deref(),
+                limit,
+                before,
+            )?;
+            // 家族统一标准 #52 饱和提示：恰打满夹取后 limit 时旧条目可能仍被截断
+            //（count 只报本次返回数），出口指过滤收窄与游标翻页；未打满零提示。
+            if issue::list_saturated(rows.len(), limit) {
+                eprintln!(
+                    "[HINT] issue list 恰返回 {} 条（=limit，或被截断）；下一步：--status/--tool 过滤收窄，或 --before <id> 翻更早一页",
+                    rows.len()
+                );
+            }
             let mut out = vec![kv("count", &rows.len().to_string()), kv("endpoint", &base)];
             for r in &rows {
                 out.push(kv(

@@ -10,9 +10,11 @@ issues.ohmygh.com。new 一键提交自动带 tool=ark 与版本/平台/host；l
 
 ## Functions
 
+- `build_list_url` — 列表 URL 拼接（纯函数）：limit 夹取 1 至 100（与服务端 Math.min(100, Math.max(1, …))
 - `http_client` — HTTP 客户端（超时毫秒；ureq Agent 复用连接池）。`timeout_ms == 0` 不设整体
 - `issues_api_base` — API 基址：env `ARK_ISSUES_API` 覆盖供测与灰度，缺省统一入口域。
-- `list_issues` — 列表：GET /api/issues?tool=&status=&limit=（新到旧；limit 1 至 100 由服务端封顶）。
+- `list_issues` — 列表：GET /api/issues?tool=&status=&limit=&before=（新到旧；limit 1 至 100 由
+- `list_saturated` — 饱和判定（纯函数，家族统一标准 #52）：返回条数恰打满夹取后 limit 即饱和
 - `post_issue` — 提交：POST /api/issues；201 取 `{ok,id,url}`（429 限速与 400 校验不过带服务端文案）。
 - `self_host` — 主机名：env `HOSTNAME`（交互 shell 常在但多不导出）与 `COMPUTERNAME`（win）
 - `self_platform` — 平台串形 `linux/x86_64`（os/arch 取编译目标常量，运行态恒定）。

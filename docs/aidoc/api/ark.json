@@ -523,6 +523,11 @@
       "docs": "契约上限：title trim 后至多 200（REQ-057）。"
     },
     {
+      "path": "ark::issue::build_list_url",
+      "kind": "function",
+      "docs": "列表 URL 拼接（纯函数）：limit 夹取 1 至 100（与服务端 Math.min(100, Math.max(1, …))\n同口径，codex 评审 G4）；before 在位追加 keyset 游标参数（家族统一标准 #53）。"
+    },
+    {
       "path": "ark::issue::http_client",
       "kind": "function",
       "docs": "HTTP 客户端（超时毫秒；ureq Agent 复用连接池）。`timeout_ms == 0` 不设整体\n超时（ureq 缺省形，即「不限时」；注意 ureq 2 的 `Duration::ZERO` 是即超时而非\n不限时，codex 二轮 F 实测 0.003 秒红）。"
@@ -535,7 +540,12 @@
     {
       "path": "ark::issue::list_issues",
       "kind": "function",
-      "docs": "列表：GET /api/issues?tool=&status=&limit=（新到旧；limit 1 至 100 由服务端封顶）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx、回执形不符或行解析失败。"
+      "docs": "列表：GET /api/issues?tool=&status=&limit=&before=（新到旧；limit 1 至 100 由\n服务端封顶；`before` 是 keyset 游标（#53 家族统一标准），取该 id 之前更旧的一页，\n非法值服务端回 400；不带 before 的旧形请求回执不变）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx（含 before 非法 400）、回执形不符或行解析失败。"
+    },
+    {
+      "path": "ark::issue::list_saturated",
+      "kind": "function",
+      "docs": " 饱和判定（纯函数，家族统一标准 #52）：返回条数恰打满夹取后 limit 即饱和\n（旧条目可能仍被截断；count 只报本次返回数非在册总数）。"
     },
     {
       "path": "ark::issue::post_issue",

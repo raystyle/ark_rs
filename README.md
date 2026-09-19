@@ -144,7 +144,8 @@ issue 反馈（统一入口 issues.ohmygh.com，REQ-057 契约；自动带 tool=
 
 ```bash
 ark issue new "doctor 报 PATH 重复" --body "重跑步骤与输出"   # 一键提交，回执 id/url
-ark issue list --tool ark    # 集中列表（按 tool/status 过滤，新到旧）
+ark issue list --tool ark    # 集中列表（默认 limit 100 即服务端上限；count 是本次返回条数非在册总数）
+ark issue list --limit 3 --before 51   # keyset 游标翻更早一页（取 id 51 之前三条）
 ark issue show 3             # 单条详情（含正文）
 ```
 

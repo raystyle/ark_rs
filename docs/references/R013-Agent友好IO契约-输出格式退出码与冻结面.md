@@ -46,7 +46,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | `init` | action, exe, bin_dir, catalog, path |
 | `verify` | name, verdict |
 | `heal` | dim, action, params, result, detail |
-| `issue new` | filed, id, url, tool, version, endpoint（REQ-0009；list 另出 count 与 `#id` 概览行、show 出单条全字段加 url） |
+| `issue new` | filed, id, url, tool, version, endpoint（REQ-0009；list 另出 count 与 `#id` 概览行，count 是本次返回条数非在册总数，默认 limit 100 即服务端上限，恰打满出 stderr 截断提示，`--before <id>` keyset 游标翻更早一页（家族统一标准 #52/#53）；show 出单条全字段加 url） |
 | `query`（D51 注） | pin 驱动默认零 GitHub API、镜像直装（url 如实呈现镜像资产域地址；`fallback_url` 官方直链由下载层兜底）；显式 `--latest`/`--tag`/`--version` 才走 GitHub API |
 | `doctor` | check, status, detail；两层节 sys.* / dep（D30 起原 agent 节移除，装态对账归 omc、token 归 oma diagnose）；收尾 verdict（ready/degraded/broken）。TTY 为人读面，数据面不变 |
 | `catalog` | status：path, origin, local_sha256, cloud_sha256, synced, age_secs, ttl_secs, offline, signature, pubkey, manifest_path, manifest_present, manifest_local_sha256, manifest_cloud_sha256, manifest_synced, manifest_age_secs, manifest_signature, manifest_cloud_error, cloud_error；sync：action, reason, sha256, path, origin |
