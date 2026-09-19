@@ -13,6 +13,7 @@ use crate::catalog::Tool;
 use crate::toolver;
 
 /// 委托腿结果。
+#[derive(Debug)]
 pub struct DelegateOutcome {
     /// 家族 CLI 自升级进程是否成功退出
     pub ok: bool,
@@ -74,21 +75,24 @@ pub fn run(name: &str, def: &Tool, env_root: &Path) -> Result<Option<DelegateOut
         .args(args)
         .stdout(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("启动 {via} 失败: {e}"))?;
-    let out = child
-        .wait_with_output()
-        .map_err(|e| format!("等待 {via} 失败: {e}"))?;
-    for line in String::from_utf8_lossy(&out.stdout).lines() {
-        eprintln!("[{name}] {line}");
-    }
-    let status = Ok::<_, std::io::Error>(out.status);
+        .map_err(|e| format!("启动 {via} 失败: {e}"));
+    // 对线 F-A：启动/等待失败值化不早退（复痕在进程结果判定前必经，让位互锁不因
+    // 进程面失败而丢失）
+    let output = match child {
+        Ok(c) => c
+            .wait_with_output()
+            .map_err(|e| format!("等待 {via} 失败: {e}")),
+        Err(e) => Err(e),
+    };
     // 恢复落痕（含失败路径：家族仓零改动契约靠 ark 侧复原）
     if let Some(stash) = stashed.as_ref() {
         restore_marker(stash, &marker)?;
     }
-    let ok = status
-        .map(|s| s.success())
-        .map_err(|e| format!("{via}: {e}"))?;
+    let out = output?;
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        eprintln!("[{name}] {line}");
+    }
+    let ok = out.status.success();
     let version = probe();
     Ok(Some(DelegateOutcome {
         ok,
@@ -148,6 +152,44 @@ mod tests {
         assert_eq!(self_update_args("rg"), None);
         assert_eq!(self_update_args("jq"), None);
         assert_eq!(self_update_args("nonexistent"), None);
+    }
+
+    /// 对线 F-A 回归测：启动失败（无执行位伪件）必须 Err 且落痕原样复痕、无 .bak 残留
+    ///（让位互锁不因进程面失败而丢失）。
+    #[test]
+    fn 委托舞蹈_启动失败也复痕() {
+        let dir = tempfile::tempdir().expect("临时目录");
+        let env_root = dir.path().join("envroot");
+        std::fs::create_dir_all(env_root.join("bin")).unwrap();
+        let exe = env_root.join("bin").join("hst");
+        std::fs::write(&exe, b"not executable payload").unwrap(); // 无执行位：spawn 必败
+        std::fs::write(env_root.join("bin").join("ark-managed"), "1.4.1\n").unwrap();
+        let def = Tool {
+            linux_dir: Some("bin".into()),
+            linux_bin: Some("bin".into()),
+            linux_exe: Some("hst".into()),
+            ..Tool::default()
+        };
+        let err = run("hst", &def, &env_root).expect_err("启动失败应 Err");
+        assert!(
+            err.contains("启动") || err.contains("等待"),
+            "应报进程失败: {err}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(env_root.join("bin").join("ark-managed")).unwrap(),
+            "1.4.1\n",
+            "启动失败后落痕必须原样在位"
+        );
+        let leftovers: Vec<String> = std::fs::read_dir(env_root.join("bin"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.ends_with(".bak"))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "失败路径也不留 .bak 残留: {leftovers:?}"
+        );
     }
 
     /// 落痕让位舞蹈（家族仓零改动方案）：委托执行期间落痕不在位、完成后恢复（含失败路径）。
