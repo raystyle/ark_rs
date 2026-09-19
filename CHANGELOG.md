@@ -2,6 +2,10 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [Unreleased]
+
+- **落痕版本刷新**（总台核收观察 a）：`ark self update --stable` 成功后刷新部署目录 `ark-managed` 落痕内容为远端现版（此前滞留装时版本；dev 滚动源无版本语义不刷，留待下次装面幂等刷）。
+
 ## [1.4.2] - 2026-09-19
 
 patch：独立分发域集成改向批（REQ-0013 改向记录加 REQ-0014 委托自升级通道；用户裁 2026-09-19「自维护自升级 CLI 走 CLI 自升级渠道、其余对齐 omc 维护 env」）。

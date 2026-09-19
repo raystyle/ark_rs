@@ -517,6 +517,15 @@ fn finish_update(
         });
     };
     let exe = replace_deployed_and_current(&candidate, expect_version)?;
+    // 总台核收观察 a（2026-09-19）：自更新成功后刷新部署目录落痕内容为现版
+    //（stable 有远端版本可写；dev 滚动源无版本语义不刷，留待下次装面幂等刷）
+    if let Some(ver) = expect_version {
+        if let Some(dir) = exe.parent() {
+            if let Err(e) = crate::install::mark_ark_managed_with(dir, ver) {
+                eprintln!("[WARN] {e}（不拦升级）");
+            }
+        }
+    }
     // 解包目录收尾清理（G3：成功路径不留残，错误路径交下次进入或系统清理）
     let _ = std::fs::remove_dir_all(
         std::env::temp_dir().join(format!("ark-selfupdate-unpack-{}", std::process::id())),

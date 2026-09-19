@@ -524,9 +524,14 @@ fn should_mark_ark_managed(def: &Tool, exe_dir: &Path) -> bool {
     exe_dir.is_absolute()
 }
 
-fn mark_ark_managed(exe_dir: &Path) -> Result<(), String> {
+pub(crate) fn mark_ark_managed(exe_dir: &Path) -> Result<(), String> {
+    mark_ark_managed_with(exe_dir, env!("CARGO_PKG_VERSION"))
+}
+
+/// 落痕任意版本形：selfupdate 成功后刷新内容为现版用（总台核收观察 a，
+/// 2026-09-19：自更新后落痕内容不得滞留装时版本）。
+pub(crate) fn mark_ark_managed_with(exe_dir: &Path, version: &str) -> Result<(), String> {
     let marker = exe_dir.join("ark-managed");
-    let version = env!("CARGO_PKG_VERSION");
     if let Ok(existing) = std::fs::read_to_string(&marker) {
         if existing.trim() == version {
             return Ok(()); // 幂等：同内容零重写
