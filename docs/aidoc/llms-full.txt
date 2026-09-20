@@ -314,7 +314,7 @@ install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-12
 - `artifact_publish` — artifact 发布（crate 只增面）：回执 artifact_id。
 - `client` — 装配账本客户端：私钥读环境 `ARK_LEDGER_KEY`（32 字节 hex）优先，次
 - `content_digest` — 正文或记录哈希（digest 即身份；crate content_digest 同源）。
-- `issue_list` — issue 列表（crate 读面，家族翻页 more=1 恒带）：回执含 issues 与 has_more。
+- `issue_list` — issue 列表（crate 读面，家族翻页 more=1 恒带；免私钥）：回执含 issues 与 has_more。
 - `issue_new` — issue 开单（crate 只增面）：回执 issue 号。
 - `issue_show` — issue 详情（crate 读面）：projection 加 timeline。
 - `list_saturated` — 饱和判定（家族标准 #52 同口径，纯函数）：返回条数恰打满夹取后 limit。

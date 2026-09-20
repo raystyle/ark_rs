@@ -90,12 +90,17 @@ pub fn issue_new(
         .map_err(|e| format!("ledger 写入失败: {e}"))
 }
 
-/// issue 列表（crate 读面，家族翻页 more=1 恒带）：回执含 issues 与 has_more。
+/// 只读客户端（crate read_only 构造，GET 面免签免私钥）。
+fn reader() -> Ledger {
+    Ledger::read_only(REPO_ID)
+}
+
+/// issue 列表（crate 读面，家族翻页 more=1 恒带；免私钥）：回执含 issues 与 has_more。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：网络失败或回执形不符。
 pub fn issue_list(limit: u32, before: Option<u64>) -> Result<(Vec<Value>, Option<bool>), String> {
-    let v = client()?
+    let v = reader()
         .issue_list(limit.clamp(1, LIST_LIMIT_MAX), before)
         .map_err(|e| format!("ledger 请求失败: {e}"))?;
     let issues = v
@@ -111,7 +116,7 @@ pub fn issue_list(limit: u32, before: Option<u64>) -> Result<(Vec<Value>, Option
 /// # Errors
 /// 返回 Err（人读原因串）当：网络失败或 404（issue 未找到）。
 pub fn issue_show(n: u64) -> Result<Value, String> {
-    client()?
+    reader()
         .issue_show(n)
         .map_err(|e| format!("ledger 请求失败: {e}"))
 }
@@ -120,6 +125,7 @@ pub fn issue_show(n: u64) -> Result<Value, String> {
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：name/kind/digest 校验不过（本地早拦）或服务端 4xx 透传。
+#[allow(clippy::too_many_arguments)] // crate _full 形直传（收口薄层，拆结构体反增面）
 pub fn artifact_publish(
     name: &str,
     kind: &str,
@@ -128,6 +134,8 @@ pub fn artifact_publish(
     git_range: Option<&str>,
     deps: &[String],
     note: Option<&str>,
+    summary: Option<&str>,
+    outcome: Option<&str>,
 ) -> Result<String, String> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > 200 {
@@ -145,7 +153,9 @@ pub fn artifact_publish(
         );
     }
     client()?
-        .artifact_publish(name, kind, digest, version, git_range, deps, note)
+        .artifact_publish_full(
+            name, kind, digest, version, git_range, deps, note, summary, outcome,
+        )
         .map_err(|e| format!("ledger 写入失败: {e}"))
 }
 
@@ -172,7 +182,7 @@ pub fn artifact_attest(
 /// # Errors
 /// 返回 Err（人读原因串）当：网络失败或回执形不符。
 pub fn artifact_list(current: bool, env_filter: Option<&str>) -> Result<Vec<Value>, String> {
-    let v = client()?
+    let v = reader()
         .artifact_list(current, env_filter)
         .map_err(|e| format!("ledger 请求失败: {e}"))?;
     v.get("artifacts")

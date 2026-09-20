@@ -22,7 +22,7 @@ sha2 = "0.10"
 minisign-verify = "0.2"
 # REQ-0015/总台修正令（2026-09-20）：ledger 客户端统一走舰队 crate ledger-rs
 # （签名道加只增面唯一实现，各仓不自研副本）；私钥密档为 32 字节 hex 形
-ledger-client = { git = "https://github.com/raystyle/ledger-rs", tag = "v0.1.1" }
+ledger-client = { git = "https://github.com/raystyle/ledger-rs", tag = "v0.1.2" }
 tar = "0.4"
 toml_edit = { version = "0.22", features = ["serde"] }
 ureq = { version = "2", features = ["tls"] }

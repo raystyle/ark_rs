@@ -525,7 +525,7 @@
     {
       "path": "ark::ledger::issue_list",
       "kind": "function",
-      "docs": "issue 列表（crate 读面，家族翻页 more=1 恒带）：回执含 issues 与 has_more。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或回执形不符。"
+      "docs": "issue 列表（crate 读面，家族翻页 more=1 恒带；免私钥）：回执含 issues 与 has_more。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或回执形不符。"
     },
     {
       "path": "ark::ledger::issue_new",

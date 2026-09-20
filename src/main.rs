@@ -55,8 +55,10 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |\n",
     "| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |\n",
     "| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |\n",
-    "| ark issue new\\|list\\|show\\|close | 统一 issue 入口（新真源 ledger.ohmygh.com）：new 开单（kind 为 bug 错误任务或 improvement 改进优化任务加 acceptance 验收条件）；list 读面（默认 limit 100 即上限，count 是本次返回条数非在册总数，--before 翻更早一页）；show 详情；close 关单（result 引 digest 加 status done） | filed,issue,seq 或 count,#行 或 单条或 action=closed | 0/1 |\n",
-    "| ark artifact publish\\|attest\\|promote\\|list | 产物共享库（ledger.ohmygh.com）：publish 发布（kind 十五类加 digest=sha256 正文哈希，库不收二进制实体）；attest 证明（attest_dev/attest_prod/verification_failed/promote/demote/supersede）；promote 晋级当前版；list 列表（current/env/kind/name 过滤） | filed,artifact_id,seq 或 count 行 | 0/1 |\n",
+    "| ark issue new\\|list\\|show | 统一 issue 入口（真源 ledger.ohmygh.com，只增面）：new 开单（kind 为 bug 错误任务或 improvement 改进优化任务加 acceptance 验收条件）；list 读面（默认 limit 100 即上限，count 是本次返回条数非在册总数，--before 翻更早一页，免私钥）；show 详情（关单归 omc 工作台） | filed,issue 或 count,#行 或 单条 | 0/1 |
+",
+    "| ark artifact publish\\|attest\\|list | 产物共享库（ledger.ohmygh.com，只增面）：publish 发布（kind 十五类加 digest=sha256 正文哈希加 summary/outcome 结构化）；attest 证明（attest_dev/attest_prod/verification_failed；晋级降级归 omc 工作台）；list 列表（current/env 过滤，免私钥） | filed,artifact_id 或 count 行 | 0/1 |
+",
     "\n",
     "## 退出码\n",
     "\n",
@@ -630,18 +632,6 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
                         .collect()
                 })
                 .unwrap_or_default();
-            // note 面组版（crate 单 note 参）：outcome/summary/body 并入正文
-            let mut note_parts: Vec<String> = Vec::new();
-            if let Some(o) = outcome {
-                note_parts.push(format!("outcome: {o}"));
-            }
-            if let Some(sm) = summary {
-                note_parts.push(format!("summary: {sm}"));
-            }
-            if let Some(b) = body {
-                note_parts.push(b);
-            }
-            let note = (!note_parts.is_empty()).then(|| note_parts.join("\n"));
             let id = ledger::artifact_publish(
                 &name,
                 &kind,
@@ -649,7 +639,9 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
                 version.as_deref(),
                 git_range.as_deref(),
                 &deps_list,
-                note.as_deref(),
+                body.as_deref(),
+                summary.as_deref(),
+                outcome.as_deref(),
             )?;
             render::emit(&[
                 kv("filed", &id),

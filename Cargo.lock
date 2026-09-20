@@ -858,7 +858,7 @@ dependencies = [
 [[package]]
 name = "ledger-client"
 version = "0.1.1"
-source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.1#0c9fc085776c9507de7e4453f2493491b86166d1"
+source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.2#ca9d54d2ba29a18ba886a13c621b7b7d2f338a8c"
 dependencies = [
  "base64",
  "ed25519-dalek",
