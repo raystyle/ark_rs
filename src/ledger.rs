@@ -20,6 +20,19 @@ use serde_json::{json, Value};
 use crate::download::sha256_file;
 use sha2::{Digest, Sha256};
 
+/// HTTP 超时缺省（毫秒；0 = 不限时）。
+pub const TIMEOUT_MS: u64 = 20000;
+
+/// HTTP 客户端（timeout 毫秒；0 = 不限时；ureq 2.x 形，原 issue 域同款迁移）。
+pub fn http_client(timeout_ms: u64) -> ureq::Agent {
+    let mut builder = ureq::AgentBuilder::new().timeout_connect(std::time::Duration::from_millis(
+        timeout_ms.min(10_000).max(1),
+    ));
+    if timeout_ms > 0 {
+        builder = builder.timeout(std::time::Duration::from_millis(timeout_ms));
+    }
+    builder.build()
+}
 /// 账本服务基址（REQ-063；issues.ohmygh.com 过渡期保役，CLI 面已切此真源）。
 pub const LEDGER_BASE: &str = "https://ledger.ohmygh.com";
 
@@ -369,7 +382,8 @@ pub fn issue_list(
     before: Option<i64>,
 ) -> Result<(Vec<Value>, Option<bool>), String> {
     let clamped = limit.clamp(1, LIST_LIMIT_MAX);
-    let mut url = format!("{LEDGER_BASE}/repos/{REPO_ID}/issues?limit={clamped}");
+    // 恒带 more=1 索取 has_more（服务端 before 或 more=1 才回该字段；首页也要翻页信号）
+    let mut url = format!("{LEDGER_BASE}/repos/{REPO_ID}/issues?limit={clamped}&more=1");
     if let Some(b) = before {
         url.push_str(&format!("&before={b}"));
     }

@@ -483,101 +483,6 @@
       "docs": "防穿越：path 必须在允许的安全根之下。\nWindows：在 EnvRoot 之下（大小写不敏感）；\nLinux / macOS：在 $HOME 之下，或显式在 EnvRoot 之下。"
     },
     {
-      "path": "ark::issue",
-      "kind": "module",
-      "docs": "issue 域（REQ-0009，对齐 ohmycloud REQ-057 契约）：自研命令仓统一 issue 入口\nissues.ohmygh.com。new 一键提交自动带 tool=ark 与版本/平台/host；list/show 读面。\n契约文档真源 = ohmycloud docs/requirements/REQ-057 契约节（omc 客户端与 Worker\n服务端共 src/lib/issuecontract.ts 单源；本模块为其 Rust 面等价实现，校验语义对齐）。\n\n网络面统一 ureq（仓内既有依赖，零新增 crate）：提交 POST、列表与详情 GET；\n基址 env `ARK_ISSUES_API` 可覆盖（测与灰度，对齐 omc 的 OMC_ISSUES_API）。"
-    },
-    {
-      "path": "ark::issue::BODY_MAX",
-      "kind": "constant",
-      "docs": "契约上限：body 至多 20000（REQ-057）。"
-    },
-    {
-      "path": "ark::issue::ISSUES_DOMAIN",
-      "kind": "constant",
-      "docs": "统一入口域（fleet 共用 issue 入口，REQ-057）。"
-    },
-    {
-      "path": "ark::issue::IssueFields",
-      "kind": "struct",
-      "docs": "提交体六字段（POST /api/issues 的 JSON 体；回执 201 形 `{ok,id,url}`）。"
-    },
-    {
-      "path": "ark::issue::IssueFull",
-      "kind": "struct",
-      "docs": "详情（列表行加正文）。"
-    },
-    {
-      "path": "ark::issue::IssueRow",
-      "kind": "struct",
-      "docs": "列表行（list 与 show 共用面；created_at 为服务端 UTC ISO 形）。"
-    },
-    {
-      "path": "ark::issue::TIMEOUT_MS",
-      "kind": "constant",
-      "docs": "默认 HTTP 超时毫秒（对齐 omc 参考实现 20s）。"
-    },
-    {
-      "path": "ark::issue::TITLE_MAX",
-      "kind": "constant",
-      "docs": "契约上限：title trim 后至多 200（REQ-057）。"
-    },
-    {
-      "path": "ark::issue::build_list_url",
-      "kind": "function",
-      "docs": "列表 URL 拼接（纯函数）：limit 夹取 1 至 100（与服务端 Math.min(100, Math.max(1, …))\n同口径，codex 评审 G4）；before 在位追加 keyset 游标参数（家族统一标准 #53）。"
-    },
-    {
-      "path": "ark::issue::http_client",
-      "kind": "function",
-      "docs": "HTTP 客户端（超时毫秒；ureq Agent 复用连接池）。`timeout_ms == 0` 不设整体\n超时（ureq 缺省形，即「不限时」；注意 ureq 2 的 `Duration::ZERO` 是即超时而非\n不限时，codex 二轮 F 实测 0.003 秒红）。"
-    },
-    {
-      "path": "ark::issue::issues_api_base",
-      "kind": "function",
-      "docs": "API 基址：env `ARK_ISSUES_API` 覆盖供测与灰度，缺省统一入口域。"
-    },
-    {
-      "path": "ark::issue::list_issues",
-      "kind": "function",
-      "docs": "列表：GET /api/issues?tool=&status=&limit=&before=（新到旧；limit 1 至 100 由\n服务端封顶；`before` 是 keyset 游标（#53 家族统一标准），取该 id 之前更旧的一页，\n非法值服务端回 400；不带 before 的旧形请求回执不变）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx（含 before 非法 400）、回执形不符或行解析失败。"
-    },
-    {
-      "path": "ark::issue::list_saturated",
-      "kind": "function",
-      "docs": " 饱和判定（纯函数，家族统一标准 #52）：返回条数恰打满夹取后 limit 即饱和\n（旧条目可能仍被截断；count 只报本次返回数非在册总数）。"
-    },
-    {
-      "path": "ark::issue::post_issue",
-      "kind": "function",
-      "docs": "提交：POST /api/issues；201 取 `{ok,id,url}`（429 限速与 400 校验不过带服务端文案）。\n\n# Errors\n返回 Err 当：服务不可达、序列化失败、HTTP 非 2xx（带服务端 error 文案）、回执不识别。"
-    },
-    {
-      "path": "ark::issue::self_host",
-      "kind": "function",
-      "docs": "主机名：env `HOSTNAME`（交互 shell 常在但多不导出）与 `COMPUTERNAME`（win）\n之后兜底 `hostname` 子命令（agent 非交互场景实测 env 双缺，2026-09-17 实弹 #7\nhost=unknown 教训），仍缺才 `unknown`（截断归 validate_issue 客户端收敛）。"
-    },
-    {
-      "path": "ark::issue::self_platform",
-      "kind": "function",
-      "docs": "平台串形 `linux/x86_64`（os/arch 取编译目标常量，运行态恒定）。"
-    },
-    {
-      "path": "ark::issue::self_version",
-      "kind": "function",
-      "docs": "自身版本（Cargo 包版本单一来源）。"
-    },
-    {
-      "path": "ark::issue::show_issue",
-      "kind": "function",
-      "docs": "详情：GET /api/issues/<id>（含正文）。\n\n# Errors\n返回 Err 当：服务不可达、HTTP 非 2xx（含 id 不存在的 404）、回执形不符或解析失败。"
-    },
-    {
-      "path": "ark::issue::validate_issue",
-      "kind": "function",
-      "docs": "提交体校验（tool 与 title 规则拒绝；version/platform/host 客户端先截断）。\n与 REQ-057 的 validateIssue 语义对齐：拒绝项带人读原因，截断项静默收敛。\n\n# Errors\n返回 Err（人读原因串）当：tool 形不符、title 空或超 200、body 超 20000。"
-    },
-    {
       "path": "ark::ledger",
       "kind": "module",
       "docs": "ledger：仓级公共账本客户端面（REQ-0015，对齐 ohmycloud REQ-063 Phase 3 CLI 原生集成）。\n真源 https://ledger.ohmygh.com（issues.ohmygh.com 过渡期保役，本 CLI 面已切新真源）。\nissue 流 = 立项修复或改进的义务（open 至 done，关单须先有 result 引 digest）；\nartifact 流 = 产物共享库本体（publish 至 attest 至 promote/demote/supersede）。\n写入五头签名道：Idempotency-Key 加 X-Key-Id 加 X-Timestamp（正负 60 秒窗）加\nX-Nonce（10 分钟不重）加 X-Signature（Ed25519，签名基 v1/POST/路径/时间戳/nonce/\n幂等键/body sha256 各行换行连，base64url 编码）；幂等同键同内容回放、同键异内容 409。\n私钥运行时读环境 `ARK_LEDGER_KEY` 或密档（`ARK_LEDGER_KEY_FILE`，缺省\n`~/.config/ark/ledger.key`，base64url 32 字节 seed）——不进仓不进 argv；\n公钥 JWK 以常量内置（身份分发面），kid = sha256hex(规范化 JSON {crv,kty,x})。"
@@ -633,6 +538,11 @@
       "docs": "本仓 repo_id（规范化 remote）。"
     },
     {
+      "path": "ark::ledger::TIMEOUT_MS",
+      "kind": "constant",
+      "docs": "HTTP 超时缺省（毫秒；0 = 不限时）。"
+    },
+    {
       "path": "ark::ledger::artifact_attest",
       "kind": "function",
       "docs": "artifact 证明：POST /repos/<repo>/artifacts/<id>/attestations {type,...}。\n\n# Errors\n返回 Err（人读原因串）当：type 校验不过或写入失败。"
@@ -656,6 +566,11 @@
       "path": "ark::ledger::file_digest",
       "kind": "function",
       "docs": "文件 digest（本地算锚：artifact publish 的正文或记录哈希即此值）。\n\n# Errors\n返回 Err（人读原因串）当：读文件或哈希计算失败。"
+    },
+    {
+      "path": "ark::ledger::http_client",
+      "kind": "function",
+      "docs": "HTTP 客户端（timeout 毫秒；0 = 不限时；ureq 2.x 形，原 issue 域同款迁移）。"
     },
     {
       "path": "ark::ledger::issue_close",

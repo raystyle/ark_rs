@@ -570,9 +570,12 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                 kv("count", &issues.len().to_string()),
                 kv("endpoint", ledger::LEDGER_BASE),
             ];
-            if let Some(hm) = has_more {
-                out.push(kv("has_more", if hm { "true" } else { "false" }));
-            }
+            // has_more 恒出（more=1 索取；缺省 false）；饱和提示以 has_more 为准，
+            // 无 has_more 材料时退回条数判定（对线 F2：has_more=false 不再出截断提示）
+            let hm = has_more.unwrap_or(false);
+            out.push(kv("has_more", if hm { "true" } else { "false" }));
+            let saturated =
+                has_more.map_or_else(|| ledger::list_saturated(issues.len(), limit), |h| h);
             for r in &issues {
                 let n = r
                     .get("issue_n")
@@ -593,11 +596,8 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                 out.push(kv(&format!("#{n}"), &format!("{kind} {status} {title}")));
             }
             render::emit(&out);
-            if ledger::list_saturated(issues.len(), limit) {
-                eprintln!(
-                    "[HINT] issue list 恰返回 {} 条（=limit，或被截断）；下一步：--before <id> 翻更早一页",
-                    issues.len()
-                );
+            if saturated {
+                eprintln!("[HINT] issue list 尚有更早条目；下一步：--before <id> 翻更早一页");
             }
             eprintln!(
                 "[HINT] 网页面：{}/repos/{}",
@@ -699,7 +699,7 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
 
 /// ledger HTTP 客户端（timeout 毫秒；0 = 不限时）。
 fn ledger_http(timeout: Option<u64>) -> ureq::Agent {
-    ark::issue::http_client(timeout.unwrap_or(ark::issue::TIMEOUT_MS))
+    ark::ledger::http_client(timeout.unwrap_or(ark::ledger::TIMEOUT_MS))
 }
 
 /// artifact 命令族（REQ-0015 产物共享库面）。

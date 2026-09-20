@@ -18,6 +18,7 @@ X-Nonce（10 分钟不重）加 X-Signature（Ed25519，签名基 v1/POST/路径
 - `artifact_publish` — artifact 发布：POST /repos/<repo>/artifacts {name,kind,digest,...}。
 - `body_sha256_hex` — body sha256（小写 hex）。
 - `file_digest` — 文件 digest（本地算锚：artifact publish 的正文或记录哈希即此值）。
+- `http_client` — HTTP 客户端（timeout 毫秒；0 = 不限时；ureq 2.x 形，原 issue 域同款迁移）。
 - `issue_close` — issue 关单链：先 result（引用 digest 或 artifact_id）再 status done（两写两幂等键；
 - `issue_event` — issue 事件：POST /repos/<repo>/issues/<n>/events {type, payload{...}, body?}。
 - `issue_list` — issue 列表（家族翻页形）：GET /repos/<repo>/issues?limit=&before=；
@@ -46,4 +47,5 @@ X-Nonce（10 分钟不重）加 X-Signature（Ed25519，签名基 v1/POST/路径
 - `LIST_LIMIT_MAX` — 列表夹取界（服务端 clampLimit 同口径；家族标准默认 100 即上限）。
 - `PUBLIC_JWK` — 本仓公钥 JWK（身份分发面，CLI 内置；对应私钥在提交侧密档，永不进仓）。
 - `REPO_ID` — 本仓 repo_id（规范化 remote）。
+- `TIMEOUT_MS` — HTTP 超时缺省（毫秒；0 = 不限时）。
 

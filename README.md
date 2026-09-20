@@ -140,8 +140,6 @@ ark catalog sync              # 立即从云端刷新（默认 TTL 24h 自动刷
 ark heal aria2 --dry-run      # 部署维度幂等自愈预览（PATH 修复、镜像源补写等）
 ```
 
-issue 反馈（统一入口 issues.ohmygh.com，REQ-057 契约；自动带 tool=ark 与版本/平台/host）：
-
 issue 账本（真源 ledger.ohmygh.com；issues.ohmygh.com 过渡期保役）：
 
 ```bash
