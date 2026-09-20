@@ -2,6 +2,15 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [1.5.0] - 2026-09-20
+
+minor：ledger 命令族集成批（REQ-0015，对齐 ohmycloud REQ-063 Phase 3 CLI 原生集成；issue 面切新真源 ledger.ohmygh.com，issues.ohmygh.com 过渡期保役）。
+
+- **ledger issue 族**：`ark issue new`（kind=bug|improvement 加 acceptance，回执 issue 号与 seq）、`list`（家族翻页：默认 limit 100、--before 游标、饱和提示、count 语义）、`show`（projection 加 timeline）、`close`（result 引 digest 加 status done 两写链，半链态如实报）。
+- **ledger artifact 族**：`ark artifact publish`（kind 十五类、digest=sha256 小写 hex、version/git_range/deps/outcome/summary）、`attest`（六型证明）、`promote`（晋级糖衣）、`list`（current/env/kind/name 过滤）。
+- **Ed25519 签名道**：写入五头（Idempotency-Key/X-Key-Id/X-Timestamp/X-Nonce/X-Signature），签名基七行换行连（v1/POST/路径/ts/nonce/idem/body-sha256），base64url；幂等键 uuid v4 每写新键（同键同内容回放、异内容 409 透传）；私钥运行时读 `ARK_LEDGER_KEY` 或密档（缺省 ~/.config/ark/ledger.key，不进仓不进 argv）；公钥 JWK 常量内置。新依赖：ed25519-dalek、base64、uuid（R005 选型）。
+- **实弹**：issue #1（seq 3）加 lesson 产物（seq 4）加 attest_dev/promote（seq 5/6）全 201；239 测全绿（七件签名道单测）。
+
 ## [1.4.3] - 2026-09-19
 
 patch：Unreleased 窗收口两件（issue 通道家族对齐加落痕版本刷新）。

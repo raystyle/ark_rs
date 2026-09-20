@@ -2,7 +2,7 @@
 
 > ark：Ark（Agent Runtime Kit）本机跨平台环境部署管理 CLI。
 
-## ark 1.4.3
+## ark 1.5.0
 
 - [ark overview](ark/index.md): ark：Ark（Agent Runtime Kit）本机跨平台环境部署管理 CLI。
 - [ark::arerr](ark/arerr.md): arerr：机器可读错误结构（code/message/hint/exit_code 四元组，吸收自 incurs 的 IncurError 模式）。
@@ -17,6 +17,7 @@
 - [ark::heal](ark/heal.md): heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。
 - [ark::install](ark/install.md): install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
 - [ark::issue](ark/issue.md): issue 域（REQ-0009，对齐 ohmycloud REQ-057 契约）：自研命令仓统一 issue 入口
+- [ark::ledger](ark/ledger.md): ledger：仓级公共账本客户端面（REQ-0015，对齐 ohmycloud REQ-063 Phase 3 CLI 原生集成）。
 - [ark::manifest](ark/manifest.md): manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
 - [ark::platform](ark/platform.md): platform：跨平台抽象层。
 - [ark::render](ark/render.md): render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。

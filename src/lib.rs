@@ -16,6 +16,7 @@ pub mod extract;
 pub mod heal;
 pub mod install;
 pub mod issue;
+pub mod ledger;
 pub mod manifest;
 pub mod platform;
 pub mod render;

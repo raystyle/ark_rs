@@ -1,6 +1,6 @@
 {
   "crate": "ark",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "items": [
     {
       "path": "ark::arerr",
@@ -576,6 +576,161 @@
       "path": "ark::issue::validate_issue",
       "kind": "function",
       "docs": "提交体校验（tool 与 title 规则拒绝；version/platform/host 客户端先截断）。\n与 REQ-057 的 validateIssue 语义对齐：拒绝项带人读原因，截断项静默收敛。\n\n# Errors\n返回 Err（人读原因串）当：tool 形不符、title 空或超 200、body 超 20000。"
+    },
+    {
+      "path": "ark::ledger",
+      "kind": "module",
+      "docs": "ledger：仓级公共账本客户端面（REQ-0015，对齐 ohmycloud REQ-063 Phase 3 CLI 原生集成）。\n真源 https://ledger.ohmygh.com（issues.ohmygh.com 过渡期保役，本 CLI 面已切新真源）。\nissue 流 = 立项修复或改进的义务（open 至 done，关单须先有 result 引 digest）；\nartifact 流 = 产物共享库本体（publish 至 attest 至 promote/demote/supersede）。\n写入五头签名道：Idempotency-Key 加 X-Key-Id 加 X-Timestamp（正负 60 秒窗）加\nX-Nonce（10 分钟不重）加 X-Signature（Ed25519，签名基 v1/POST/路径/时间戳/nonce/\n幂等键/body sha256 各行换行连，base64url 编码）；幂等同键同内容回放、同键异内容 409。\n私钥运行时读环境 `ARK_LEDGER_KEY` 或密档（`ARK_LEDGER_KEY_FILE`，缺省\n`~/.config/ark/ledger.key`，base64url 32 字节 seed）——不进仓不进 argv；\n公钥 JWK 以常量内置（身份分发面），kid = sha256hex(规范化 JSON {crv,kty,x})。"
+    },
+    {
+      "path": "ark::ledger::ARTIFACT_KINDS",
+      "kind": "constant",
+      "docs": "artifact kind 面（服务端 ARTIFACT_KINDS 同口径，15 值）。"
+    },
+    {
+      "path": "ark::ledger::ATTEST_TYPES",
+      "kind": "constant",
+      "docs": "artifact 证明面。"
+    },
+    {
+      "path": "ark::ledger::ISSUE_EVENT_TYPES",
+      "kind": "constant",
+      "docs": "issue 事件面。"
+    },
+    {
+      "path": "ark::ledger::ISSUE_KINDS",
+      "kind": "constant",
+      "docs": "issue kind 面（服务端 ISSUE_KINDS 同口径）。"
+    },
+    {
+      "path": "ark::ledger::ISSUE_STATUSES",
+      "kind": "constant",
+      "docs": "issue 状态面（status 事件 to 值）。"
+    },
+    {
+      "path": "ark::ledger::KEY_ID",
+      "kind": "constant",
+      "docs": "key id = sha256hex(规范化 JSON {crv,kty,x}，键序字母)：注册与 X-Key-Id 即此值。"
+    },
+    {
+      "path": "ark::ledger::LEDGER_BASE",
+      "kind": "constant",
+      "docs": "账本服务基址（REQ-063；issues.ohmygh.com 过渡期保役，CLI 面已切此真源）。"
+    },
+    {
+      "path": "ark::ledger::LIST_LIMIT_MAX",
+      "kind": "constant",
+      "docs": "列表夹取界（服务端 clampLimit 同口径；家族标准默认 100 即上限）。"
+    },
+    {
+      "path": "ark::ledger::PUBLIC_JWK",
+      "kind": "constant",
+      "docs": "本仓公钥 JWK（身份分发面，CLI 内置；对应私钥在提交侧密档，永不进仓）。"
+    },
+    {
+      "path": "ark::ledger::REPO_ID",
+      "kind": "constant",
+      "docs": "本仓 repo_id（规范化 remote）。"
+    },
+    {
+      "path": "ark::ledger::artifact_attest",
+      "kind": "function",
+      "docs": "artifact 证明：POST /repos/<repo>/artifacts/<id>/attestations {type,...}。\n\n# Errors\n返回 Err（人读原因串）当：type 校验不过或写入失败。"
+    },
+    {
+      "path": "ark::ledger::artifact_list",
+      "kind": "function",
+      "docs": "artifact 列表：GET /repos/<repo>/artifacts?current=&env=&kind=&name=。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或回执形不符。"
+    },
+    {
+      "path": "ark::ledger::artifact_publish",
+      "kind": "function",
+      "docs": "artifact 发布：POST /repos/<repo>/artifacts {name,kind,digest,...}。\n\n# Errors\n返回 Err（人读原因串）当：kind/digest/name 校验不过或写入失败（同 digest 409 透传）。"
+    },
+    {
+      "path": "ark::ledger::body_sha256_hex",
+      "kind": "function",
+      "docs": "body sha256（小写 hex）。"
+    },
+    {
+      "path": "ark::ledger::file_digest",
+      "kind": "function",
+      "docs": "文件 digest（本地算锚：artifact publish 的正文或记录哈希即此值）。\n\n# Errors\n返回 Err（人读原因串）当：读文件或哈希计算失败。"
+    },
+    {
+      "path": "ark::ledger::issue_close",
+      "kind": "function",
+      "docs": "issue 关单链：先 result（引用 digest 或 artifact_id）再 status done（两写两幂等键；\n服务端关单校验 result 在先，400 透传）。\n\n# Errors\n返回 Err（人读原因串）当：任一写入失败（第二写失败时第一写已入账，如实报半链态）。"
+    },
+    {
+      "path": "ark::ledger::issue_event",
+      "kind": "function",
+      "docs": "issue 事件：POST /repos/<repo>/issues/<n>/events {type, payload{...}, body?}。\n\n# Errors\n返回 Err（人读原因串）当：校验不过或写入失败（关单 done 须先有 result，服务端 400 透传）。"
+    },
+    {
+      "path": "ark::ledger::issue_list",
+      "kind": "function",
+      "docs": "issue 列表（家族翻页形）：GET /repos/<repo>/issues?limit=&before=；\n回执 {ok,count,issues[{issue_n,title,status,kind,assignee,hasResult}],has_more?}。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或回执形不符。"
+    },
+    {
+      "path": "ark::ledger::issue_new",
+      "kind": "function",
+      "docs": "issue 开单：POST /repos/<repo>/issues {title, kind, acceptance, body?}。\n\n# Errors\n返回 Err（人读原因串）当：校验不过或写入失败（服务端错误串透传归因）。"
+    },
+    {
+      "path": "ark::ledger::issue_show",
+      "kind": "function",
+      "docs": "issue 详情：GET /repos/<repo>/issues/<n>（projection 加 timeline）。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或 404（issue 未找到）。"
+    },
+    {
+      "path": "ark::ledger::kid_of_jwk",
+      "kind": "function",
+      "docs": "kid 派生（纯函数）：sha256hex(规范化 JSON，键序字母、无空白）。"
+    },
+    {
+      "path": "ark::ledger::ledger_get",
+      "kind": "function",
+      "docs": "读面 GET（无签名无配额）：回执 JSON。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或非 2xx。"
+    },
+    {
+      "path": "ark::ledger::ledger_post",
+      "kind": "function",
+      "docs": "写面 POST（五头签名道）：回执 JSON 与状态码（201 为写入，409 同键异内容，429 配额）。\n\n# Errors\n返回 Err（人读原因串）当：网络失败或非 2xx。"
+    },
+    {
+      "path": "ark::ledger::list_saturated",
+      "kind": "function",
+      "docs": "饱和判定（家族标准 #52 同口径，纯函数）：返回条数恰打满夹取后 limit。"
+    },
+    {
+      "path": "ark::ledger::load_signing_key",
+      "kind": "function",
+      "docs": "私钥装载：`ARK_LEDGER_KEY`（base64url 32 字节 seed）优先，次 `ARK_LEDGER_KEY_FILE`\n指定密档，缺省 `~/.config/ark/ledger.key`；不进仓不进 argv。\n\n# Errors\n返回 Err（人读原因串）当：密钥缺位、解码失败或长度非 32 字节。"
+    },
+    {
+      "path": "ark::ledger::new_idempotency_key",
+      "kind": "function",
+      "docs": "幂等键生成（uuid v4；同键同内容回放、同键异内容 409 须换键——每次写入必新键）。"
+    },
+    {
+      "path": "ark::ledger::new_nonce",
+      "kind": "function",
+      "docs": "nonce 生成（10 分钟窗不重；uuid v4 形）。"
+    },
+    {
+      "path": "ark::ledger::signature_base",
+      "kind": "function",
+      "docs": "签名基构造（纯函数，服务端 signatureBase 同构）：\n`v1\\nPOST\\n<pathname>\\n<ts>\\n<nonce>\\n<idem>\\n<sha256hex(body)>` 各行换行连。"
+    },
+    {
+      "path": "ark::ledger::signed_post_parts",
+      "kind": "function",
+      "docs": "签名一次写入（五头齐出）：返回 (headers, body_text)。\n\n# Errors\n返回 Err（人读原因串）当：私钥装载或签名失败。"
+    },
+    {
+      "path": "ark::ledger::valid_digest",
+      "kind": "function",
+      "docs": "digest 形校验：`sha256:<64hex>`（小写；一律正文或记录哈希为身份，库不收二进制实体）。"
     },
     {
       "path": "ark::manifest",

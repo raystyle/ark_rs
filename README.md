@@ -142,11 +142,22 @@ ark heal aria2 --dry-run      # 部署维度幂等自愈预览（PATH 修复、�
 
 issue 反馈（统一入口 issues.ohmygh.com，REQ-057 契约；自动带 tool=ark 与版本/平台/host）：
 
+issue 账本（真源 ledger.ohmygh.com；issues.ohmygh.com 过渡期保役）：
+
 ```bash
-ark issue new "doctor 报 PATH 重复" --body "重跑步骤与输出"   # 一键提交，回执 id/url
-ark issue list --tool ark    # 集中列表（默认 limit 100 即服务端上限；count 是本次返回条数非在册总数）
-ark issue list --limit 3 --before 51   # keyset 游标翻更早一页（取 id 51 之前三条）
-ark issue show 3             # 单条详情（含正文）
+ark issue new "doctor 报 PATH 重复" --kind bug --acceptance "修复并验证"   # 开单（回执 issue 号与 seq）
+ark issue list --limit 3 --before 51   # keyset 游标翻更早一页（count 是本次返回条数非在册总数）
+ark issue show 3                        # 详情（projection 与 timeline）
+ark issue close 3 --digest sha256:<64hex>   # 关单（result 引 digest 加 status done）
+```
+
+artifact 产物共享库（正文或记录哈希为身份，库不收二进制实体）：
+
+```bash
+ark artifact publish --name "镜像通道教训" --kind lesson --digest sha256:<64hex> --summary "一句话"
+ark artifact attest <id> --attest-type attest_dev   # 开发验证（生产验证 attest_prod）
+ark artifact promote <id>                            # 晋级当前版
+ark artifact list --current                          # 当前版列表
 ```
 
 输出契约：数据走 stdout、提示走 stderr、错误为单行 JSON；`--format kv|json|jsonl` 可选；裸调用 `ark` 出导航指引 exit 0。完整字段与退出码契约见 `docs/references/R013-Agent友好IO契约-输出格式退出码与冻结面.md`。

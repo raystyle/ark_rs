@@ -1,6 +1,6 @@
 [package]
 name = "ark"
-version = "1.4.3"
+version = "1.5.0"
 edition = "2021"
 description = "Ark（Agent Runtime Kit）：全平台 Agent 工具及运行时依赖环境的部署、管理、验收与诊断 CLI"
 license = "MIT"
@@ -20,6 +20,11 @@ serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 # D34：云端清单 minisign 签名校验（Ed25519，公钥内嵌）
 minisign-verify = "0.2"
+# REQ-0015 ledger 客户端面：Ed25519 签名道（ed25519-dalek 最流行稳定实现）加
+# base64url（签名与密钥编码）加 uuid v4（写入幂等键，唯一性来源 getrandom）
+ed25519-dalek = "2"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
 tar = "0.4"
 toml_edit = { version = "0.22", features = ["serde"] }
 ureq = { version = "2", features = ["tls"] }
