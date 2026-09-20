@@ -25,13 +25,14 @@ pub const TIMEOUT_MS: u64 = 20000;
 
 /// HTTP 客户端（timeout 毫秒；0 = 不限时；ureq 2.x 形，原 issue 域同款迁移）。
 pub fn http_client(timeout_ms: u64) -> ureq::Agent {
-    let connect_ms = timeout_ms.clamp(1, 10_000);
-    let mut builder =
-        ureq::AgentBuilder::new().timeout_connect(std::time::Duration::from_millis(connect_ms));
-    if timeout_ms > 0 {
-        builder = builder.timeout(std::time::Duration::from_millis(timeout_ms));
+    // 0 = 完全不限时（裸 build，原 issue 域同款语义）；>0 时 connect 上限取 min(10s)
+    if timeout_ms == 0 {
+        return ureq::AgentBuilder::new().build();
     }
-    builder.build()
+    ureq::AgentBuilder::new()
+        .timeout_connect(std::time::Duration::from_millis(timeout_ms.min(10_000)))
+        .timeout(std::time::Duration::from_millis(timeout_ms))
+        .build()
 }
 /// 账本服务基址（REQ-063；issues.ohmygh.com 过渡期保役，CLI 面已切此真源）。
 pub const LEDGER_BASE: &str = "https://ledger.ohmygh.com";
