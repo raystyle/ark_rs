@@ -447,7 +447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -857,8 +857,8 @@ dependencies = [
 
 [[package]]
 name = "ledger-client"
-version = "0.1.1"
-source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.2#ca9d54d2ba29a18ba886a13c621b7b7d2f338a8c"
+version = "0.1.2"
+source = "git+https://github.com/raystyle/ledger-rs?tag=v0.1.2#19fb226e300f4cb4c99669b77e69c165ee69220f"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -1130,7 +1130,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1336,7 +1336,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1603,7 +1603,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
