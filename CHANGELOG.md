@@ -2,6 +2,10 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [Unreleased]
+
+- **ledger 权限收口与统一 crate**（总台修正令 2026-09-20）：CLI 面收为只增不关不删——撤 `ark issue close` 与 `ark artifact promote`，attest 收三型（attest_dev/attest_prod/verification_failed）；关闭与删除唯一道 = 开发工作台 herdr 委托 omc 工位。自研 ledger 客户端代码整撤，改以舰队唯一实现 ledger-rs crate 引入（`ledger-client` git 依赖 tag v0.1.1；v0.1.0 有 URL 拼接缺斜杠舰队级缺陷已避开）；私钥密档转 32 字节 hex 形（crate 约定）；timeout 旗标随 crate 定 60s 撤除；issue list 家族翻页面（has_more 恒出）保持。
+
 ## [1.5.0] - 2026-09-20
 
 minor：ledger 命令族集成批（REQ-0015，对齐 ohmycloud REQ-063 Phase 3 CLI 原生集成；issue 面切新真源 ledger.ohmygh.com，issues.ohmygh.com 过渡期保役）。

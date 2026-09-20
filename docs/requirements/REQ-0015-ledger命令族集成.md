@@ -30,6 +30,10 @@ trace: cargo test --release --locked 全绿 239 项（签名基/kid/digest/幂�
 - 实弹（2026-09-20，WSL 本机，公钥已注册）：issue new 得 issue=1 seq=3（201）；issue list 得 count=1 `#1=improvement open ledger 集成冒烟`；issue show 出 projection（kind/status）加 timeline；artifact publish（kind=lesson，本仓「批量脚本先落盘后断言」二犯同型真实教训）得 artifact_id 2ffd7f18-5a8c-407c-8ede-696d43d2b2d1 seq=4（201）；attest_dev seq=5、promote seq=6、list --current 得 dev=y current=y。
 - 公钥注册：kid 7f3658485ffd07e2e5712374c2a635959c23a4149405d19873a4174acf6aba18（总台入册回执在案，kid 规范形自核算对一致）。
 
+## 修正令收口 总台统一裁 2026-09-20 随下版滚出
+
+权限收口只增不关不删（撤 close/promote、attest 三型、list 撤 kind/name）；统一 crate ledger-rs（tag v0.1.1；v0.1.0 URL 拼接缺斜杠舰队级缺陷，实弹抓到后钉 v0.1.1 避雷并知会）；自研客户端全栈撤；密档转 hex 形；timeout 撤（crate 60s）。实弹复验过（list 双面加 close/promote 拒绝）。
+
 ## 设计注记
 
 - kind 十五值与服务端 ARTIFACT_KINDS 同口径（总台单写 16 值系笔误，服务端 Set 实数 15）。

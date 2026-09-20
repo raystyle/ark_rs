@@ -14,7 +14,7 @@
 - 自部署：`ark init`（self-deploy 别名；二进制进用户程序目录、catalog 同步、注册 PATH）
 - 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚；默认镜像段读序、GitHub API 兜底，`ARK_MIRROR=0` 官方优先逃逸阀（D51））
 - 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关）
-- 报缺陷：`ark issue new "<标题>" --kind bug --acceptance "<验收>"`（新真源 ledger.ohmygh.com 仓级公共账本，REQ-063/REQ-0015；`ark issue list [--before <id>]` 与 `show <n>` 读面、`close <n> --digest` 关单；产物沉淀走 `ark artifact publish/attest/promote/list`；遇缺陷即一键反馈，agent 纪律）
+- 报缺陷：`ark issue new "<标题>" --kind bug --acceptance "<验收>"`（新真源 ledger.ohmygh.com 仓级公共账本，REQ-063/REQ-0015；`ark issue list [--before <id>]` 与 `show <n>` 读面；产物沉淀走 `ark artifact publish/attest/list`（只增面；关单/删除/晋级归 omc 工作台 herdr 委托）；遇缺陷即一键反馈，agent 纪律）
 - 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/research docs/references`；`mq -F grep '.h2' docs/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）
 - 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py`；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/.claude/skills/dev-evo/scripts/check.py .`
 - 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL` 闸门 skip

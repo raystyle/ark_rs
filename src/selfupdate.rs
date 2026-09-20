@@ -1289,7 +1289,9 @@ mod tests {
     fn 陈旧收割_他人残留清本pid保留() {
         let dir = tempfile::tempdir().expect("临时目录");
         let pid = std::process::id();
-        let theirs = dir.path().join(format!("ark-new-{}", pid + 1));
+        // 他人 pid 取超 pid_max 的死值（pid+1 在忙机偶发为活进程致收割护栏正当跳过，
+        // 偶发红实证 2026-09-20；与死锁收割测同款取值法）
+        let theirs = dir.path().join(format!("ark-new-300000000"));
         let old_legacy = dir.path().join("ark.exe.old");
         let mine = dir.path().join(format!("ark-old-{pid}"));
         std::fs::write(&theirs, b"x").unwrap();

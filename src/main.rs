@@ -83,8 +83,8 @@ const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
 const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
 const EX_SELF: &str =
     "示例:\n  ark self update\n  ark self update --stable\n  ark self update --git";
-const EX_ARTIFACT: &str = "示例:\n  ark artifact publish --name \"镜像通道教训\" --kind lesson --digest sha256:<64hex> --summary \"一句话\"\n  ark artifact attest <id> --attest-type attest_dev\n  ark artifact promote <id>\n  ark artifact list --current";
-const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --kind bug --acceptance \"复现步骤与修复验证\"\n  ark issue list --limit 3 --before 51\n  ark issue close 3 --digest sha256:<64hex>";
+const EX_ARTIFACT: &str = "示例:\n  ark artifact publish --name \"镜像通道教训\" --kind lesson --digest sha256:<64hex> --summary \"一句话\"\n  ark artifact attest <id> --attest-type attest_dev\n  ark artifact list --current";
+const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --kind bug --acceptance \"复现步骤与修复验证\"\n  ark issue list --limit 3 --before 51\n  ark issue show 3";
 
 #[derive(Parser)]
 #[command(
@@ -288,9 +288,6 @@ enum IssueCmd {
         /// 补充正文
         #[arg(long)]
         body: Option<String>,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
     },
     /// 集中列表（新到旧；count 是本次返回条数非在册总数；--before 翻更早一页）
     List {
@@ -299,32 +296,12 @@ enum IssueCmd {
         limit: u32,
         /// keyset 游标：取该 issue 号之前（更旧）一页
         #[arg(long)]
-        before: Option<i64>,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
+        before: Option<u64>,
     },
     /// 单条详情（projection 加 timeline）
     Show {
         /// issue 号
-        n: i64,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
-    },
-    /// 关单（先 result 引 digest 再 status done；digest 为产物或正文 sha256）
-    Close {
-        /// issue 号
-        n: i64,
-        /// 结果引用（sha256:<64hex> 小写；`ark artifact publish` 回执的 digest）
-        #[arg(long)]
-        digest: String,
-        /// 备注（result 与 status 两事件的 body）
-        #[arg(long)]
-        note: Option<String>,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
+        n: u64,
     },
 }
 
@@ -360,30 +337,19 @@ enum ArtifactCmd {
         /// 补充正文
         #[arg(long)]
         body: Option<String>,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
     },
-    /// 证明（attest_dev|attest_prod|verification_failed|promote|demote|supersede）
+    /// 证明（attest_dev|attest_prod|verification_failed；晋级与降级归 omc 工作台）
     Attest {
         /// artifact id
         id: String,
         /// 证明类型
         #[arg(long)]
         attest_type: String,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
+        /// 证明备注
         #[arg(long)]
-        timeout: Option<u64>,
+        note: Option<String>,
     },
-    /// 晋级当前版（promote 糖衣）
-    Promote {
-        /// artifact id
-        id: String,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
-    },
-    /// 产物列表（current=1 只看当前版）
+    /// 产物列表（current=1 只看当前版；kind/name 过滤归网页面）
     List {
         /// 只看当前版（未被 supersede）
         #[arg(long)]
@@ -391,15 +357,6 @@ enum ArtifactCmd {
         /// 按环境过滤：dev|prod
         #[arg(long)]
         env: Option<String>,
-        /// 按类过滤
-        #[arg(long)]
-        kind: Option<String>,
-        /// 按名过滤
-        #[arg(long)]
-        name: Option<String>,
-        /// HTTP 超时毫秒（缺省 20000；0 = 不限时）
-        #[arg(long)]
-        timeout: Option<u64>,
     },
 }
 
@@ -535,43 +492,29 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             kind,
             acceptance,
             body,
-            timeout,
         } => {
-            let agent = ledger_http(timeout);
-            let (n, resp) = ledger::issue_new(&agent, &title, &kind, &acceptance, body.as_deref())?;
-            let seq = resp
-                .pointer("/event/seq")
-                .and_then(serde_json::Value::as_i64)
-                .map(|x| x.to_string())
-                .unwrap_or_else(|| "-".to_string());
+            let n = ledger::issue_new(&title, &kind, &acceptance, body.as_deref())?;
             render::emit(&[
                 kv("filed", &n.to_string()),
                 kv("issue", &n.to_string()),
-                kv("seq", &seq),
                 kv("kind", &kind),
-                kv("endpoint", ledger::LEDGER_BASE),
+                kv("endpoint", ledger_client::BASE_URL),
             ]);
-            eprintln!("[OK] issue #{n} 已开单（seq {seq}，kind {kind}）");
+            eprintln!("[OK] issue #{n} 已开单（kind {kind}）");
             eprintln!(
                 "[HINT] 复核：ark issue show {n}；网页面：{}/repos/{}/i/{n}",
-                ledger::LEDGER_BASE,
+                ledger_client::BASE_URL,
                 ledger::REPO_ID
             );
             Ok(())
         }
-        IssueCmd::List {
-            limit,
-            before,
-            timeout,
-        } => {
-            let agent = ledger_http(timeout);
-            let (issues, has_more) = ledger::issue_list(&agent, limit, before)?;
+        IssueCmd::List { limit, before } => {
+            let (issues, has_more) = ledger::issue_list(limit, before)?;
             let mut out = vec![
                 kv("count", &issues.len().to_string()),
-                kv("endpoint", ledger::LEDGER_BASE),
+                kv("endpoint", ledger_client::BASE_URL),
             ];
-            // has_more 恒出（more=1 索取；缺省 false）；饱和提示以 has_more 为准，
-            // 无 has_more 材料时退回条数判定（对线 F2：has_more=false 不再出截断提示）
+            // has_more 恒出（crate more=1 索取）；饱和提示以 has_more 为准
             let hm = has_more.unwrap_or(false);
             out.push(kv("has_more", if hm { "true" } else { "false" }));
             let saturated = match has_more {
@@ -603,18 +546,14 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             }
             eprintln!(
                 "[HINT] 网页面：{}/repos/{}",
-                ledger::LEDGER_BASE,
+                ledger_client::BASE_URL,
                 ledger::REPO_ID
             );
             Ok(())
         }
-        IssueCmd::Show { n, timeout } => {
-            let agent = ledger_http(timeout);
-            let v = ledger::issue_show(&agent, n)?;
-            let mut rows = vec![
-                kv("issue", &n.to_string()),
-                kv("endpoint", ledger::LEDGER_BASE),
-            ];
+        IssueCmd::Show { n } => {
+            let v = ledger::issue_show(n)?;
+            let mut rows = vec![kv("issue", &n.to_string())];
             for key in ["kind", "status", "assignee"] {
                 let val = v
                     .pointer(&format!("/projection/{key}"))
@@ -632,21 +571,16 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
                     })
                 })
                 .and_then(|e| e.get("payload"))
-                .and_then(|p| {
-                    serde_json::from_str::<serde_json::Value>(p.as_str().unwrap_or("")).ok()
+                .and_then(|pl| {
+                    serde_json::from_str::<serde_json::Value>(pl.as_str().unwrap_or("")).ok()
                 })
-                .and_then(|p| {
-                    p.get("title")
+                .and_then(|pl| {
+                    pl.get("title")
                         .and_then(serde_json::Value::as_str)
                         .map(str::to_string)
                 })
                 .unwrap_or_else(|| "-".to_string());
             rows.insert(2, kv("title", &title));
-            let has_result = v
-                .pointer("/projection/hasResult")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            rows.push(kv("has_result", if has_result { "true" } else { "false" }));
             if let Some(tl) = v.get("timeline").and_then(serde_json::Value::as_array) {
                 rows.push(kv("events", &tl.len().to_string()));
                 for ev in tl {
@@ -664,47 +598,15 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             render::emit(&rows);
             eprintln!(
                 "[HINT] 网页面：{}/repos/{}/i/{n}",
-                ledger::LEDGER_BASE,
+                ledger_client::BASE_URL,
                 ledger::REPO_ID
             );
-            Ok(())
-        }
-        IssueCmd::Close {
-            n,
-            digest,
-            note,
-            timeout,
-        } => {
-            let agent = ledger_http(timeout);
-            let (result, status) = ledger::issue_close(&agent, n, &digest, note.as_deref())?;
-            let rs = result
-                .pointer("/event/seq")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
-            let ss = status
-                .pointer("/event/seq")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
-            render::emit(&[
-                kv("issue", &n.to_string()),
-                kv("action", "closed"),
-                kv("result_seq", &rs.to_string()),
-                kv("status_seq", &ss.to_string()),
-                kv("digest", &digest),
-                kv("endpoint", ledger::LEDGER_BASE),
-            ]);
-            eprintln!("[OK] issue #{n} 已关单（result seq {rs} + status done seq {ss}）");
             Ok(())
         }
     }
 }
 
-/// ledger HTTP 客户端（timeout 毫秒；0 = 不限时）。
-fn ledger_http(timeout: Option<u64>) -> ureq::Agent {
-    ark::ledger::http_client(timeout.unwrap_or(ark::ledger::TIMEOUT_MS))
-}
-
-/// artifact 命令族（REQ-0015 产物共享库面）。
+/// artifact 命令族（REQ-0015 产物共享库面；收口后只增面：publish/attest/list）。
 fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
     use ark::ledger;
     match cmd {
@@ -718,65 +620,62 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             outcome,
             summary,
             body,
-            timeout,
         } => {
-            let agent = ledger_http(timeout);
-            let mut extras = serde_json::Map::new();
-            if let Some(v) = version {
-                extras.insert("version".into(), serde_json::json!(v));
-            }
-            if let Some(g) = git_range {
-                extras.insert("git_range".into(), serde_json::json!(g));
-            }
-            if let Some(d) = deps {
-                let list: Vec<&str> = d
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|x| !x.is_empty())
-                    .collect();
-                extras.insert("deps".into(), serde_json::json!(list));
-            }
+            let deps_list: Vec<String> = deps
+                .map(|d| {
+                    d.split(',')
+                        .map(str::trim)
+                        .filter(|x| !x.is_empty())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default();
+            // note 面组版（crate 单 note 参）：outcome/summary/body 并入正文
+            let mut note_parts: Vec<String> = Vec::new();
             if let Some(o) = outcome {
-                extras.insert("outcome".into(), serde_json::json!(o));
+                note_parts.push(format!("outcome: {o}"));
             }
             if let Some(sm) = summary {
-                extras.insert("summary".into(), serde_json::json!(sm));
+                note_parts.push(format!("summary: {sm}"));
             }
             if let Some(b) = body {
-                extras.insert("body".into(), serde_json::json!(b));
+                note_parts.push(b);
             }
-            let (id, resp) = ledger::artifact_publish(
-                &agent,
+            let note = (!note_parts.is_empty()).then(|| note_parts.join("\n"));
+            let id = ledger::artifact_publish(
                 &name,
                 &kind,
                 &digest,
-                &serde_json::Value::Object(extras),
+                version.as_deref(),
+                git_range.as_deref(),
+                &deps_list,
+                note.as_deref(),
             )?;
-            let seq = resp
-                .pointer("/event/seq")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
             render::emit(&[
                 kv("filed", &id),
                 kv("artifact_id", &id),
-                kv("seq", &seq.to_string()),
                 kv("kind", &kind),
                 kv("digest", &digest),
-                kv("endpoint", ledger::LEDGER_BASE),
+                kv("endpoint", ledger_client::BASE_URL),
             ]);
-            eprintln!("[OK] artifact 已发布（seq {seq}，kind {kind}）：{id}");
-            eprintln!("[HINT] 证明：ark artifact attest {id} --attest-type attest_dev；网页面：{}/repos/{}/a/{id}", ledger::LEDGER_BASE, ledger::REPO_ID);
+            eprintln!("[OK] artifact 已发布（kind {kind}）：{id}");
+            eprintln!(
+                "[HINT] 证明：ark artifact attest {id} --attest-type attest_dev；网页面：{}/repos/{}/a/{id}",
+                ledger_client::BASE_URL,
+                ledger::REPO_ID
+            );
             Ok(())
         }
         ArtifactCmd::Attest {
             id,
             attest_type,
-            timeout,
+            note,
         } => {
-            let agent = ledger_http(timeout);
-            let resp = ledger::artifact_attest(&agent, &id, &attest_type, &serde_json::json!({}))?;
+            let resp =
+                ledger::artifact_attest(&id, &attest_type, serde_json::json!({}), note.as_deref())?;
             let seq = resp
-                .pointer("/event/seq")
+                .get("event")
+                .and_then(|e| e.get("seq"))
                 .and_then(serde_json::Value::as_i64)
                 .unwrap_or(0);
             render::emit(&[
@@ -784,45 +683,16 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
                 kv("action", "attested"),
                 kv("attest_type", &attest_type),
                 kv("seq", &seq.to_string()),
-                kv("endpoint", ledger::LEDGER_BASE),
+                kv("endpoint", ledger_client::BASE_URL),
             ]);
             eprintln!("[OK] artifact {id} 已证明（{attest_type}，seq {seq}）");
             Ok(())
         }
-        ArtifactCmd::Promote { id, timeout } => {
-            let agent = ledger_http(timeout);
-            let resp = ledger::artifact_attest(&agent, &id, "promote", &serde_json::json!({}))?;
-            let seq = resp
-                .pointer("/event/seq")
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
-            render::emit(&[
-                kv("artifact_id", &id),
-                kv("action", "promoted"),
-                kv("seq", &seq.to_string()),
-                kv("endpoint", ledger::LEDGER_BASE),
-            ]);
-            eprintln!("[OK] artifact {id} 已晋级当前版（promote，seq {seq}）");
-            Ok(())
-        }
-        ArtifactCmd::List {
-            current,
-            env,
-            kind,
-            name,
-            timeout,
-        } => {
-            let agent = ledger_http(timeout);
-            let arts = ledger::artifact_list(
-                &agent,
-                current,
-                env.as_deref(),
-                kind.as_deref(),
-                name.as_deref(),
-            )?;
+        ArtifactCmd::List { current, env } => {
+            let arts = ledger::artifact_list(current, env.as_deref())?;
             let mut out = vec![
                 kv("count", &arts.len().to_string()),
-                kv("endpoint", ledger::LEDGER_BASE),
+                kv("endpoint", ledger_client::BASE_URL),
             ];
             for a in &arts {
                 let id = a
@@ -863,7 +733,7 @@ fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
             render::emit(&out);
             eprintln!(
                 "[HINT] 网页面：{}/repos/{}",
-                ledger::LEDGER_BASE,
+                ledger_client::BASE_URL,
                 ledger::REPO_ID
             );
             Ok(())
