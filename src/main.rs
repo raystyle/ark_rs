@@ -574,8 +574,10 @@ fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
             // 无 has_more 材料时退回条数判定（对线 F2：has_more=false 不再出截断提示）
             let hm = has_more.unwrap_or(false);
             out.push(kv("has_more", if hm { "true" } else { "false" }));
-            let saturated =
-                has_more.map_or_else(|| ledger::list_saturated(issues.len(), limit), |h| h);
+            let saturated = match has_more {
+                Some(h) => h,
+                None => ledger::list_saturated(issues.len(), limit),
+            };
             for r in &issues {
                 let n = r
                     .get("issue_n")
