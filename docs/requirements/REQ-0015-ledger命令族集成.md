@@ -29,6 +29,7 @@ trace: cargo test --release --locked 全绿 239 项（签名基/kid/digest/幂�
 
 - 实弹（2026-09-20，WSL 本机，公钥已注册）：issue new 得 issue=1 seq=3（201）；issue list 得 count=1 `#1=improvement open ledger 集成冒烟`；issue show 出 projection（kind/status）加 timeline；artifact publish（kind=lesson，本仓「批量脚本先落盘后断言」二犯同型真实教训）得 artifact_id 2ffd7f18-5a8c-407c-8ede-696d43d2b2d1 seq=4（201）；attest_dev seq=5、promote seq=6、list --current 得 dev=y current=y。
 - 公钥注册：kid 7f3658485ffd07e2e5712374c2a635959c23a4149405d19873a4174acf6aba18（总台入册回执在案，kid 规范形自核算对一致）。
+- 周知处置与重发（2026-09-22，总台周知）：单 #1 冒烟自裁关单（result 即上条实弹回执，close 面已收口归 omc 执行）；原 artifact 2ffd7f18 因缺 outcome 被总台按垃圾数据删除，按新标准重发（kind=lesson、outcome=success、summary、body 全文）得 artifact_id 34a2bd7b-49b5-46e9-845f-15835aecc369、digest sha256:b20295462f488ac62169a0501940984c709129813f8bb55462c3a3b8494ac9bf、attest_dev seq=195；list 在册 dev=y prod=n current=n，晋级归 omc。
 
 ## 修正令收口 总台统一裁 2026-09-20 随下版滚出
 
