@@ -338,3 +338,201 @@ asset = "selftool.exe"
         // 失败点锚定在下载段（无效域），防失败点前移到 resolve 时用例空转
         .stderr(contains("example.invalid"));
 }
+
+// ── install/update --dry-run 计划面（REQ-0016 件一：actl 写闸配套的真计划）──
+
+/// 跨平台夹具目录条目（GitHub 分支、三平台 pin 键齐：pin_direct 零网络直装路径，
+/// 期望值即夹具自带的 pin 与 sha 常量）。
+fn plan_catalog_text() -> String {
+    r#"
+[tools.selftool]
+dir = "selftool"
+bin = "selftool"
+exe = 'selftool\selftool.exe'
+linux_exe = 'selftool'
+mac_exe = 'selftool'
+probe_pattern = '(\d+\.\d+\.\d+)'
+extract = "copy"
+repo = "acme/selftool"
+tag_prefix = "v"
+asset_pattern = '^selftool-v[0-9.]+-windows-amd64\.zip$'
+tag = "v1.0.0"
+version = "1.0.0"
+asset = "selftool-v1.0.0-windows-amd64.zip"
+sha256 = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+linux_tag = "v1.0.0"
+linux_version = "1.0.0"
+linux_asset = "selftool-v1.0.0-linux-amd64.tar.gz"
+linux_sha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+mac_tag = "v1.0.0"
+mac_version = "1.0.0"
+mac_asset = "selftool-v1.0.0-macos-arm64.tar.gz"
+mac_sha256 = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+"#
+    .to_string()
+}
+
+/// 未装（Behind 态）：update --dry-run 出补装计划（drift=behind、镜像 URL、离线 pin 锚 sha），
+/// 且 EnvRoot 零落盘；GitHub 分支 pin 驱动零网络（断网面代理指向不可达仍成功即证）。
+#[test]
+fn update_dryrun_未装behind出补装计划() {
+    let (_guard, catalog, env_root) = sandbox(&plan_catalog_text());
+    let (asset, sha) = if cfg!(windows) {
+        (
+            "selftool-v1.0.0-windows-amd64.zip",
+            "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        )
+    } else if cfg!(target_os = "macos") {
+        (
+            "selftool-v1.0.0-macos-arm64.tar.gz",
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        )
+    } else {
+        (
+            "selftool-v1.0.0-linux-amd64.tar.gz",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        )
+    };
+    let out = ark_cli(&catalog, &env_root)
+        .env("ARK_OFFLINE", "1")
+        .env("HTTPS_PROXY", "http://127.0.0.1:1")
+        .env("https_proxy", "http://127.0.0.1:1")
+        .args(["update", "selftool", "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(
+        text.contains("tool=selftool") && text.contains("action=dry-run"),
+        "计划块头: {text}"
+    );
+    assert!(text.contains("would=install"), "未装应预测补装: {text}");
+    assert!(text.contains("drift=behind"), "未装即 Behind 态: {text}");
+    assert!(text.contains("version=1.0.0"));
+    assert!(
+        text.contains(&format!(
+            "url=https://env.ohmygh.com/selftool/1.0.0/{asset}"
+        )),
+        "镜像主通道: {text}"
+    );
+    assert!(text.contains(&format!("sha256={sha}")), "离线锚面: {text}");
+    assert!(
+        !env_root.exists()
+            || std::fs::read_dir(&env_root)
+                .map(|mut d| d.next().is_none())
+                .unwrap_or(true),
+        "dry-run 不落盘（EnvRoot 不建或为空）: {}",
+        env_root.display()
+    );
+}
+
+/// 已装同版（Current 态）：POSIX 假 exe 脚本探活版本等于 pin，install --dry-run 预测
+/// 幂等 skip、update --dry-run 出 drift=current；无效域 cdn 全程不触网即证零下载。
+#[test]
+#[cfg(not(windows))]
+fn dryrun_已装同版幂等与current预测() {
+    let (_guard, catalog, env_root) = sandbox(&plan_catalog_text());
+    let tool_dir = env_root.join("selftool");
+    fs::create_dir_all(&tool_dir).expect("创建工具目录失败");
+    let exe = tool_dir.join("selftool");
+    fs::write(&exe, "#!/bin/sh\necho selftool 1.0.0\n").expect("写假 exe 失败");
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).expect("假 exe 加执行位失败");
+
+    let out = ark_cli(&catalog, &env_root)
+        .env("ARK_OFFLINE", "1")
+        .args(["install", "selftool", "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(text.contains("would=skip"), "同版应预测幂等 skip: {text}");
+
+    let out = ark_cli(&catalog, &env_root)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", "selftool", "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(
+        text.contains("would=skip") && text.contains("drift=current"),
+        "Current 态应 skip: {text}"
+    );
+}
+
+/// 家族委托腿（hst 名）：dry-run 只出委托计划（would=delegate 加 channel=self-update），
+/// 不调用家族 CLI；定位面复用 delegate::locate_exe 同判据（PATH 命中假 hst 即算在装）。
+#[test]
+fn update_dryrun_委托腿只出计划不调用() {
+    let (guard, catalog, env_root) = sandbox(&plan_catalog_text().replace("selftool", "hst"));
+    let bin_name = if cfg!(windows) { "hst.exe" } else { "hst" };
+    let fake_bin = guard.path().join("fakebin");
+    fs::create_dir_all(&fake_bin).expect("创建假 bin 失败");
+    // 零字节假 hst：locate 只看在位，不探版本（dry-run 不拉子进程）
+    fs::write(fake_bin.join(bin_name), b"").expect("写假 hst 失败");
+    let path_env = std::env::join_paths(std::iter::once(fake_bin.clone()).chain(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+    ))
+    .expect("拼 PATH 失败");
+
+    // 在装：委托计划，无目标面行（家族自管面无 ark 侧资产）
+    let out = ark_cli(&catalog, &env_root)
+        .env("PATH", &path_env)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", "hst", "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("tool=hst")
+            && text.contains("action=dry-run")
+            && text.contains("would=delegate"),
+        "委托计划块: {text}"
+    );
+    assert!(
+        text.contains("channel=self-update"),
+        "委托腿机读通道面: {text}"
+    );
+    assert!(
+        !text.contains("url=https://"),
+        "委托计划不应出 ark 侧资产 URL（家族自管）: {text}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("计划: 委托家族自升级通道 `hst self update`"),
+        "stderr 计划描述: {stderr}"
+    );
+
+    // 未装（最小 PATH 无 hst）：回落镜像安装腿首装计划
+    let empty_bin = guard.path().join("emptybin");
+    fs::create_dir_all(&empty_bin).expect("创建空 bin 失败");
+    let bare_path =
+        std::env::join_paths(std::iter::once(empty_bin.clone())).expect("拼最小 PATH 失败");
+    let out = ark_cli(&catalog, &env_root)
+        .env("PATH", &bare_path)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", "hst", "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("would=install"),
+        "未装回落镜像腿应预测首装: {text}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("计划回落镜像安装腿首装"),
+        "回落提示: {stderr}"
+    );
+}

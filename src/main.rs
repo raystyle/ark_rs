@@ -30,13 +30,14 @@ const LLMS_MANIFEST: &str = concat!(
     "> Ark（Agent Runtime Kit）：本机跨平台环境部署管理 CLI。版本 ",
     env!("CARGO_PKG_VERSION"),
     "。手册 curated 单源，与 --help 同源由漂移守卫测试锁定。\n",
+    "> actl 适配面：独立直用完全不变；经 actl（ai-cloud 框架）调用时写级动词（install/update/heal/init、pin 设锁形、catalog sync、self update）过其写闸（预览缺省，加 `--yes` 执行），`--json` 出 TOON 信封，`--yes` 恒由 actl 消费剥离（ark 无自拥 --yes 面）。\n",
     "\n",
     "## 读序\n",
     "\n",
     "装环境从 doctor 起、装工具 install、对齐更新 update、三态对照 status；其余按命令表直达。\n",
     "原语三件：doctor 检测诊断、install 幂等安装、status 三态对照；其余为派生面。\n",
     "全局：--format kv|json|jsonl、--json、--env-root PATH、--llms。数据 stdout、提示 stderr、错误单行 JSON。\n",
-    "命令级常用旗标：query/pin/install 共用 --latest、--tag、--version；install/update 另有 --force；verify 有 --check；heal 有 --dry-run。\n",
+    "命令级常用旗标：query/pin/install 共用 --latest、--tag、--version；install/update 另有 --force；install/update/heal 有 --dry-run 预览（不落盘出计划）；verify 有 --check。\n",
     "何时用：装、查、管、诊断环境一律走 ark（不手拼官方 URL、不裸 curl release 资产、不手写 PATH 注册表）；install/update 幂等检测安装，重跑零副作用。\n",
     "下载：默认自建镜像（工具专属分发域或 env.ohmygh.com）、未命中秒级回落官方；有 sha 锚（catalog pin、镜像 .sha256 边车或官方清单）必校验，锚不符即换道。\n",
     "\n",
@@ -45,10 +46,10 @@ const LLMS_MANIFEST: &str = concat!(
     "| 命令 | 语义 | 关键输出 | 退出码 |\n",
     "| --- | --- | --- | --- |\n",
     "| ark doctor | 原语·检测诊断（系统/依赖两层+check 节：环境错误/配置健康/部署深诊/网络通连） | sys.* dep= check= verdict | 1=check 有 FAIL |\n",
-    "| ark install [名] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量） | tool,action,version,dir | 0/1 |\n",
+    "| ark install [名] [--dry-run] | 原语·幂等安装（下载+PATH/注册表/配置；省略则全量；--dry-run 出真计划不落盘） | tool,action,version,dir（--dry-run 另出 would/tag/asset/url/sha256/dir/bin/cache） | 0/1 |\n",
     "| ark status | 原语·三态对照（锁定/已装/PATH） | tool,locked,installed,path,exe | 0/1 |\n",
     "| ark query [名] [--latest] | 解析版本与资产不安装（省略则全量） | tool,tag,version,asset,sha256 | 0/1 |\n",
-    "| ark update [名] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注，--force 不作用）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合 | 同 install 加 channel | 0/1 |\n",
+    "| ark update [名] [--dry-run] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注，--force 不作用）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合；--dry-run 出真计划不落盘（update 面另出 drift） | 同 install 加 channel | 0/1 |\n",
     "| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |\n",
     "| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |\n",
     "| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |\n",
@@ -75,8 +76,9 @@ const LLMS_MANIFEST: &str = concat!(
 // ── 帮助示例元数据（各子命令示例集中于此，经 after_help 挂进帮助）──
 const EX_QUERY: &str = "示例:\n  ark query\n  ark query gh --latest";
 const EX_PIN: &str = "示例:\n  ark pin\n  ark pin git --latest\n  ark lock git --version 2.55.0";
-const EX_INSTALL: &str = "示例:\n  ark install\n  ark install git\n  ark install --force";
-const EX_UPDATE: &str = "示例:\n  ark update\n  ark update gh";
+const EX_INSTALL: &str =
+    "示例:\n  ark install\n  ark install git\n  ark install --force\n  ark install git --dry-run";
+const EX_UPDATE: &str = "示例:\n  ark update\n  ark update gh\n  ark update --dry-run";
 const EX_STATUS: &str = "示例:\n  ark status";
 const EX_INIT: &str = "示例:\n  ark init";
 const EX_VERIFY: &str = "示例:\n  ark verify\n  ark verify --check toolRoot,localbin16 --json";
@@ -187,6 +189,9 @@ enum Commands {
         /// 强制重装，跳过幂等检查
         #[arg(long)]
         force: bool,
+        /// 只出安装计划（版本/资产与 sha/解压目标/PATH 注册面），不落盘
+        #[arg(long)]
+        dry_run: bool,
     },
     /// 对齐云端锁定安装（锁定归数据面，不回写 pin；临时钉版走 pin）；省略工具名则全量
     #[command(after_help = EX_UPDATE)]
@@ -197,6 +202,9 @@ enum Commands {
         /// 强制重装，跳过幂等检查
         #[arg(long)]
         force: bool,
+        /// 只出更新计划（三态漂移与将执行动作），不落盘
+        #[arg(long)]
+        dry_run: bool,
     },
     /// 对照锁定版本、已装版本与 PATH 三态
     #[command(after_help = EX_STATUS)]
@@ -451,12 +459,17 @@ fn run() -> Result<(), ArkError> {
     match cmd {
         Commands::Query { tool, opts } => cmd_query(&cat, &tool, &opts).map_err(ArkError::from),
         Commands::Pin { tool, opts } => cmd_pin(&cat, &tool, &opts).map_err(ArkError::from),
-        Commands::Install { tool, opts, force } => {
-            cmd_install(&cat, &env_root, &tool, &opts, force).map_err(ArkError::from)
-        }
-        Commands::Update { tool, force } => {
-            cmd_update(&cat, &env_root, &tool, force).map_err(ArkError::from)
-        }
+        Commands::Install {
+            tool,
+            opts,
+            force,
+            dry_run,
+        } => cmd_install(&cat, &env_root, &tool, &opts, force, dry_run).map_err(ArkError::from),
+        Commands::Update {
+            tool,
+            force,
+            dry_run,
+        } => cmd_update(&cat, &env_root, &tool, force, dry_run).map_err(ArkError::from),
         Commands::Status => cmd_status(&cat, &env_root).map_err(ArkError::from),
         Commands::Init => cmd_init(&env_root).map_err(ArkError::from),
         Commands::Verify { check } => {
@@ -1172,12 +1185,15 @@ fn warn_if_manifest_missing(cat: &Catalog) {
 }
 
 /// install：解析（默认锁定版本）→ 下载解压 → PATH、注册表与配置。
+/// --dry-run（REQ-0016，actl 写闸预览面）：零下载零解压零 PATH 写零子进程安装动作，
+/// 出真计划行（版本、资产与 sha、解压目标、PATH 注册面、缓存落点、幂等预测）。
 fn cmd_install(
     cat: &Catalog,
     env_root: &Path,
     tool: &str,
     opts: &VersionOpts,
     force: bool,
+    dry_run: bool,
 ) -> Result<(), String> {
     let names = cat.select(tool)?;
     warn_if_manifest_missing(cat);
@@ -1194,11 +1210,16 @@ fn cmd_install(
         // 平台不适用（无本平台 exe，如 shellcheck 在 Windows、Windows-only 工具在 Linux）：跳过不安装
         if !ark::toolver::platform_managed(def) {
             eprintln!("[INFO] {name} 当前平台不适用（无本平台 exe 字段），跳过");
-            emit_block(&mut first, vec![kv("tool", name), kv("action", "skipped")]);
+            emit_block(&mut first, skip_rows(name, "", dry_run));
             continue;
         }
         // vsbuild：evergreen 引导器（无版本解析、需提权、机器级 PATH），走专用安装模块
         if ark::vsbuild::is_vsbuild(def) {
+            if dry_run {
+                eprintln!("[INFO] {name} 计划: evergreen 引导器安装（需提权、机器级 PATH）");
+                emit_block(&mut first, plan_head(name, "install", Some("evergreen")));
+                continue;
+            }
             match ark::vsbuild::install(def, env_root, true) {
                 Ok(out) => emit_block(&mut first, install_rows(name, &out)),
                 Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
@@ -1207,6 +1228,11 @@ fn cmd_install(
         }
         // rust：rustup 引导器（rsproxy 直链、stable 滚动、EnvRoot 重定位），走专用安装模块
         if ark::rustup::is_rustup(def) {
+            if dry_run {
+                eprintln!("[INFO] {name} 计划: rustup 引导器安装（rsproxy 直链 stable 滚动）");
+                emit_block(&mut first, plan_head(name, "install", Some("evergreen")));
+                continue;
+            }
             match ark::rustup::install(def, env_root, true) {
                 Ok(out) => emit_block(&mut first, install_rows(name, &out)),
                 Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
@@ -1216,18 +1242,26 @@ fn cmd_install(
         // ark：自管条目（self update 三通道），install 提示走 self update
         if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 自管理：升级走 `ark self update`（dev/stable/git 三通道）");
-            emit_block(
-                &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", "self-managed"),
-                ],
-            );
+            emit_block(&mut first, skip_rows(name, "self-managed", dry_run));
             continue;
         }
         // docker：static zip + Windows 服务注册 + daemon.json + compose 插件（set-docker.ps1 迁移），走专用模块
         if ark::docker::is_docker(def) {
+            if dry_run {
+                let step = resolve_tool(name, def, &ropts).and_then(|r| {
+                    eprintln!(
+                        "[INFO] {name} 计划: docker static zip 安装（Windows 另注册服务、daemon.json 合并与 compose 插件、机器级 PATH）"
+                    );
+                    let mut rows = plan_head(name, "install", None);
+                    rows.extend(ark::install::plan_target_rows(def, env_root, &r)?);
+                    Ok(rows)
+                });
+                match step {
+                    Ok(rows) => emit_block(&mut first, rows),
+                    Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
+                }
+                continue;
+            }
             let step = resolve_tool(name, def, &ropts)
                 .and_then(|r| ark::docker::install(def, env_root, &r, true));
             match step {
@@ -1244,12 +1278,26 @@ fn cmd_install(
             );
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
             );
+            continue;
+        }
+        if dry_run {
+            match resolve_tool(name, def, &ropts) {
+                Ok(r) => {
+                    let would = ark::install::plan_would(def, env_root, name, &r, force);
+                    let mut rows = plan_head(name, would, None);
+                    match ark::install::plan_target_rows(def, env_root, &r) {
+                        Ok(targets) => rows.extend(targets),
+                        Err(e) => {
+                            skip_or_fail(tool, name, e, &mut errors)?;
+                            continue;
+                        }
+                    }
+                    emit_block(&mut first, rows);
+                }
+                Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
+            }
             continue;
         }
         let step = resolve_tool(name, def, &ropts)
@@ -1259,7 +1307,46 @@ fn cmd_install(
             Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
         }
     }
+    dry_run_hint(dry_run);
     summarize_all_errors(&errors)
+}
+
+/// dry-run 收尾提示（stderr，不进数据面）：预览未落盘，执行去掉旗标。
+fn dry_run_hint(dry_run: bool) {
+    if dry_run {
+        eprintln!("[HINT] dry-run 预览完成，未落盘；执行去掉 --dry-run");
+    }
+}
+
+/// dry-run 计划块头（tool/action=dry-run/would/version?）。
+fn plan_head(name: &str, would: &str, version: Option<&str>) -> Vec<(String, String)> {
+    let mut rows = vec![
+        kv("tool", name),
+        kv("action", "dry-run"),
+        kv("would", would),
+    ];
+    if let Some(v) = version {
+        rows.push(kv("version", v));
+    }
+    rows
+}
+
+/// 早退面（平台不适用/自管/hold 等）结果块：真跑形 action=skipped，dry-run 形
+/// action=dry-run 加 would=skip；version 非空则带行。两形一处构造防漂移。
+fn skip_rows(name: &str, version: &str, dry_run: bool) -> Vec<(String, String)> {
+    let mut rows = if dry_run {
+        vec![
+            kv("tool", name),
+            kv("action", "dry-run"),
+            kv("would", "skip"),
+        ]
+    } else {
+        vec![kv("tool", name), kv("action", "skipped")]
+    };
+    if !version.is_empty() {
+        rows.push(kv("version", version));
+    }
+    rows
 }
 
 /// all 循环容错：单工具失败时跳过续跑（WARN 加 skipped 行），单工具显式调用即时失败。
@@ -1295,7 +1382,14 @@ fn summarize_all_errors(errors: &[String]) -> Result<(), String> {
 /// 云端「最新」定义随此改指镜像与 catalog——上游滚版归数据面 omc 滚锁）；本机对照锁定
 /// 走 D49 三态（一致 skip、落后/未装补装、领先如实报）；**不回写锁定**（D37 定案：
 /// 版本锁定单源归数据面 omc；`ark pin` 留作临时本地锁）；`--force` 走真装。
-fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result<(), String> {
+/// --dry-run（REQ-0016）：同判据只出计划（drift 三态行、委托腿 would=delegate 不调用）。
+fn cmd_update(
+    cat: &Catalog,
+    env_root: &Path,
+    tool: &str,
+    force: bool,
+    dry_run: bool,
+) -> Result<(), String> {
     let names = cat.select(tool)?;
     warn_if_manifest_missing(cat);
     // D51：默认解析 pin 驱动（GitHub 分支零 API 镜像直装；zig 等 index 分支无 pin 仍解析最新）
@@ -1313,11 +1407,7 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             eprintln!("[INFO] {name} 为 evergreen 引导器条目，不走 update（install 幂等）");
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("evergreen")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or("evergreen"), dry_run),
             );
             continue;
         }
@@ -1329,11 +1419,7 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             );
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("-")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or("-"), dry_run),
             );
             continue;
         }
@@ -1341,35 +1427,20 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             eprintln!("[INFO] {name} 为 rustup 引导器条目，不走 update（install 即 rustup update stable）");
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("evergreen")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or("evergreen"), dry_run),
             );
             continue;
         }
         if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 为自管条目，不走 update（ark self update 三通道）");
-            emit_block(
-                &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", "self-managed"),
-                ],
-            );
+            emit_block(&mut first, skip_rows(name, "self-managed", dry_run));
             continue;
         }
         if !ark::toolver::platform_managed(def) {
             eprintln!("[INFO] {name} 当前平台不适用（无本平台 exe 字段），跳过");
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
             );
             continue;
         }
@@ -1381,11 +1452,7 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             );
             emit_block(
                 &mut first,
-                vec![
-                    kv("tool", name),
-                    kv("action", "skipped"),
-                    kv("version", def.pin_version().unwrap_or("")),
-                ],
+                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
             );
             continue;
         }
@@ -1393,54 +1460,71 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
         // 其自身自升级通道，吃其独立域与锚校验回滚自证；其余非自研照旧镜像腿）：
         // 未装回落镜像安装腿首装；让位契约靠临时撤 ark-managed 落痕、完成（含失败）复痕。
         if ark::delegate::self_update_args(name).is_some() {
-            match ark::delegate::run(name, def, env_root) {
-                Ok(Some(out)) => {
-                    if out.ok {
-                        eprintln!("[OK] {name} 委托自升级完成: {}", out.via);
-                    } else {
-                        eprintln!(
-                            "[WARN] {name} 委托自升级未成功: {}（详见上方家族 CLI 输出）",
-                            out.via
-                        );
-                    }
-                    // action 诚实裁定（对线 F4）：失败 failed；升级后探活在位且与升级前
-                    // 不同 updated；其余（家族成功版本未动、或探活失败无法证变）skipped
-                    let changed = matches!(
-                        (&out.version_before, &out.version),
-                        (Some(a), Some(b)) if a != b
+            if dry_run {
+                // 计划面：定位到真身即委托（不调用家族 CLI）；未装回落镜像腿首装计划
+                if ark::delegate::locate_exe(name, def, env_root).is_some() {
+                    let via = ark::delegate::self_update_args(name)
+                        .map(|a| a.join(" "))
+                        .unwrap_or_default();
+                    eprintln!(
+                        "[INFO] {name} 计划: 委托家族自升级通道 `{name} {via}`（临时撤 ark-managed 落痕让位）"
                     );
-                    let action = if !out.ok {
-                        "failed"
-                    } else if changed {
-                        "updated"
-                    } else {
-                        "skipped"
-                    };
-                    let mut rows = vec![
-                        kv("tool", name),
-                        kv("action", action),
-                        kv("channel", "self-update"),
-                    ];
-                    rows.push(kv("version", out.version.as_deref().unwrap_or("-")));
+                    let mut rows = plan_head(name, "delegate", def.pin_version());
+                    rows.push(kv("channel", "self-update"));
                     emit_block(&mut first, rows);
-                    if !out.ok {
-                        // 对线 F1：与镜像腿同走 skip_or_fail（all 计项、单工具即败，
-                        // 退出码契约 1=失败两面一致）
-                        skip_or_fail(
-                            tool,
-                            name,
-                            format!("{name}: 委托自升级失败（{}）", out.via),
-                            &mut errors,
-                        )?;
+                    continue;
+                }
+                eprintln!("[INFO] {name} 家族 CLI 未装，计划回落镜像安装腿首装");
+            } else {
+                match ark::delegate::run(name, def, env_root) {
+                    Ok(Some(out)) => {
+                        if out.ok {
+                            eprintln!("[OK] {name} 委托自升级完成: {}", out.via);
+                        } else {
+                            eprintln!(
+                                "[WARN] {name} 委托自升级未成功: {}（详见上方家族 CLI 输出）",
+                                out.via
+                            );
+                        }
+                        // action 诚实裁定（对线 F4）：失败 failed；升级后探活在位且与升级前
+                        // 不同 updated；其余（家族成功版本未动、或探活失败无法证变）skipped
+                        let changed = matches!(
+                            (&out.version_before, &out.version),
+                            (Some(a), Some(b)) if a != b
+                        );
+                        let action = if !out.ok {
+                            "failed"
+                        } else if changed {
+                            "updated"
+                        } else {
+                            "skipped"
+                        };
+                        let mut rows = vec![
+                            kv("tool", name),
+                            kv("action", action),
+                            kv("channel", "self-update"),
+                        ];
+                        rows.push(kv("version", out.version.as_deref().unwrap_or("-")));
+                        emit_block(&mut first, rows);
+                        if !out.ok {
+                            // 对线 F1：与镜像腿同走 skip_or_fail（all 计项、单工具即败，
+                            // 退出码契约 1=失败两面一致）
+                            skip_or_fail(
+                                tool,
+                                name,
+                                format!("{name}: 委托自升级失败（{}）", out.via),
+                                &mut errors,
+                            )?;
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                Ok(None) => {
-                    eprintln!("[INFO] {name} 家族 CLI 未装，回落镜像安装腿首装");
-                }
-                Err(e) => {
-                    skip_or_fail(tool, name, e, &mut errors)?;
-                    continue;
+                    Ok(None) => {
+                        eprintln!("[INFO] {name} 家族 CLI 未装，回落镜像安装腿首装");
+                    }
+                    Err(e) => {
+                        skip_or_fail(tool, name, e, &mut errors)?;
+                        continue;
+                    }
                 }
             }
         }
@@ -1466,18 +1550,32 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
                             "[INFO] {name} 已在 PATH 装锁定版 {pin}（{}），纳管跳过（--force 走真装）",
                             found.display()
                         );
-                        emit_block(
-                            &mut first,
-                            vec![
-                                kv("tool", name),
-                                kv("action", "skipped"),
-                                kv("version", pin),
-                            ],
-                        );
+                        emit_block(&mut first, skip_rows(name, pin, dry_run));
                         continue;
                     }
                 }
             }
+        }
+        if dry_run {
+            match resolve_tool(name, def, &ropts) {
+                Ok(r) => {
+                    let (would, drift) = update_plan_state(def, env_root, name, &r);
+                    let mut rows = plan_head(name, would, None);
+                    if let Some(d) = drift {
+                        rows.push(kv("drift", d));
+                    }
+                    match ark::install::plan_target_rows(def, env_root, &r) {
+                        Ok(targets) => rows.extend(targets),
+                        Err(e) => {
+                            skip_or_fail(tool, name, e, &mut errors)?;
+                            continue;
+                        }
+                    }
+                    emit_block(&mut first, rows);
+                }
+                Err(e) => skip_or_fail(tool, name, e, &mut errors)?,
+            }
+            continue;
         }
         let step = resolve_tool(name, def, &ropts).and_then(|r| {
             if def.pin_tag() == Some(r.tag.as_str()) {
@@ -1534,7 +1632,46 @@ fn cmd_update(cat: &Catalog, env_root: &Path, tool: &str, force: bool) -> Result
             skip_or_fail(tool, name, e, &mut errors)?;
         }
     }
+    dry_run_hint(dry_run);
     summarize_all_errors(&errors)
+}
+
+/// update 面计划态（dry-run 用，与真跑 D49 三态同尺同 INFO）：resolve 与 pin 同 tag
+/// 才出 drift（current/ahead/behind），跨 tag（pin 缺键走 API 等）按 install 计。
+/// 返回（would, drift）。
+fn update_plan_state(
+    def: &ark::catalog::Tool,
+    env_root: &Path,
+    name: &str,
+    r: &Resolution,
+) -> (&'static str, Option<&'static str>) {
+    if def.pin_tag() != Some(r.tag.as_str()) {
+        return ("install", None);
+    }
+    let installed = toolver::exe_path(def, env_root)
+        .ok()
+        .and_then(|exe| toolver::installed_version(&exe, def));
+    let pin = def.pin_version().unwrap_or("");
+    match toolver::pin_drift(installed.as_deref(), pin) {
+        toolver::PinDrift::Current => {
+            eprintln!("[INFO] {name} 已是最新: {pin}");
+            ("skip", Some("current"))
+        }
+        toolver::PinDrift::Ahead => {
+            eprintln!(
+                "[INFO] {name} 已装 {} 领先锁定 {pin}，保持现状；消 status 漂移提示需数据面滚锁",
+                installed.as_deref().unwrap_or("")
+            );
+            ("skip", Some("ahead"))
+        }
+        toolver::PinDrift::Behind => {
+            eprintln!(
+                "[INFO] {name} 本机 {} 落后锁定 {pin}，补装锁定版",
+                installed.as_deref().unwrap_or("未装")
+            );
+            ("install", Some("behind"))
+        }
+    }
 }
 
 /// status：locked / installed / path 三态对照，按七类 taxonomy 分组（catalog 已按类排序，

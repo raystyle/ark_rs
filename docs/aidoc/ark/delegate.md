@@ -10,6 +10,7 @@ ark 不为五员自建镜像下载腿。其余非自研工具照旧镜像优先�
 
 ## Functions
 
+- `locate_exe` — 定位家族真身 exe（EnvRoot 位优先、PATH 现查兜底；只读零副作用，dry-run 计划预测
 - `run` — 委托执行一次家族自升级：定位真身 exe → 临时撤 ark-managed 落痕 → 调家族自升级命令
 - `self_update_args` — 家族五员自升级命令路由（exe 后参数；改令 2026-09-19）：返回 None 即走镜像腿。
 

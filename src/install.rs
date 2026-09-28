@@ -406,6 +406,90 @@ pub fn install_tool(
     })
 }
 
+/// install/update 的 `--dry-run` 幂等预测（REQ-0016，零写副作用）：agent 存量纳管与
+/// 已装同版走 skip，其余 install。只读探测与 status 面同尺（PATH 现查、既装版本探测；
+/// 未装 exe 探测短路不拉子进程）。
+pub fn plan_would(
+    def: &Tool,
+    env_root: &Path,
+    name: &str,
+    res: &Resolution,
+    force: bool,
+) -> &'static str {
+    // agent 类存量纳管（与 install_tool 主链同判据）
+    if def.category.as_deref() == Some("agent") && !force && toolver::find_on_path(name).is_some() {
+        return "skip";
+    }
+    // 幂等：已装版本 == 解析版本且非 force
+    if !force {
+        if let Ok(exe) = toolver::exe_path(def, env_root) {
+            if toolver::installed_version(&exe, def).as_deref() == Some(res.version.as_str()) {
+                return "skip";
+            }
+        }
+    }
+    "install"
+}
+
+/// `--dry-run` 计划的资产与目标面行（tool/action/would 由调用方拼头）：版本与资产
+/// （tag/version/asset/size/url/fallback）、离线已知 sha（pin 同 tag 同资产或 index
+/// 官方直值锚；官方清单类校验源需下载不预取，空串表示下载期经镜像边车或官方清单
+/// 校验）、解压目标（dir）、PATH 注册面（bin）、缓存落点（cache）。目标面无语义的
+/// 条目对应行不出：msi 无绿色目录、npm-tgz 真身落 npm 全局（dir/bin 自管）、uv-git
+/// 无下载资产（sha/cache 不适用）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：目录或 exe 字段缺失无法定位目标面（与真装同错源）。
+pub fn plan_target_rows(
+    def: &Tool,
+    env_root: &Path,
+    res: &Resolution,
+) -> Result<Vec<(String, String)>, String> {
+    let extract = def.extract();
+    let is_msi = extract == Some("msi");
+    let is_npm_tgz = extract == Some("npm-tgz");
+    let is_uv_git = extract == Some("uv-git");
+    let is_official = toolver::is_official(def);
+    let mut rows: Vec<(&str, String)> = vec![
+        ("tag", res.tag.clone()),
+        ("version", res.version.clone()),
+        ("asset", res.asset_name.clone()),
+    ];
+    if res.asset_size > 0 {
+        rows.push(("size", res.asset_size.to_string()));
+    }
+    rows.push(("url", res.asset_url.clone()));
+    if let Some(fb) = &res.fallback_url {
+        rows.push(("fallback", fb.clone()));
+    }
+    if !is_uv_git {
+        rows.push((
+            "sha256",
+            crate::checksum::offline_expected_sha256(def, res).unwrap_or_default(),
+        ));
+    }
+    if !is_msi && !is_npm_tgz {
+        if let Some(dir) = install_dir(def, env_root, is_msi, is_official)? {
+            rows.push(("dir", dir.display().to_string()));
+        }
+    }
+    // npm-tgz 的 PATH 面在 npm 全局 bin（register_bin 同判跳过注册），不出 bin 行
+    if !is_npm_tgz {
+        if let Some(bin) = bin_dir(def, env_root, is_official, &res.version)? {
+            rows.push(("bin", bin.display().to_string()));
+        }
+    }
+    if !is_uv_git {
+        rows.push((
+            "cache",
+            download::cache_path(env_root, &res.asset_name)
+                .display()
+                .to_string(),
+        ));
+    }
+    Ok(rows.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
 /// deploy 侧：应用 manifest 节的用户级环境变量（幂等；download 不写注册表）。
 /// D39 R016：唯一来源是 manifest env_set（omc 数据面已上线并验收，2026-09-11 撤内建双轨）；
 /// 无节零动作。

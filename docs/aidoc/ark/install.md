@@ -9,6 +9,8 @@ install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-12
 
 - `install_tool` — 安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。
 - `is_safe_under_root` — 防穿越：path 必须在允许的安全根之下。
+- `plan_target_rows` — `--dry-run` 计划的资产与目标面行（tool/action/would 由调用方拼头）：版本与资产
+- `plan_would` — install/update 的 `--dry-run` 幂等预测（REQ-0016，零写副作用）：agent 存量纳管与
 
 ## Types
 

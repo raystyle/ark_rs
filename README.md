@@ -128,6 +128,8 @@ ark verify                    # 4 部署域验收，FAIL 退出码非零可进�
 
 ```bash
 ark query ffmpeg --latest     # 只解析最新版与资产，不下载（显式 latest 走 GitHub API 兜底）
+ark install gh --dry-run      # 安装预览：版本/资产与 sha/解压目标/PATH 注册面/幂等预测，不落盘
+ark update --dry-run          # 更新预览：三态漂移（drift）与将执行动作（含家族委托腿），不落盘
 ark update [名]               # 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级；其余对齐云端锁定（零 GitHub API；落后补装、领先如实报，D49/D51）
 ark pin rg --version 14.1.1   # 临时本地锁（下次 sync 被云端覆盖；lock 为别名）
 ```
@@ -162,6 +164,7 @@ ark artifact list --current                          # 当前版列表（晋级/
 ### agent CLI 面
 
 - 发现通道：`ark --llms` 命令手册唯一通道（D50 撤 skill 面；REQ-0011 cli-docs 采纳：版本注入、读序、退出码节，漂移守卫测试锁与 `--help` 同源）；mcp add 通道不适用（ark 是部署 CLI 非 MCP server，agent 编排归 ohmyagents）。
+- actl 适配（REQ-0016，手册头部在册）：独立直用完全不变；经 actl（ai-cloud 框架）调用时写级动词（install/update/heal/init、pin 设锁形、catalog sync、self update）过其写闸（预览缺省，加 `--yes` 执行），`--json` 出 TOON 信封；写闸只预览 exec 行，真计划走 install/update `--dry-run`（不落盘出版本/资产与 sha/解压目标/PATH 注册面）。
 - 输出信封：key=value 数据面加结构化错误四元组加退出码，契约冻结于 R013（对外冻结面），不迁移 {ok,data,meta} 同构信封（改造破坏冻结契约，裁定不适用）。
 - CTA：status 漂移提示（D09-3）与 doctor verdict 面在位（文本 HINT 形；类型化 CTA 结构随信封裁定同不适用）。
 - token 计量与分页与输出过滤：裁定不适用（输出体量为五十工具全量百行级，`--format` 与 `--llms` 已覆盖检索需求；体量增长再立项）。

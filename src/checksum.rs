@@ -55,7 +55,7 @@ where
 }
 
 /// 本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**
-/// （资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。
+/// （资产名跨版本不变的工具，如 uv/jq/bun/fnm/agent，否则会用旧锚校验新包）。
 /// 否则查官方校验源，都没有则 None。
 ///
 /// # Errors
@@ -65,21 +65,28 @@ pub fn expected_sha256(
     res: &Resolution,
     env_root: &Path,
 ) -> Result<Option<String>, String> {
+    if let Some(sha) = offline_expected_sha256(tool, res) {
+        return Ok(Some(sha));
+    }
+    official_sha256(tool, res, env_root)
+}
+
+/// 离线已知 sha 锚（REQ-0016 dry-run 计划面）：pin 的 sha256（同 tag 且同 asset）与
+/// 解析结果自带的官方直值锚（D43 ziglang index per-target shasum）；官方清单类校验源
+/// （HashiCorp SUMS/sums_asset/asset_sha_suffix）均需下载，预览不落盘不预取，返回 None。
+pub fn offline_expected_sha256(tool: &Tool, res: &Resolution) -> Option<String> {
     if let Some(sha) = tool.pin_sha256() {
         if !sha.trim().is_empty() {
             let same_tag = tool.pin_tag() == Some(res.tag.as_str());
             let pinned_asset = tool.pin_asset().unwrap_or("");
             let same_asset = pinned_asset.is_empty() || pinned_asset == res.asset_name;
             if same_tag && same_asset {
-                return Ok(Some(sha.to_uppercase()));
+                return Some(sha.to_uppercase());
             }
         }
     }
     // D43：官方 sha 直值锚（ziglang index per-target shasum）优先于清单与 digest 通道
-    if let Some(sha) = &res.official_sha256 {
-        return Ok(Some(sha.to_uppercase()));
-    }
-    official_sha256(tool, res, env_root)
+    res.official_sha256.as_ref().map(|sha| sha.to_uppercase())
 }
 
 /// 官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。

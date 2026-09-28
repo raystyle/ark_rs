@@ -41,7 +41,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | --- | --- |
 | `query` | tool, tag, version, asset, size, url, sha256（size 仅 API 解析路径有效；D51 起 pin 驱动零 API 恒 0） |
 | `pin` | tool, tag, version, asset, sha256 |
-| `install` / `update` | tool, action, version, dir（update 委托腿另出 channel=self-update 与 action=failed 值：家族自研 CLI 走其自身自升级；镜像腿缺省无 channel 字段、失败不出行只汇总） |
+| `install` / `update` | tool, action, version, dir（update 委托腿另出 channel=self-update 与 action=failed 值：家族自研 CLI 走其自身自升级；镜像腿缺省无 channel 字段、失败不出行只汇总）。`--dry-run` 计划块（REQ-0016，actl 写闸预览面）：tool, action=dry-run, would（install/skip/delegate）, tag, version, asset, size, url, fallback, sha256, dir, bin, cache（update 面另出 drift=current/ahead/behind；委托腿块出 channel=self-update 无目标面行）。sha256 只给离线已知锚（pin 同 tag 同资产、或 index 官方直值），空串表示下载期经镜像边车或官方清单校验；dir/bin/cache 无语义条目（msi/npm-tgz/uv-git）对应行不出；stderr 收尾一行执行提示 |
 | `status` | tool, locked, installed, path, exe |
 | `init` | action, exe, bin_dir, catalog, path |
 | `verify` | name, verdict |
@@ -51,7 +51,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | `query`（D51 注） | pin 驱动默认零 GitHub API、镜像直装（url 如实呈现镜像资产域地址；`fallback_url` 官方直链由下载层兜底）；显式 `--latest`/`--tag`/`--version` 才走 GitHub API |
 | `doctor` | check, status, detail；两层节 sys.* / dep（D30 起原 agent 节移除，装态对账归 omc、token 归 oma diagnose）；收尾 verdict（ready/degraded/broken）。TTY 为人读面，数据面不变 |
 | `catalog` | status：path, origin, local_sha256, cloud_sha256, synced, age_secs, ttl_secs, offline, signature, pubkey, manifest_path, manifest_present, manifest_local_sha256, manifest_cloud_sha256, manifest_synced, manifest_age_secs, manifest_signature, manifest_cloud_error, cloud_error；sync：action, reason, sha256, path, origin |
-| `--llms` | Markdown 命令清单（不经 render，先于 catalog 加载；D50 起唯一 agent 发现通道，头部含何时用与下载纪律行） |
+| `--llms` | Markdown 命令清单（不经 render，先于 catalog 加载；D50 起唯一 agent 发现通道，头部含何时用与下载纪律行；REQ-0016 起头部另含 actl 适配说明行：独立直用不变、经 actl 写级动词过其写闸加 `--yes` 执行、`--json` 出 TOON 信封） |
 
 ## 四、退出码
 

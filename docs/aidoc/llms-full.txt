@@ -122,6 +122,7 @@ checksum：sha256 校验源解析，语义对齐 helpers.ps1 的 Get-OfficialSha
 - `expected_sha256` — 本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**
 - `extract_hex64` — 从一行文本提取第一个 64 位 hex 并大写（对齐 pwsh 的 ([0-9a-fA-F]{64}) + ToUpperInvariant）。
 - `official_sha256` — 官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。
+- `offline_expected_sha256` — 离线已知 sha 锚（REQ-0016 dry-run 计划面）：pin 的 sha256（同 tag 且同 asset）与
 
 
 <!-- ark/delegate.md -->
@@ -137,6 +138,7 @@ ark 不为五员自建镜像下载腿。其余非自研工具照旧镜像优先�
 
 ## Functions
 
+- `locate_exe` — 定位家族真身 exe（EnvRoot 位优先、PATH 现查兜底；只读零副作用，dry-run 计划预测
 - `run` — 委托执行一次家族自升级：定位真身 exe → 临时撤 ark-managed 落痕 → 调家族自升级命令
 - `self_update_args` — 家族五员自升级命令路由（exe 后参数；改令 2026-09-19）：返回 None 即走镜像腿。
 
@@ -287,6 +289,8 @@ install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-12
 
 - `install_tool` — 安装单工具（下载 → 校验 → 解压 → 验版本 → 回写）。
 - `is_safe_under_root` — 防穿越：path 必须在允许的安全根之下。
+- `plan_target_rows` — `--dry-run` 计划的资产与目标面行（tool/action/would 由调用方拼头）：版本与资产
+- `plan_would` — install/update 的 `--dry-run` 幂等预测（REQ-0016，零写副作用）：agent 存量纳管与
 
 ## Types
 

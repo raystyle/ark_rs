@@ -7,8 +7,8 @@
 意图与命令映射（参数与语义全表见 `README.md`，`PLAN.md` 为历史规划档；功能原语口径见 PRD 冻结索引 D10/D15/D16：doctor/install/status 三原语，其余为派生面）：
 
 - 查版本：`ark query`（省略则全量；只解析不下载）
-- 装工具：`ark install`（省略则全量；下载到 EnvRoot，注册 PATH、写注册表与配置；工具参收逗号串）
-- 更新：`ark update`（省略则全量；家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（撤 ark-managed 落痕让位、完成复痕，REQ-0014），其余对齐云端 catalog 锁定安装、解析零 GitHub API（D51）；不回写锁定（锁定归数据面 D37）；本机落后补装、领先如实报（D49）；临时钉版走 pin）
+- 装工具：`ark install`（省略则全量；下载到 EnvRoot，注册 PATH、写注册表与配置；工具参收逗号串；`--dry-run` 出真计划不落盘，REQ-0016）
+- 更新：`ark update`（省略则全量；家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（撤 ark-managed 落痕让位、完成复痕，REQ-0014），其余对齐云端 catalog 锁定安装、解析零 GitHub API（D51）；不回写锁定（锁定归数据面 D37）；本机落后补装、领先如实报（D49）；临时钉版走 pin；`--dry-run` 预览同 install）
 - 锁定：`ark pin`（省略则全量；lock 为别名）
 - 看状态：`ark status`（锁定 / 已装 / PATH 三态对照）
 - 自部署：`ark init`（self-deploy 别名；二进制进用户程序目录、catalog 同步、注册 PATH）

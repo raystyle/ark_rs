@@ -416,6 +416,139 @@ fn llms_打印命令清单无需catalog() {
         .stdout(contains("ark skill").not());
 }
 
+/// REQ-0016 件二：--llms 头部 actl 适配说明行（措辞参照 hst v2.9.8 形）——独立直用
+/// 不变、写闸预览缺省加 --yes 执行、--json 出 TOON 信封。
+#[test]
+fn llms_含actl适配说明行() {
+    ark_cli()
+        .arg("--llms")
+        .assert()
+        .success()
+        .stdout(contains("actl 适配面"))
+        .stdout(contains("独立直用完全不变"))
+        .stdout(contains("过其写闸（预览缺省，加 `--yes` 执行）"))
+        .stdout(contains("TOON 信封"));
+}
+
+// ── install/update --dry-run（REQ-0016 件一：真计划不落盘）──
+
+/// 夹具 age 的 pin 驱动解析零网络，dry-run 出真计划行且 EnvRoot 零落盘
+/// （沙盒 EnvRoot 连目录都不建）；结构化模式下计划块同为纯数据字段。
+#[test]
+fn install_dryrun_真计划行与零落盘() {
+    #[cfg(windows)]
+    let (asset, sha) = (
+        "age-v1.3.1-windows-amd64.zip",
+        "C56E8CE22F7E80CB85AD946CC82D198767B056366201D3E1A2B93D865BE38154",
+    );
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    let (asset, sha) = (
+        "age-v1.3.1-linux-amd64.tar.gz",
+        "BDC69C09CBDD6CF8B1F333D372A1F58247B3A33146406333E30C0F26E8F51377",
+    );
+    #[cfg(target_os = "macos")]
+    let (asset, sha) = (
+        "age-v1.3.1-darwin-arm64.tar.gz",
+        "01120EA2CBF0463D4C6BD767F99F3271BBED1CDC8A9AA718A76BA1FE4F01998B",
+    );
+    let dir = tempfile::tempdir().expect("创建沙盒失败");
+    let env_root = dir.path().join("envroot");
+    let out = ark_cli()
+        .env("ARK_OFFLINE", "1")
+        .env("HTTPS_PROXY", "http://127.0.0.1:1")
+        .env("https_proxy", "http://127.0.0.1:1")
+        .args([
+            "install",
+            "age",
+            "--dry-run",
+            "--env-root",
+            &env_root.to_string_lossy(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(text.contains("tool=age"), "应含 tool 行: {text}");
+    assert!(text.contains("action=dry-run"), "动作恒标 dry-run: {text}");
+    assert!(text.contains("would=install"), "未装应预测 install: {text}");
+    assert!(text.contains("tag=v1.3.1") && text.contains("version=1.3.1"));
+    assert!(text.contains(&format!("asset={asset}")));
+    assert!(
+        text.contains(&format!("url=https://env.ohmygh.com/age/1.3.1/{asset}")),
+        "镜像主通道 URL: {text}"
+    );
+    assert!(
+        text.contains("fallback=https://github.com/FiloSottile/age/releases/download/"),
+        "官方兜底直链: {text}"
+    );
+    assert!(
+        text.contains(&format!("sha256={sha}")),
+        "离线 pin 锚: {text}"
+    );
+    assert!(
+        text.contains(&format!("dir={}", env_root.join("age").display())),
+        "解压目标: {text}"
+    );
+    assert!(
+        text.contains(&format!("bin={}", env_root.join("age").display())),
+        "PATH 注册面: {text}"
+    );
+    assert!(
+        text.contains(&format!(
+            "cache={}",
+            env_root.join("cache").join(asset).display()
+        )),
+        "缓存落点: {text}"
+    );
+    // 不落盘：EnvRoot 整目录不存在（连目录创建都没有，更无下载与解压）
+    assert!(
+        !env_root.exists(),
+        "dry-run 不应创建 EnvRoot: {}",
+        env_root.display()
+    );
+    // 提示面（stderr）指执行通道
+    // （stdout 断言已覆盖数据面；stderr 冒烟在同命令的 .stderr 断言）
+}
+
+/// dry-run 提示行在 stderr 且计划块经结构化渲染为合法 JSON 字段（R013 三格式通用）。
+#[test]
+fn install_dryrun_结构化与提示行() {
+    let dir = tempfile::tempdir().expect("创建沙盒失败");
+    let env_root = dir.path().join("envroot");
+    let out = ark_cli()
+        .env("ARK_OFFLINE", "1")
+        .args([
+            "install",
+            "age",
+            "--dry-run",
+            "--json",
+            "--env-root",
+            &env_root.to_string_lossy(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let v: serde_json::Value = serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim())
+        .expect("--json 应输出合法 JSON");
+    let arr = v.as_array().expect("顶层应为数组");
+    let age = arr
+        .iter()
+        .find(|o| o.get("tool").and_then(|t| t.as_str()) == Some("age"))
+        .expect("应含 age 计划对象");
+    assert_eq!(age.get("action"), Some(&serde_json::json!("dry-run")));
+    assert_eq!(age.get("would"), Some(&serde_json::json!("install")));
+    assert_eq!(age.get("version"), Some(&serde_json::json!("1.3.1")));
+    assert!(age.get("sha256").is_some() && age.get("dir").is_some() && age.get("bin").is_some());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("dry-run 预览完成，未落盘"),
+        "收尾提示应在 stderr: {stderr}"
+    );
+}
+
 #[test]
 fn install_帮助_省略则全量() {
     ark_cli()

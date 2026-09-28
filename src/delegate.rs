@@ -39,6 +39,15 @@ pub fn self_update_args(tool: &str) -> Option<&'static [&'static str]> {
     }
 }
 
+/// 定位家族真身 exe（EnvRoot 位优先、PATH 现查兜底；只读零副作用，dry-run 计划预测
+/// 与 run 共用同判据防漂移）。
+pub fn locate_exe(name: &str, def: &Tool, env_root: &Path) -> Option<PathBuf> {
+    toolver::exe_path(def, env_root)
+        .ok()
+        .filter(|p| p.exists())
+        .or_else(|| toolver::find_on_path(name).map(|p| p.to_path_buf()))
+}
+
 /// 委托执行一次家族自升级：定位真身 exe → 临时撤 ark-managed 落痕 → 调家族自升级命令
 /// （继承 stdio，家族自身日志为证）→ 恢复落痕（成功失败皆恢复）→ 探活新版本。
 /// exe 缺位返回 Ok(None)（未装：调用方回落镜像安装腿做首装）。
@@ -49,17 +58,12 @@ pub fn run(name: &str, def: &Tool, env_root: &Path) -> Result<Option<DelegateOut
     let Some(args) = self_update_args(name) else {
         return Ok(None);
     };
-    let locate = || {
-        toolver::exe_path(def, env_root)
-            .ok()
-            .filter(|p| p.exists())
-            .or_else(|| toolver::find_on_path(name).map(|p| p.to_path_buf()))
-    };
     // 对线 F2：定位不到（未装）回落镜像安装腿首装（Ok(None)）；Err 只留「定位到但起不来」
-    let Some(exe) = locate() else {
+    let Some(exe) = locate_exe(name, def, env_root) else {
         return Ok(None);
     };
-    let probe = || locate().and_then(|p| toolver::installed_version(&p, def));
+    let probe =
+        || locate_exe(name, def, env_root).and_then(|p| toolver::installed_version(&p, def));
     let version_before = probe();
     let exe_dir = exe
         .parent()

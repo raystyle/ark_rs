@@ -205,7 +205,7 @@
     {
       "path": "ark::checksum::expected_sha256",
       "kind": "function",
-      "docs": "本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**\n（资产名跨版本不变的工具——uv/jq/bun/fnm/agent——否则会用旧锚校验新包）。\n否则查官方校验源，都没有则 None。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+      "docs": "本次下载应遵循的 sha256 基准：pin 的 sha256 优先，但必须 **同 tag 且同 asset**\n（资产名跨版本不变的工具，如 uv/jq/bun/fnm/agent，否则会用旧锚校验新包）。\n否则查官方校验源，都没有则 None。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::checksum::extract_hex64",
@@ -218,6 +218,11 @@
       "docs": "官方校验源三型（对齐 Get-OfficialSha256 的分支顺序）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
+      "path": "ark::checksum::offline_expected_sha256",
+      "kind": "function",
+      "docs": "离线已知 sha 锚（REQ-0016 dry-run 计划面）：pin 的 sha256（同 tag 且同 asset）与\n解析结果自带的官方直值锚（D43 ziglang index per-target shasum）；官方清单类校验源\n（HashiCorp SUMS/sums_asset/asset_sha_suffix）均需下载，预览不落盘不预取，返回 None。"
+    },
+    {
       "path": "ark::delegate",
       "kind": "module",
       "docs": "delegate：家族自研 CLI 的 update 委托腿（用户裁定 2026-09-19「我们自己维护的\n自升级的 CLI，ark 对齐也走 CLI 自升级渠道；其余不是我们维护的 CLI 对齐 omc 维护 env」）。\n家族五员（ark 自身、hst、browse、reader、officecli）在 `ark update <tool>` 面委托\n调用该 CLI 自身的自升级命令，吃其独立域通道与既有锚校验、回滚与自证（家族标准形）；\nark 不为五员自建镜像下载腿。其余非自研工具照旧镜像优先加官方兜底（D44 面不变）。\n让位契约联动（家族仓零改动）：家族自更新检出 ark-managed 落痕即拒自升，故委托前\n临时撤落痕（rename 挪开）、自升级完成（含失败）后恢复落痕。"
@@ -226,6 +231,11 @@
       "path": "ark::delegate::DelegateOutcome",
       "kind": "struct",
       "docs": "委托腿结果。"
+    },
+    {
+      "path": "ark::delegate::locate_exe",
+      "kind": "function",
+      "docs": "定位家族真身 exe（EnvRoot 位优先、PATH 现查兜底；只读零副作用，dry-run 计划预测\n与 run 共用同判据防漂移）。"
     },
     {
       "path": "ark::delegate::run",
@@ -481,6 +491,16 @@
       "path": "ark::install::is_safe_under_root",
       "kind": "function",
       "docs": "防穿越：path 必须在允许的安全根之下。\nWindows：在 EnvRoot 之下（大小写不敏感）；\nLinux / macOS：在 $HOME 之下，或显式在 EnvRoot 之下。"
+    },
+    {
+      "path": "ark::install::plan_target_rows",
+      "kind": "function",
+      "docs": "`--dry-run` 计划的资产与目标面行（tool/action/would 由调用方拼头）：版本与资产\n（tag/version/asset/size/url/fallback）、离线已知 sha（pin 同 tag 同资产或 index\n官方直值锚；官方清单类校验源需下载不预取，空串表示下载期经镜像边车或官方清单\n校验）、解压目标（dir）、PATH 注册面（bin）、缓存落点（cache）。目标面无语义的\n条目对应行不出：msi 无绿色目录、npm-tgz 真身落 npm 全局（dir/bin 自管）、uv-git\n无下载资产（sha/cache 不适用）。\n\n# Errors\n返回 Err（人读原因串）当：目录或 exe 字段缺失无法定位目标面（与真装同错源）。"
+    },
+    {
+      "path": "ark::install::plan_would",
+      "kind": "function",
+      "docs": "install/update 的 `--dry-run` 幂等预测（REQ-0016，零写副作用）：agent 存量纳管与\n已装同版走 skip，其余 install。只读探测与 status 面同尺（PATH 现查、既装版本探测；\n未装 exe 探测短路不拉子进程）。"
     },
     {
       "path": "ark::ledger",
