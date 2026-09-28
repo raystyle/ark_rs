@@ -341,6 +341,74 @@ asset = "selftool.exe"
 
 // ── install/update --dry-run 计划面（REQ-0016 件一：actl 写闸配套的真计划）──
 
+/// 对线 F1 锁面：update 早退 skip 面（平台不适用、本平台无 pin）真跑形 version 行
+/// 恒出（空串亦出行，R013 契约冻结面），dry-run 形空则省——两形分叉是契约，防再收敛漂移。
+#[test]
+fn update_平台不适用_真跑空version行dryrun省行() {
+    let (name, catalog_text) = if cfg!(windows) {
+        (
+            "posixonly",
+            r#"
+[tools.posixonly]
+linux_dir = 'posixonly'
+linux_exe = 'posixonly'
+extract = "copy"
+cdn_url = "https://example.invalid/posixonly"
+tag = "v1.0.0"
+version = "1.0.0"
+asset = "posixonly"
+"#,
+        )
+    } else {
+        (
+            "winonly",
+            r#"
+[tools.winonly]
+dir = 'winonly'
+exe = 'winonly\winonly.exe'
+extract = "copy"
+cdn_url = "https://example.invalid/winonly.exe"
+tag = "v1.0.0"
+version = "1.0.0"
+asset = "winonly.exe"
+"#,
+        )
+    };
+    let (_guard, catalog, env_root) = sandbox(catalog_text);
+    // 真跑形：version 行在场且值为空（基线同形，对线 F1 A/B 判据）
+    let out = ark_cli(&catalog, &env_root)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", name])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(
+        text.contains("action=skipped") && text.contains("version="),
+        "真跑形 version 行应恒出（空串亦然）: {text}"
+    );
+    // dry-run 形：would=skip 在场，空 version 行省
+    let out = ark_cli(&catalog, &env_root)
+        .env("ARK_OFFLINE", "1")
+        .args(["update", name, "--dry-run"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(
+        text.contains("action=dry-run") && text.contains("would=skip"),
+        "dry-run 形计划块: {text}"
+    );
+    assert!(
+        !text.contains("version="),
+        "dry-run 形空 version 行应省: {text}"
+    );
+}
+
 /// 跨平台夹具目录条目（GitHub 分支、三平台 pin 键齐：pin_direct 零网络直装路径，
 /// 期望值即夹具自带的 pin 与 sha 常量）。
 fn plan_catalog_text() -> String {

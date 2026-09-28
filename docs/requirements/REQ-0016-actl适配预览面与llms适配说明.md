@@ -3,7 +3,7 @@ id: REQ-0016
 title: actl适配预览面与llms适配说明
 status: implemented
 priority: must
-trace: cargo test 全绿 231 项（新增六件计划面与 llms 断言）加真机三态冒烟（jq 幂等 skip、hst 委托 delegate、gh 领先 ahead）加门禁四件套绿
+trace: cargo test 全绿 232 项（新增七件：计划面六件加对线 F1 锁面件）加真机三态冒烟（jq 幂等 skip、hst 委托 delegate、gh 领先 ahead）加门禁四件套绿加对线一轮 F1 修复回基线 A/B 同形
 ---
 
 # REQ-0016:actl适配预览面与llms适配说明
@@ -28,6 +28,7 @@ ai-cloud 框架 e76d84d 起 actl 对 ark 做透传适配（lib/passgate.ts，不
 
 ## Trace
 
-- `cargo test --release --locked` 全绿 231 项（新增六件：tests/cli.rs 三件 llms_含actl适配说明行 / install_dryrun_真计划行与零落盘 / install_dryrun_结构化与提示行；tests/install.rs 三件 update_dryrun_未装behind出补装计划 / dryrun_已装同版幂等与current预测（POSIX 门控）/ update_dryrun_委托腿只出计划不调用）。
+- `cargo test --release --locked` 全绿 232 项（新增七件：tests/cli.rs 三件 llms_含actl适配说明行 / install_dryrun_真计划行与零落盘 / install_dryrun_结构化与提示行；tests/install.rs 四件 update_dryrun_未装behind出补装计划 / dryrun_已装同版幂等与current预测（POSIX 门控）/ update_dryrun_委托腿只出计划不调用 / update_平台不适用_真跑空version行dryrun省行（对线 F1 锁面））。
 - 真机冒烟（WSL 本职端）：install jq --dry-run 出 would=skip（幂等预测命中本机已装同版）、update hst --dry-run 出 would=delegate 加 channel=self-update（不调用家族 CLI）、update gh --dry-run 出 drift=ahead（领先如实报）；dry-run 后 EnvRoot 零新建。
+- 对线（herdr codex 一轮）：F1 真跑面空 version 行回归修复（skip_rows Option 形，A/B 回基线同形）加 G1 至 G3 R013 边界注采纳；CONFIRM 面见 diary。
 - 门禁：cargo fmt --check 与 clippy 无新增告警；rumdl 加 md 三扫描绿（见 diary 当天钩子）。

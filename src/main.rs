@@ -1210,7 +1210,7 @@ fn cmd_install(
         // 平台不适用（无本平台 exe，如 shellcheck 在 Windows、Windows-only 工具在 Linux）：跳过不安装
         if !ark::toolver::platform_managed(def) {
             eprintln!("[INFO] {name} 当前平台不适用（无本平台 exe 字段），跳过");
-            emit_block(&mut first, skip_rows(name, "", dry_run));
+            emit_block(&mut first, skip_rows(name, None, dry_run));
             continue;
         }
         // vsbuild：evergreen 引导器（无版本解析、需提权、机器级 PATH），走专用安装模块
@@ -1242,7 +1242,7 @@ fn cmd_install(
         // ark：自管条目（self update 三通道），install 提示走 self update
         if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 自管理：升级走 `ark self update`（dev/stable/git 三通道）");
-            emit_block(&mut first, skip_rows(name, "self-managed", dry_run));
+            emit_block(&mut first, skip_rows(name, Some("self-managed"), dry_run));
             continue;
         }
         // docker：static zip + Windows 服务注册 + daemon.json + compose 插件（set-docker.ps1 迁移），走专用模块
@@ -1278,7 +1278,7 @@ fn cmd_install(
             );
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
+                skip_rows(name, Some(def.pin_version().unwrap_or("")), dry_run),
             );
             continue;
         }
@@ -1332,21 +1332,27 @@ fn plan_head(name: &str, would: &str, version: Option<&str>) -> Vec<(String, Str
 }
 
 /// 早退面（平台不适用/自管/hold 等）结果块：真跑形 action=skipped，dry-run 形
-/// action=dry-run 加 would=skip；version 非空则带行。两形一处构造防漂移。
-fn skip_rows(name: &str, version: &str, dry_run: bool) -> Vec<(String, String)> {
-    let mut rows = if dry_run {
-        vec![
+/// action=dry-run 加 would=skip。version 传 Some 时真跑面恒出行（缺 pin 为空串，
+/// R013 契约冻结面，对线 F1：不得收敛为不出行）、dry-run 面空则省；传 None 的分支
+/// （install 平台不适用）两形都不出行。两形一处构造防漂移。
+fn skip_rows(name: &str, version: Option<&str>, dry_run: bool) -> Vec<(String, String)> {
+    if dry_run {
+        let mut rows = vec![
             kv("tool", name),
             kv("action", "dry-run"),
             kv("would", "skip"),
-        ]
+        ];
+        if let Some(v) = version.filter(|v| !v.is_empty()) {
+            rows.push(kv("version", v));
+        }
+        rows
     } else {
-        vec![kv("tool", name), kv("action", "skipped")]
-    };
-    if !version.is_empty() {
-        rows.push(kv("version", version));
+        let mut rows = vec![kv("tool", name), kv("action", "skipped")];
+        if let Some(v) = version {
+            rows.push(kv("version", v));
+        }
+        rows
     }
-    rows
 }
 
 /// all 循环容错：单工具失败时跳过续跑（WARN 加 skipped 行），单工具显式调用即时失败。
@@ -1407,7 +1413,11 @@ fn cmd_update(
             eprintln!("[INFO] {name} 为 evergreen 引导器条目，不走 update（install 幂等）");
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or("evergreen"), dry_run),
+                skip_rows(
+                    name,
+                    Some(def.pin_version().unwrap_or("evergreen")),
+                    dry_run,
+                ),
             );
             continue;
         }
@@ -1419,7 +1429,7 @@ fn cmd_update(
             );
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or("-"), dry_run),
+                skip_rows(name, Some(def.pin_version().unwrap_or("-")), dry_run),
             );
             continue;
         }
@@ -1427,20 +1437,24 @@ fn cmd_update(
             eprintln!("[INFO] {name} 为 rustup 引导器条目，不走 update（install 即 rustup update stable）");
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or("evergreen"), dry_run),
+                skip_rows(
+                    name,
+                    Some(def.pin_version().unwrap_or("evergreen")),
+                    dry_run,
+                ),
             );
             continue;
         }
         if ark::selfupdate::is_ark_self(def) {
             eprintln!("[INFO] {name} 为自管条目，不走 update（ark self update 三通道）");
-            emit_block(&mut first, skip_rows(name, "self-managed", dry_run));
+            emit_block(&mut first, skip_rows(name, Some("self-managed"), dry_run));
             continue;
         }
         if !ark::toolver::platform_managed(def) {
             eprintln!("[INFO] {name} 当前平台不适用（无本平台 exe 字段），跳过");
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
+                skip_rows(name, Some(def.pin_version().unwrap_or("")), dry_run),
             );
             continue;
         }
@@ -1452,7 +1466,7 @@ fn cmd_update(
             );
             emit_block(
                 &mut first,
-                skip_rows(name, def.pin_version().unwrap_or(""), dry_run),
+                skip_rows(name, Some(def.pin_version().unwrap_or("")), dry_run),
             );
             continue;
         }
@@ -1550,7 +1564,7 @@ fn cmd_update(
                             "[INFO] {name} 已在 PATH 装锁定版 {pin}（{}），纳管跳过（--force 走真装）",
                             found.display()
                         );
-                        emit_block(&mut first, skip_rows(name, pin, dry_run));
+                        emit_block(&mut first, skip_rows(name, Some(pin), dry_run));
                         continue;
                     }
                 }

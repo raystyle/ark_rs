@@ -41,7 +41,7 @@ D34（2026-09-10）起，云端清单还须过内嵌公钥的 minisign 签名校
 | --- | --- |
 | `query` | tool, tag, version, asset, size, url, sha256（size 仅 API 解析路径有效；D51 起 pin 驱动零 API 恒 0） |
 | `pin` | tool, tag, version, asset, sha256 |
-| `install` / `update` | tool, action, version, dir（update 委托腿另出 channel=self-update 与 action=failed 值：家族自研 CLI 走其自身自升级；镜像腿缺省无 channel 字段、失败不出行只汇总）。`--dry-run` 计划块（REQ-0016，actl 写闸预览面）：tool, action=dry-run, would（install/skip/delegate）, tag, version, asset, size, url, fallback, sha256, dir, bin, cache（update 面另出 drift=current/ahead/behind；委托腿块出 channel=self-update 无目标面行）。sha256 只给离线已知锚（pin 同 tag 同资产、或 index 官方直值），空串表示下载期经镜像边车或官方清单校验；dir/bin/cache 无语义条目（msi/npm-tgz/uv-git）对应行不出；stderr 收尾一行执行提示 |
+| `install` / `update` | tool, action, version, dir（update 委托腿另出 channel=self-update 与 action=failed 值：家族自研 CLI 走其自身自升级；镜像腿缺省无 channel 字段、失败不出行只汇总）。`--dry-run` 计划块（REQ-0016，actl 写闸预览面）：tool, action=dry-run, would（install/skip/delegate）, tag, version, asset, size, url, fallback, sha256, dir, bin, cache（update 面另出 drift=current/ahead/behind；委托腿块出 channel=self-update 无目标面行）。sha256 只给离线已知锚（pin 同 tag 同资产、或 index 官方直值），空串表示下载期经镜像边车或官方清单校验；dir/bin/cache 无语义条目（msi/npm-tgz/uv-git 特型与 evergreen 引导器 vsbuild/rustup 两型）对应行不出；预览的早退 skip 面不表达真跑 skip 分支的既有副作用（sha 回填、ark-managed 落痕、configure 补注册，属真跑幂等分支行为非计划面）；预览沿用真跑错误语义（resolve 失败即退出码 1，actl 写闸侧按此读）；stderr 收尾一行执行提示 |
 | `status` | tool, locked, installed, path, exe |
 | `init` | action, exe, bin_dir, catalog, path |
 | `verify` | name, verdict |
