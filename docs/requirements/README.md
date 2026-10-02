@@ -21,3 +21,4 @@
 | REQ-0014 | implemented | 委托自升级通道 | 家族四员委托命令路由加撤痕复痕舞蹈加 channel 机读面（trace 见 REQ 内） |
 | REQ-0015 | implemented | ledger命令族集成 | 签名道七件单测加实弹五面 201（new/list/show/publish/attest-promote）全过（trace 见 REQ 内） |
 | REQ-0016 | implemented | actl适配预览面与llms适配说明 | cargo test 全绿 232 项（新增七件）加真机三态冒烟加对线一轮 F1 修复回基线同形加门禁四件套绿（trace 见 REQ 内） |
+| REQ-0017 | draft | 官方上游定时预播与R2版本段播种 | 实施中（trace 见 REQ 内） |

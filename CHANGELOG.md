@@ -2,6 +2,10 @@
 
 > 版本里程碑。SemVer `vMAJOR.MINOR.PATCH`。
 
+## [Unreleased]
+
+- **官方上游定时预播 R2 版本段**（REQ-0017，用户三裁 2026-10-02：ark 自己离线安装、分发走 R2；GitHub Actions 定期拉官方最新再 R2 发布；舰队 claude/codex 版本面归 ark 单通道）：新 agent-upstream workflow（每日 cron 恒跑 tier=agent 的 claude/codex/kimi，周一 UTC 加跑 tier=cli 的 gh/rclone/uv 等 19 件；dispatch 可显式 all 补跑与名单过滤），清单驱动 `.tools/agent-upstream.toml`（22 工具三平台资产与 sums 策略入册，不依赖 ai-cloud catalog 未补齐字段）；行为面 `.tools/agent-upstream.py`：gh api 解析 latest、同版域面 HEAD 绿跳（R2 即已播记录，零仓状态回写）、官方 SHASUMS 逐件校验（combined 与 sidecar 实校、none 形自产边车为唯一锚 WARN 注记）、先全下全验后统一灌防半灌、版本段 `<tool>/<version>/` immutable 加自产 sha256 边车（stable 段绝不触碰，R008 分工归 ai-cloud catalog-seed）；失败红灯加自动 gh issue（资产名与期望差，同日同题追加评论）；预播成 repository_dispatch（事件 agent-upstream-seeded，payload 出工具版本与逐件 sha）通知 ai-cloud 接 catalog bump（token 缺 WARN 不红）。
+
 ## [1.6.0] - 2026-09-28
 
 minor：Unreleased 窗两批（ledger 权限收口与统一 crate 加 actl 适配预览面 REQ-0016）。

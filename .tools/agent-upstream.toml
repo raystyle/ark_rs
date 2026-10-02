@@ -1,0 +1,325 @@
+# agent-upstream.toml - 官方上游预播清单（REQ-0017，用户三裁 2026-10-02）
+#
+# 驱动源：.tools/agent-upstream.py 与 .github/workflows/agent-upstream.yml 只认本清单，
+# 不依赖 ai-cloud catalog 未补齐字段（A 级资产模式字段总台并行补，双线解耦）。
+#
+# 字段口径：
+# - tier：agent = 每日层（workflow cron 恒跑）；cli = 每周一层（workflow 周一 UTC 加跑）
+# - tag_prefix：latest tag 剥前缀得 version（removeprefix 语义）
+# - assets：三平台矩阵资产名；固定名直写，嵌版名用 {version} 占位
+# - sums.strategy：combined = 官方合并清单（file 可含 {version}）；
+#   sidecar = 官方逐件 .sha256 边车；none = 官方无清单（自产边车为唯一锚，运行 WARN 注记）
+#
+# 边界：只灌版本段 <name>/<version>/（immutable）；stable 段与 catalog 锚定联动归
+# ai-cloud catalog-seed（R008 分工），本清单驱动的面绝不触碰。
+#
+# 对照关系（G2 注记）：本清单与 ai-cloud catalog 并行持有资产名与校验策略，属有意的
+# 双线解耦（catalog A 级字段未补齐前 ark 自治）；ai-cloud 侧补齐后同步责任 = 改本清
+# 单须对照 catalog 同批核（反向亦然），防静默漂移。
+
+# ============ agent 层（每日） ============
+
+[[tool]]
+name = "claude"
+repo = "anthropics/claude-code"
+tier = "agent"
+tag_prefix = "v"
+assets = [
+  "claude-win32-x64.zip",
+  "claude-linux-x64.tar.gz",
+  "claude-darwin-arm64.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "SHASUMS256.txt"
+
+[[tool]]
+name = "codex"
+repo = "openai/codex"
+tier = "agent"
+tag_prefix = "rust-v"
+assets = [
+  "codex-package-x86_64-pc-windows-msvc.tar.gz",
+  "codex-package-x86_64-unknown-linux-musl.tar.gz",
+  "codex-package-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "codex-package_SHA256SUMS"
+
+[[tool]]
+name = "kimi"
+repo = "MoonshotAI/kimi-code"
+tier = "agent"
+tag_prefix = "@moonshot-ai/kimi-code@"
+assets = [
+  "kimi-code-win32-x64.zip",
+  "kimi-code-linux-x64.tar.gz",
+  "kimi-code-darwin-arm64.tar.gz",
+]
+[tool.sums]
+strategy = "sidecar"
+
+# ============ cli 层（每周一） ============
+
+[[tool]]
+name = "gh"
+repo = "cli/cli"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "gh_{version}_windows_amd64.zip",
+  "gh_{version}_linux_amd64.tar.gz",
+  "gh_{version}_macOS_arm64.zip",
+]
+[tool.sums]
+strategy = "combined"
+file = "gh_{version}_checksums.txt"
+
+[[tool]]
+name = "rclone"
+repo = "rclone/rclone"
+tier = "cli"
+tag_prefix = "v"
+# 官方有 PGP 明文签名的 SHA256SUMS（G1 实证，linux zip 值与 r2-seed.yml pin 同值自洽）
+assets = [
+  "rclone-v{version}-windows-amd64.zip",
+  "rclone-v{version}-linux-amd64.zip",
+  "rclone-v{version}-osx-arm64.zip",
+]
+[tool.sums]
+strategy = "combined"
+file = "SHA256SUMS"
+
+[[tool]]
+name = "uv"
+repo = "astral-sh/uv"
+tier = "cli"
+tag_prefix = ""
+assets = [
+  "uv-x86_64-pc-windows-msvc.zip",
+  "uv-x86_64-unknown-linux-musl.tar.gz",
+  "uv-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "sha256.sum"
+
+[[tool]]
+name = "jq"
+repo = "jqlang/jq"
+tier = "cli"
+tag_prefix = "jq-"
+assets = [
+  "jq-windows-amd64.exe",
+  "jq-linux-amd64",
+  "jq-macos-arm64",
+]
+[tool.sums]
+strategy = "combined"
+file = "sha256sum.txt"
+
+[[tool]]
+name = "yq"
+repo = "mikefarah/yq"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "yq_windows_amd64.zip",
+  "yq_linux_amd64.tar.gz",
+  "yq_darwin_arm64.tar.gz",
+]
+[tool.sums]
+# checksums 为文件名在前多算法列表格（SHA-256 第 18 列）不可解析；checksums-bsd 为
+# SHA256 (名) = hex 形可解析（F4 实证 54 条三件齐中）
+strategy = "combined"
+file = "checksums-bsd"
+
+[[tool]]
+name = "rg"
+repo = "BurntSushi/ripgrep"
+tier = "cli"
+tag_prefix = ""
+assets = [
+  "ripgrep-{version}-x86_64-pc-windows-msvc.zip",
+  "ripgrep-{version}-x86_64-unknown-linux-musl.tar.gz",
+  "ripgrep-{version}-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "sidecar"
+
+[[tool]]
+name = "just"
+repo = "casey/just"
+tier = "cli"
+tag_prefix = ""
+assets = [
+  "just-{version}-x86_64-pc-windows-msvc.zip",
+  "just-{version}-x86_64-unknown-linux-musl.tar.gz",
+  "just-{version}-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "SHA256SUMS"
+
+[[tool]]
+name = "zoxide"
+repo = "ajeetdsouza/zoxide"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "zoxide-{version}-x86_64-pc-windows-msvc.zip",
+  "zoxide-{version}-x86_64-unknown-linux-musl.tar.gz",
+  "zoxide-{version}-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "none"
+
+[[tool]]
+name = "starship"
+repo = "starship/starship"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "starship-x86_64-pc-windows-msvc.zip",
+  "starship-x86_64-unknown-linux-musl.tar.gz",
+  "starship-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "sidecar"
+
+[[tool]]
+name = "ast-grep"
+repo = "ast-grep/ast-grep"
+tier = "cli"
+tag_prefix = ""
+# 上游资产名即 app- 前缀（2026-10-02 实探）；linux 为 gnu 形
+assets = [
+  "app-x86_64-pc-windows-msvc.zip",
+  "app-x86_64-unknown-linux-gnu.zip",
+  "app-aarch64-apple-darwin.zip",
+]
+[tool.sums]
+strategy = "none"
+
+[[tool]]
+name = "gsudo"
+repo = "gerardog/gsudo"
+tier = "cli"
+tag_prefix = "v"
+# Windows 专属工具（sudo for Windows）：单资产 portable 形
+assets = ["gsudo.portable.zip"]
+[tool.sums]
+strategy = "sidecar"
+
+[[tool]]
+name = "mq"
+repo = "harehare/mq"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "mq-x86_64-pc-windows-msvc.exe",
+  "mq-x86_64-unknown-linux-musl",
+  "mq-aarch64-apple-darwin",
+]
+[tool.sums]
+strategy = "combined"
+file = "checksums.txt"
+
+[[tool]]
+name = "rumdl"
+repo = "rvben/rumdl"
+tier = "cli"
+tag_prefix = "v"
+# 上游资产名含 v 前缀（rumdl-v0.2.78-...）而 tag 剥 v 后 version 无 v，模板须补
+assets = [
+  "rumdl-v{version}-x86_64-pc-windows-msvc.zip",
+  "rumdl-v{version}-x86_64-unknown-linux-musl.tar.gz",
+  "rumdl-v{version}-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "sidecar"
+
+[[tool]]
+name = "gitleaks"
+repo = "gitleaks/gitleaks"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "gitleaks_{version}_windows_x64.zip",
+  "gitleaks_{version}_linux_x64.tar.gz",
+  "gitleaks_{version}_darwin_arm64.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "gitleaks_{version}_checksums.txt"
+
+[[tool]]
+name = "age"
+repo = "FiloSottile/age"
+tier = "cli"
+tag_prefix = "v"
+# 上游 .proof 为 sigstore 证明非 sha 清单：none 形自产边车为锚
+assets = [
+  "age-v{version}-windows-amd64.zip",
+  "age-v{version}-linux-amd64.tar.gz",
+  "age-v{version}-darwin-arm64.tar.gz",
+]
+[tool.sums]
+strategy = "none"
+
+[[tool]]
+name = "sops"
+repo = "getsops/sops"
+tier = "cli"
+tag_prefix = "v"
+assets = [
+  "sops-v{version}.amd64.exe",
+  "sops-v{version}.linux.amd64",
+  "sops-v{version}.darwin.arm64",
+]
+[tool.sums]
+strategy = "combined"
+file = "sops-v{version}.checksums.txt"
+
+[[tool]]
+name = "typst"
+repo = "typst/typst"
+tier = "cli"
+tag_prefix = "v"
+# linux 与 mac 为 tar.xz（上游形）
+assets = [
+  "typst-x86_64-pc-windows-msvc.zip",
+  "typst-x86_64-unknown-linux-musl.tar.xz",
+  "typst-aarch64-apple-darwin.tar.xz",
+]
+[tool.sums]
+strategy = "none"
+
+[[tool]]
+name = "nushell"
+repo = "nushell/nushell"
+tier = "cli"
+tag_prefix = ""
+assets = [
+  "nu-{version}-x86_64-pc-windows-msvc.zip",
+  "nu-{version}-x86_64-unknown-linux-musl.tar.gz",
+  "nu-{version}-aarch64-apple-darwin.tar.gz",
+]
+[tool.sums]
+strategy = "combined"
+file = "SHA256SUMS"
+
+[[tool]]
+name = "fnm"
+repo = "Schniz/fnm"
+tier = "cli"
+tag_prefix = "v"
+# 上游无 arch 主名（x64 隐含）且无官方清单
+assets = [
+  "fnm-windows.zip",
+  "fnm-linux.zip",
+  "fnm-macos.zip",
+]
+[tool.sums]
+strategy = "none"

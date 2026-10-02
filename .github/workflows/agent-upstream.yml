@@ -1,0 +1,89 @@
+# 官方上游最新版预播 R2 版本段（REQ-0017，用户三裁 2026-10-02：ark 自己离线安装、
+# 分发走 R2 env.ohmygh.com 域；GitHub Actions 定期拉官方最新再 R2 发布；舰队
+# claude/codex 版本面归 ark 单通道）。
+# 双频率层：tier=agent（claude/codex/kimi）每日；tier=cli（gh/rclone/uv 等 19 件）
+# 每周一 UTC 加跑。层裁在本岗（cron 单口进，date -u +%u 判周一；GitHub cron 不标
+# 来源，层判定收口在此）；workflow_dispatch 可显式 tier=all 补跑与 tools 名单过滤。
+# 分工边界（R008）：只灌版本段 <tool>/<version>/ immutable 加自产 sha256 边车；
+# stable 段与 catalog 锚定联动归 ai-cloud catalog-seed，本岗绝不触碰；预播成功发
+# repository_dispatch（事件 agent-upstream-seeded，token 缺则脚本 WARN 不红）。
+# 失败红灯加自动 gh issue（写明资产名与期望差；同日同题开单追加评论不重复建档）。
+name: agent-upstream
+
+on:
+  schedule:
+    - cron: "17 21 * * *"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "层：agent（默认）或 all（cli 层补跑）"
+        default: agent
+        type: string
+      tools:
+        description: "逗号名单过滤（可选，如 gh,uv）"
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+# G3：每日 cron 与周一/dispatch 可叠跑，排队不取消（中途杀上传轮有害无益）
+concurrency:
+  group: agent-upstream
+  cancel-in-progress: false
+
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AGENT_UPSTREAM_DISPATCH_TOKEN: ${{ secrets.AGENT_UPSTREAM_DISPATCH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: 装 rclone 与 uv（rclone pin v1.75.1，sha 锚即 catalog linux pin；配方同 r2-seed.yml）
+        run: |
+          curl -fL -o rclone.zip https://github.com/rclone/rclone/releases/download/v1.75.1/rclone-v1.75.1-linux-amd64.zip
+          echo "982b5aa772841168f8e380f139e9e787b2a105403e32b94da8676a0e1c0a13ab  rclone.zip" | sha256sum -c -
+          sudo unzip -j rclone.zip 'rclone-v1.75.1-linux-amd64/rclone' -d /usr/local/bin
+          command -v rclone && rclone version | head -1
+          command -v uv || { curl -LsSf https://astral.sh/uv/install.sh | sh; echo "$HOME/.local/bin" >> "$GITHUB_PATH"; }
+          command -v uv || { echo uv 安装失败; exit 1; }
+      - name: 层裁（agent 恒跑；cli 层周一 UTC 或 dispatch 显式 all）
+        run: |
+          TIER="${{ inputs.tier || 'agent' }}"
+          if [ "$TIER" = "agent" ] && [ "$(date -u +%u)" = "1" ]; then TIER=all; fi
+          echo "TIER=$TIER" >> "$GITHUB_ENV"
+          echo "TOOLS=${{ inputs.tools }}" >> "$GITHUB_ENV"
+      - name: 预播（teelog 落盘供 issue 引用；pipefail 防吞退出码）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          uv run --script .tools/agent-upstream.py --tier "$TIER" ${TOOLS:+--tools "$TOOLS"} 2>&1 | tee "$RUNNER_TEMP/agent-upstream.log"
+      - name: 失败落 issue（红灯回执：资产名与期望差）
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATE=$(date -u +%F)
+          TITLE="[agent-upstream] 预播失败 $DATE"
+          {
+            echo "预播红灯（tier=$TIER，run $GITHUB_RUN_NUMBER）。失败详情（资产名与期望差）："
+            echo
+            echo '```'
+            tail -n 40 "$RUNNER_TEMP/agent-upstream.log" 2>/dev/null || echo "（日志未生成：预播步未跑到）"
+            echo '```'
+            echo
+            echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/issue-body.md"
+          NUM=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // 0')
+          if [ "$NUM" = "0" ]; then
+            gh issue create --title "$TITLE" --body-file "$RUNNER_TEMP/issue-body.md"
+          else
+            gh issue comment "$NUM" --body-file "$RUNNER_TEMP/issue-body.md"
+          fi
