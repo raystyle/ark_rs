@@ -225,7 +225,6 @@ fn linux_yq_copy归档资产_装出elf非归档本体() {
     );
 }
 
-
 /// evergreen CDN 解析回归（2026-10-10 对齐单件二，真网 HEAD）：bun 撤钉 latest
 /// 直链（模板无 {version} 占位），query 面应重定向解析出真实版本——此前报
 /// 「需 --version 指定版本（CDN 来源）」并连坐整轮 update 失败汇总。
