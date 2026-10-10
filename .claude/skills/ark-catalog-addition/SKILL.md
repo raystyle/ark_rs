@@ -1,11 +1,12 @@
 ---
 name: ark-catalog-addition
-description: 往 ark catalog 入册或修一个工具的标准流程。资产形态实证、extract 类型与装出物断言、版本验证与 pin、evergreen 直链语义、镜像播种衔接与门禁收口。用于新增工具、修 catalog 条目、排查「装出物不是可执行」类缺陷时。
+description: 往 ark catalog 入册或修一个工具的标准流程。资产形态实证、extract 类型与装出物断言、版本验证与 pin、evergreen 直链语义、镜像播种衔接与门禁收口。用于新增工具、修 catalog 条目、修引擎装出物与解析缺陷时;不用于不动 catalog 与引擎的本机安装修复、日常写码与重构。
 ---
 
 # ark-catalog-addition:catalog 入册与条目修复标准流程
 
-> 闸门记录（第 1 轮，2026-10-10，状态**待审**：接受停人裁，con-04 件4 一案 create）。
+> 闸门记录（第 1 轮，2026-10-10，状态**受**：用户裁定接受 2026-10-10，con-04-A1 收口）。
+> A1 触发对补录（2026-10-10，隔离环境 CLAUDE_CONFIG_DIR 私有配置实测）：正例新工具入册触发 Skill 调用成立；近失负例「本机安装修复」初测误触发，揭出 When to Apply 面过宽，本批收窄(description 与 When NOT to Apply 补普通安装诊断与重构两条)后复测三对全符(证据行见 distill-log 第 1 轮)。
 > 证据一（门禁无回归）：rumdl 加 mdcharlint 加 md-ref-scan 加 md-heading-scan 加 llms-guard 加 PEVO check 全 0，cargo fmt 加 clippy 加 test --release --locked 全绿（实录见 `docs/sources/diary/2026-10-10-升级轮对齐三件REQ-0018.md` con-04 节）。
 > 证据二（点名义务翻转）：点名义务「入册工具的集成测试断言装出物为可执行二进制（ELF/PE）而非归档本体」。此前无标准盖不住（yq v4.54.1 双机装出 tar 归档本体，REQ-0018 件一实证）；候选下本页步骤 4 明文该断言为必过义务，yq 与 bun 示范测试在位（tests/linux_install.rs）。
 > 证据三（知识链接）：本页回指 `docs/knowledge/mistakes/M107-copy型资产归档形态未嗅探.md`（带 sources trace 引文）与 `docs/knowledge/mistakes/M108-evergreen直链无pin解析断层.md`。
@@ -15,10 +16,12 @@ description: 往 ark catalog 入册或修一个工具的标准流程。资产形
 
 - 往 catalog 新入册一个工具（新 [tools.X] 节）
 - 修既有条目的资产名、extract 类型、pin、probe 字段
-- 排查「安装后未找到可执行文件或无法读取版本」类缺陷并修 catalog 或引擎
+- 排查「安装后未找到可执行文件或无法读取版本」类缺陷且修复对象是 catalog 条目或引擎代码(要动数据面或代码)
 
 ## When NOT to Apply
 
+- 普通安装诊断与本机修复(不动 catalog 条目与引擎代码:走重装、ark doctor、issue 反馈)
+- 日常写码与重构(与入册无关的代码改动)
 - 家族自研 CLI（hst/browse/reader/officecli）：走委托自升级通道，不入册资产面
 - 特型条目（vsbuild/rustup/docker）：走各自专用安装模块，不走通用 extract 分支
 - agent 类条目：PATH 存量纳管语义优先（D07），入册面只管二进制分发
