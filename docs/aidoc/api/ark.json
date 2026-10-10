@@ -1008,6 +1008,11 @@
       "docs": "用 version_pattern 正则从资产名提取版本（取第 1 捕获组）。"
     },
     {
+      "path": "ark::resolve::is_evergreen_cdn",
+      "kind": "function",
+      "docs": "evergreen CDN 件判定（bun 撤钉形态）：cdn_url 直链模板无 `{version}` 占位——\nURL 本身即 latest 滚动链接，版本随上游走、无 pin 语义（D37 锁定归数据面）。"
+    },
+    {
       "path": "ark::resolve::pick_max_semver",
       "kind": "function",
       "docs": "从版本名列表里按语义版本取最大（对齐 pwsh Get-HashiCorpIndex 的\nSort-Object { [System.Version]($_ -replace '[^0-9.].*$', '') }：剥尾后按数值段比较）。"

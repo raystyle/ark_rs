@@ -642,7 +642,8 @@ fn check_not_on_path(cat: &Catalog, srows: &[StatusRow], env_root: &Path) -> Doc
     }
 }
 
-/// 本平台在管但未 pin：install 不带选项会失败的前置异味（evergreen 条目如 vsbuild/rust 无 pin 属设计，排除）。
+/// 本平台在管但未 pin：install 不带选项会失败的前置异味（evergreen 条目如 vsbuild/rust
+/// 与 CDN latest 直链件如 bun 无 pin 属设计，排除——后者重定向解析滚装最新）。
 fn check_pin_missing(cat: &Catalog, srows: &[StatusRow]) -> DoctorRow {
     let mut detail = Vec::new();
     for r in srows {
@@ -655,6 +656,7 @@ fn check_pin_missing(cat: &Catalog, srows: &[StatusRow]) -> DoctorRow {
             || crate::vsbuild::is_vsbuild(def)
             || crate::rustup::is_rustup(def)
             || crate::selfupdate::is_ark_self(def)
+            || crate::resolve::is_evergreen_cdn(def)
         {
             continue;
         }

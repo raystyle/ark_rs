@@ -488,6 +488,7 @@ D51 镜像默认通道（用户裁定 2026-09-18）：GitHub 分支 pin 驱动�
 ## Functions
 
 - `extract_version_by_pattern` — 用 version_pattern 正则从资产名提取版本（取第 1 捕获组）。
+- `is_evergreen_cdn` — evergreen CDN 件判定（bun 撤钉形态）：cdn_url 直链模板无 `{version}` 占位——
 - `pick_max_semver` — 从版本名列表里按语义版本取最大（对齐 pwsh Get-HashiCorpIndex 的
 - `resolve_tool` — 解析工具目标版本与资产：uv-git > cdn_index_url > cdn_url > GitHub release 四分支。
 - `strip_tag_prefix` — tag_prefix 剥离（大小写不敏感，对齐 pwsh 的 OrdinalIgnoreCase）。

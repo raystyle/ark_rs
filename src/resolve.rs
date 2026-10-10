@@ -254,7 +254,9 @@ fn resolve_cdn_index(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<R
     })
 }
 
-/// 分支 (b)：cdn_url 直链模板（含 {version} 占位，如 dotnet/oscdimg/grok）。
+/// 分支 (b)：cdn_url 直链模板（含 {version} 占位，如 dotnet/oscdimg/grok）；
+/// 模板无占位且未 pin 时是 evergreen latest 直链（bun 撤钉设计态），
+/// 重定向解析上游真实 tag 后滚装最新（2026-10-10 升级轮对齐单件二）。
 fn resolve_cdn_url(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Resolution, String> {
     let cdn_url = tool
         .cdn_url()
@@ -263,12 +265,26 @@ fn resolve_cdn_url(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Res
     // 版本选择：--version > --tag > 已 pin version。有显式请求时不能沿用旧 pin tag，
     // 否则 `{version}` URL 与 tag 四元组撕裂（go1.27 pin + --version 1.28 → tag 仍 go1.27）。
     let prefix = tool.tag_prefix.as_deref().unwrap_or("");
+    // evergreen latest 直链：模板无 {version} 占位且未 pin/未给选项——URL 本身即
+    // latest 滚动链接（`releases/latest/download/<asset>`），重定向解析真实 tag，
+    // install/update 默认滚装最新（此前此处报「需 --version 指定版本」连坐整轮 update）
+    let evergreen_tag = if opts.version.is_none()
+        && opts.tag.is_none()
+        && tool.pin_version().is_none()
+        && !cdn_url.contains("{version}")
+    {
+        Some(latest_tag_by_redirect(name, cdn_url)?)
+    } else {
+        None
+    };
     let ver = if let Some(v) = &opts.version {
         v.clone()
     } else if let Some(t) = &opts.tag {
         strip_tag_prefix(t, prefix).to_string()
     } else if let Some(v) = tool.pin_version() {
         v.to_string()
+    } else if let Some(tag) = &evergreen_tag {
+        strip_tag_prefix(tag, prefix).to_string()
     } else {
         return Err(format!("{name} 需 --version 指定版本（CDN 来源）"));
     };
@@ -282,6 +298,8 @@ fn resolve_cdn_url(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Res
 
     let tag = if let Some(t) = &opts.tag {
         t.clone()
+    } else if let Some(tag) = &evergreen_tag {
+        tag.clone()
     } else if opts.version.is_some() {
         format!("{prefix}{ver}")
     } else {
@@ -301,6 +319,53 @@ fn resolve_cdn_url(name: &str, tool: &Tool, opts: &ResolveOptions) -> Result<Res
         official_sha256: None,
         fallback_url: None,
     })
+}
+
+/// evergreen CDN 件判定（bun 撤钉形态）：cdn_url 直链模板无 `{version}` 占位——
+/// URL 本身即 latest 滚动链接，版本随上游走、无 pin 语义（D37 锁定归数据面）。
+pub fn is_evergreen_cdn(tool: &Tool) -> bool {
+    tool.cdn_url().is_some_and(|u| !u.contains("{version}"))
+}
+
+/// evergreen CDN latest 直链的 tag 解析（对象直链 302，零 GitHub API、无配额面）：
+/// `releases/latest/download/<asset>` 单跳重定向的 Location 即
+/// `releases/download/<tag>/<asset>`。首选 HEAD 不随重定向读 Location（零 body 传输），
+/// 拿不到（部分 CDN 不应答 HEAD）再 GET 全程随重定向取终态 URL。
+fn latest_tag_by_redirect(name: &str, url: &str) -> Result<String, String> {
+    let head = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(20))
+        .timeout(Duration::from_secs(30))
+        .redirects(0)
+        .build()
+        .head(url)
+        .set("User-Agent", UA)
+        .call();
+    if let Ok(resp) = &head {
+        if let Some(tag) = resp.header("location").and_then(tag_from_download_url) {
+            return Ok(tag);
+        }
+    }
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(20))
+        .timeout(Duration::from_secs(30))
+        .build();
+    let resp = agent
+        .get(url)
+        .set("User-Agent", UA)
+        .call()
+        .map_err(|e| format!("{name} evergreen latest 解析失败: {url}: {e}"))?;
+    let final_url = resp.get_url().to_string();
+    drop(resp);
+    tag_from_download_url(&final_url)
+        .ok_or_else(|| format!("{name} evergreen latest 终态 URL 未携带版本 tag: {final_url}"))
+}
+
+/// 从 release 下载直链提取 tag：`.../releases/download/<tag>/<asset>` → `<tag>`
+/// （latest 段与无 download 段的 URL 无版本语义，返回 None；纯函数可测）。
+fn tag_from_download_url(url: &str) -> Option<String> {
+    let rest = url.split("/releases/download/").nth(1)?;
+    let tag = rest.split('/').next()?;
+    (!tag.is_empty() && tag != "latest").then(|| tag.to_string())
 }
 
 /// 分支 (c)：GitHub REST（releases/latest 或 releases/tags/{tag}）——D51 起为**兜底通道**：
@@ -805,5 +870,78 @@ mod tests {
         tool2.linux_tag = None;
         tool2.mac_tag = None;
         assert!(pin_direct("age", &tool2, &ResolveOptions::default(), "FiloSottile/age").is_none());
+    }
+
+    /// evergreen CDN 判定：模板无 {version} 占位即 latest 滚动直链（bun 撤钉形，
+    /// 三平台 cdn 键同设保证测试平台无关）。
+    #[test]
+    fn evergreen判定_无版本占位为真() {
+        let latest = "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-x64.zip";
+        let bun = Tool {
+            cdn_url: Some(latest.into()),
+            linux_cdn_url: Some(latest.into()),
+            ..Tool::default()
+        };
+        assert!(is_evergreen_cdn(&bun), "bun latest 直链应判 evergreen");
+        let templated = Tool {
+            cdn_url: Some("https://go.dev/dl/go{version}.windows-amd64.zip".into()),
+            linux_cdn_url: Some("https://go.dev/dl/go{version}.linux-amd64.tar.gz".into()),
+            ..Tool::default()
+        };
+        assert!(
+            !is_evergreen_cdn(&templated),
+            "{{version}} 模板不属 evergreen"
+        );
+        assert!(
+            !is_evergreen_cdn(&Tool::default()),
+            "无 cdn_url 不属 evergreen"
+        );
+    }
+
+    /// release 下载直链取 tag：download 段首组件即 tag；latest 段、空 tag、
+    /// 无 download 段的 URL 无版本语义（期望值来自 GitHub release 直链布局）。
+    #[test]
+    fn download直链_取tag() {
+        assert_eq!(
+            tag_from_download_url(
+                "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-linux-x64.zip"
+            )
+            .as_deref(),
+            Some("bun-v1.4.3")
+        );
+        assert_eq!(
+            tag_from_download_url(
+                "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-x64.zip"
+            ),
+            None,
+            "latest 段无版本 tag"
+        );
+        assert_eq!(
+            tag_from_download_url("https://github.com/o/r/releases/download//a.zip"),
+            None,
+            "空 tag 无版本语义"
+        );
+        assert_eq!(
+            tag_from_download_url("https://example.com/a/b.zip"),
+            None,
+            "非 release 直链无版本语义"
+        );
+    }
+
+    /// 版本化模板（含 {version} 占位）无 pin 无选项仍报需指定版本：
+    /// evergreen 自动解析只适用于 latest 直链模板，不扩大到版本化模板（回归锚）。
+    #[test]
+    fn dies_cdn版本化模板_无pin无选项_仍报需指定版本() {
+        let tool = Tool {
+            cdn_url: Some("https://go.dev/dl/go{version}.windows-amd64.zip".into()),
+            linux_cdn_url: Some("https://go.dev/dl/go{version}.linux-amd64.tar.gz".into()),
+            ..Tool::default()
+        };
+        let err = resolve_cdn_url("go", &tool, &ResolveOptions::default())
+            .expect_err("版本化模板无 pin 无选项应报错");
+        assert!(
+            err.contains("需 --version 指定版本"),
+            "错误文案应保持: {err}"
+        );
     }
 }
