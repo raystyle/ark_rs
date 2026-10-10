@@ -4,6 +4,9 @@
 //! - 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。
 //! - 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。
 //! - sha256 计算用 sha2，比较统一大写。
+//! - 通道优先级（件三，2026-10-10）：工具镜像（R2 版本段）> GitHub 反代
+//!   （proxy.ohmygh.com 前缀形直通）> GitHub 直连；反代在官方腿内先行单次，
+//!   失败回落直连完整链；ARK_MIRROR=0 逃逸阀同关反代（真官方优先）。
 
 use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter, Read, Write};
@@ -47,6 +50,8 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
 
 /// 下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。
 /// expected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。
+/// 件三：GitHub 域 URL 在直连完整链前先经反代道单次（`gh_proxy_url` 改写，锚校验同尺），
+/// 反代未命中或失败回落直连；ARK_MIRROR=0 逃逸阀同关反代。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：sha256 校验失败: {}\n期望 {}\n实际 {} 等（完整失败面见函数体错误构造）。
@@ -63,6 +68,23 @@ pub fn download_asset(
     }
     if let Some(hit) = cache_reuse(&dest, expected_sha256, force)? {
         return Ok(hit);
+    }
+
+    // 件三反代道：工具镜像（调用方镜像腿）之后的中间层，GitHub 域单次先试
+    if !mirror_off() {
+        if let Some(base) = gh_proxy_base() {
+            if let Some(proxy_url) = gh_proxy_url(url, &base) {
+                match fetch_once_anchored(&dest, &proxy_url, expected_sha256) {
+                    Ok(()) => {
+                        eprintln!("[OK] 已下载（GitHub 反代）: {}", dest.display());
+                        return Ok(dest);
+                    }
+                    Err(proxy_err) => {
+                        eprintln!("[INFO] GitHub 反代未命中或失败，回落直连: {url}（{proxy_err}）")
+                    }
+                }
+            }
+        }
     }
 
     download_url(url, &dest)?;
@@ -102,6 +124,11 @@ pub fn download_fresh(env_root: &Path, asset_name: &str, url: &str) -> Result<Pa
 /// 自建分发镜像基址（种子终态 69/69，ohmycloud#2）。
 pub const MIRROR_BASE: &str = "https://env.ohmygh.com";
 
+/// GitHub 反代缺省基址（件三，2026-10-10 升级轮对齐单：自建 ghproxy，
+/// 源码仓 github.com/raystyle/ghproxy，前缀形 `<base>/<原URL>` 直通
+/// release 资产/raw/archive/clone；`ARK_GH_PROXY` 可覆盖或 `0` 关闭）。
+pub const GH_PROXY_BASE: &str = "https://proxy.ohmygh.com/";
+
 /// 镜像段 URL（全局域 env.ohmygh.com）：`{base}/{tool}/{version}/{asset}`。
 /// evergreen 引导器走 latest 段（`rust/latest/rustup-init.exe` 同构，version 传 "latest"）。
 pub fn mirror_url(tool: &str, version: &str, asset: &str) -> String {
@@ -136,9 +163,41 @@ pub(crate) fn is_mirror_off(val: Option<&str>) -> bool {
 
 /// D51 官方优先逃逸阀（`ARK_MIRROR=0`）：镜像故障时跳过镜像首试
 /// 直走官方链（下载层两条链与 selfupdate 元数据读序同阀）；解析面无需此阀——pin 驱动
-/// 本就零 API 且主通道之外的兜底本就是官方直链。
+/// 本就零 API 且主通道之外的兜底本就是官方直链。件三起同关反代道（真官方优先）。
 pub(crate) fn mirror_off() -> bool {
     is_mirror_off(crate::platform::env_var("ARK_MIRROR").as_deref())
+}
+
+/// GitHub 反代基址配置解析（件三，纯函数可测）：`ARK_GH_PROXY` 未设用自建缺省
+/// （启用）；`0` 与空串关闭反代道（直连回落道不变）；其余值作基址（尾斜杠归一）。
+pub(crate) fn gh_proxy_base_from(val: Option<&str>) -> Option<String> {
+    match val {
+        None => Some(GH_PROXY_BASE.to_string()),
+        Some(v) if v == "0" || v.is_empty() => None,
+        Some(v) => Some(v.to_string()),
+    }
+}
+
+/// GitHub 反代基址（运行时配置面）：读 `ARK_GH_PROXY` 环境变量。
+fn gh_proxy_base() -> Option<String> {
+    gh_proxy_base_from(crate::platform::env_var("ARK_GH_PROXY").as_deref())
+}
+
+/// GitHub 域资产 URL 的反代改写（件三，纯函数可测）：github.com /
+/// releases.githubusercontent.com / objects.githubusercontent.com 三域改写为
+/// 前缀形 `<proxy_base>/<原URL>`（proxy.ohmygh.com 直通 release 资产）；
+/// api.github.com 与其余域返回 None（API 面与镜像域不走反代）。
+pub fn gh_proxy_url(url: &str, proxy_base: &str) -> Option<String> {
+    const GH_HOSTS: [&str; 3] = [
+        "https://github.com/",
+        "https://releases.githubusercontent.com/",
+        "https://objects.githubusercontent.com/",
+    ];
+    if !GH_HOSTS.iter().any(|h| url.starts_with(h)) {
+        return None;
+    }
+    let base = proxy_base.trim_end_matches('/');
+    Some(format!("{base}/{url}"))
 }
 
 fn now_secs() -> u64 {
@@ -214,7 +273,7 @@ fn download_asset_with_mirror_urls(
     };
     // CF 缓存击穿：锚值进 query（锚变缓存键变；锚校验兜底语义不变）
     let murl_busted = with_query(mirror_dl_url, &format!("v={anchor}"));
-    match mirror_fetch_once(&dest, &murl_busted, Some(&anchor)) {
+    match fetch_once_anchored(&dest, &murl_busted, Some(&anchor)) {
         Ok(()) => {
             eprintln!("[OK] 已下载（镜像优先）: {}", dest.display());
             Ok(dest)
@@ -278,9 +337,13 @@ fn cache_reuse(
     Ok(None)
 }
 
-/// 镜像段单次快速下载（D44）：单次 ureq 不退避不 curl，先 .part 再提交；
-/// 锚在位则校验（不符即 Err，视同镜像失败由调用方回落官方）；失败清理不落半截。
-fn mirror_fetch_once(dest: &Path, url: &str, expected_sha256: Option<&str>) -> Result<(), String> {
+/// 单次快速下载（D44 镜像段起用，件三反代道复用同形）：单次 ureq 不退避不 curl，
+/// 先 .part 再提交；锚在位则校验（不符即 Err，由调用方回落下一通道）；失败清理不落半截。
+fn fetch_once_anchored(
+    dest: &Path,
+    url: &str,
+    expected_sha256: Option<&str>,
+) -> Result<(), String> {
     let part = part_path(dest);
     let _ = fs::remove_file(&part);
     match download_once(url, &part) {
@@ -295,7 +358,7 @@ fn mirror_fetch_once(dest: &Path, url: &str, expected_sha256: Option<&str>) -> R
         if !actual.eq_ignore_ascii_case(exp) {
             let _ = fs::remove_file(dest);
             return Err(format!(
-                "镜像对象 sha256 与锚不符（已删，回落官方）: 期望 {}，实际 {actual}",
+                "对象 sha256 与锚不符（已删，回落下一通道）: 期望 {}，实际 {actual}",
                 exp.to_uppercase()
             ));
         }
@@ -371,7 +434,7 @@ fn download_latest_with_sidecar_urls(
     // 镜像首试：边车锚 → 资产（CF 缓存击穿：锚值进 query）
     let mirror_step = mirror_sidecar_sha(env_root, sidecar_url).and_then(|anchor| {
         let mirror_busted = with_query(mirror_dl_url, &format!("v={anchor}"));
-        mirror_fetch_once(&dest, &mirror_busted, Some(&anchor))
+        fetch_once_anchored(&dest, &mirror_busted, Some(&anchor))
     });
     match mirror_step {
         Ok(()) => {
@@ -636,6 +699,60 @@ mod tests {
         assert!(!is_mirror_off(Some("")), "空串不触发");
         assert!(!is_mirror_off(Some("true")), "非零值不触发");
         assert!(is_mirror_off(Some("0")), "仅 0 触发官方优先逃逸");
+    }
+
+    /// 件三反代基址配置值域：未设用自建缺省；`0` 与空串关闭；其余值覆盖。
+    #[test]
+    fn 反代基址配置_值域() {
+        assert_eq!(
+            gh_proxy_base_from(None).as_deref(),
+            Some("https://proxy.ohmygh.com/"),
+            "未设启用自建反代缺省"
+        );
+        assert_eq!(gh_proxy_base_from(Some("0")), None, "0 关闭反代道");
+        assert_eq!(gh_proxy_base_from(Some("")), None, "空串关闭反代道");
+        assert_eq!(
+            gh_proxy_base_from(Some("https://gh.mirror.example/")).as_deref(),
+            Some("https://gh.mirror.example/"),
+            "自定义基址覆盖"
+        );
+    }
+
+    /// 件三反代改写：GitHub 三域（github.com / releases / objects 的
+    /// githubusercontent.com）前缀形改写；api.github.com 与镜像域不改写；
+    /// 基址尾斜杠归一（期望值来自 proxy.ohmygh.com 前缀直通形）。
+    #[test]
+    fn 反代改写_github域前缀形_他域不改写() {
+        let base = "https://proxy.ohmygh.com/";
+        let cases = [
+            "https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64.tar.gz",
+            "https://releases.githubusercontent.com/23245886/asset.bin",
+            "https://objects.githubusercontent.com/gha/x.zip",
+        ];
+        for url in cases {
+            let expect = format!("https://proxy.ohmygh.com/{url}");
+            assert_eq!(
+                gh_proxy_url(url, base).as_deref(),
+                Some(expect.as_str()),
+                "GitHub 域应改写为前缀形: {url}"
+            );
+        }
+        // 尾斜杠归一：带与不带尾斜杠的基址产出同形
+        assert_eq!(
+            gh_proxy_url("https://github.com/a/b.zip", "https://proxy.ohmygh.com").as_deref(),
+            gh_proxy_url("https://github.com/a/b.zip", base).as_deref()
+        );
+        // api 面与镜像域不走反代
+        assert_eq!(gh_proxy_url("https://api.github.com/repos/x/y", base), None);
+        assert_eq!(
+            gh_proxy_url("https://env.ohmygh.com/yq/4.54.1/a.tar.gz", base),
+            None
+        );
+        assert_eq!(
+            gh_proxy_url("https://go.dev/dl/go1.27.0.tar.gz", base),
+            None
+        );
+        assert_eq!(gh_proxy_url("http://github.com/a.zip", base), None);
     }
 
     /// D44 反转后双断：镜像段（边车）断→回落官方段断→双链报错（镜像在前官方在后），不落资产。

@@ -54,3 +54,4 @@
 | 2026-09-17 | `docs/diary/2026-09-17-批三包形对线.md` | REQ-0008 对线开球回球合流令三点全准（ark-<target> 无版本段加退役绑五端判据加八件清单），判新面归档 sha 设计注意入 REQ，2.2.0 裸件终版先行 |
 | 2026-09-17 | `docs/diary/2026-09-17-窗一版包形双挂.md` | REQ-0008 窗一版四笔上线（包形读序四层加判新解包取真身加 release 开关形加 seed 到则灌），一轮 CONFIRM，演练抓 interop 与执行位两真缺陷 |
 | 2026-10-02 | `docs/diary/2026-10-02-官方上游定时预播REQ-0017.md` | 官方上游定时预播 REQ-0017：田野轮遮蔽实况、ai_ccoe 飞轮规划、agent-upstream 双频率层实现、对线两轮 NEEDS-FIX 六单至 CONFIRM |
+| 2026-10-10 | `docs/diary/2026-10-10-升级轮对齐三件REQ-0018.md` | 升级轮对齐三件：yq copy 解包链剥层、evergreen CDN 滚装、GitHub 反代道 |

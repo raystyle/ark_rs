@@ -6,6 +6,9 @@ download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-Relea
 - 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。
 - 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。
 - sha256 计算用 sha2，比较统一大写。
+- 通道优先级（件三，2026-10-10）：工具镜像（R2 版本段）> GitHub 反代
+  （proxy.ohmygh.com 前缀形直通）> GitHub 直连；反代在官方腿内先行单次，
+  失败回落直连完整链；ARK_MIRROR=0 逃逸阀同关反代（真官方优先）。
 
 ## Functions
 
@@ -15,6 +18,7 @@ download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-Relea
 - `download_fresh` — 强制重下（删旧再下）：校验清单类资产每次取新，不复用缓存。
 - `download_latest_with_sidecar` — 带镜像优先的 latest 段资产下载（D08 第二批，evergreen 引导器：rust / vsbuild；D44 反转）：
 - `fetch_text_short` — 单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。
+- `gh_proxy_url` — GitHub 域资产 URL 的反代改写（件三，纯函数可测）：github.com /
 - `mirror_sidecar_sha` — 镜像 .sha256 边车取锚（digest 替代源）。单次短超时快取（对线 F3：不退避不 curl，
 - `mirror_sidecar_url` — 镜像 latest 段边车 URL：`{MIRROR_BASE}/{tool}/latest/{asset}.sha256`。
 - `mirror_url` — 镜像段 URL（全局域 env.ohmygh.com）：`{base}/{tool}/{version}/{asset}`。
@@ -25,5 +29,6 @@ download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-Relea
 
 ## Constants
 
+- `GH_PROXY_BASE` — GitHub 反代缺省基址（件三，2026-10-10 升级轮对齐单：自建 ghproxy，
 - `MIRROR_BASE` — 自建分发镜像基址（种子终态 69/69，ohmycloud#2）。
 

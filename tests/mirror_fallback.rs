@@ -265,3 +265,30 @@ fn mirror_query_私有仓pin锚镜像直装() -> Result<(), Box<dyn std::error::
     );
     Ok(())
 }
+
+/// 件三 GitHub 反代道真网冒烟（2026-10-10 升级轮对齐单）：release 资产经
+/// proxy.ohmygh.com 前缀形直通拉取，sha 与 catalog pin 锚一致（直连/镜像/反代
+/// 同 sha 即直通完整性实证；oracle 为 catalog pin，独立于被测下载链）。
+#[test]
+fn 反代道_release资产经proxy直通且sha与pin一致() -> TestResult<()> {
+    if !gated() {
+        eprintln!("skip: ARK_TEST_MIRROR != 1");
+        return Ok(());
+    }
+    // 期望值来源：catalog [tools.yq] linux 平台键（v4.54.1 pin sha）
+    let url = "https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64.tar.gz";
+    let pin_sha = "E68A456F90C577AF3FE4960184B3A3CF5C461E0348407C10F107DA3A5FEC8972";
+    let proxy = ark::download::gh_proxy_url(url, "https://proxy.ohmygh.com/")
+        .expect("github release 直链应可改写为反代前缀形");
+    assert_eq!(proxy, format!("https://proxy.ohmygh.com/{url}"));
+
+    let sandbox = std::env::temp_dir().join(format!("ark-gh-proxy-{}", std::process::id()));
+    std::fs::create_dir_all(&sandbox)?;
+    let path = ark::download::download_fresh(&sandbox, "yq-proxy-smoke.tar.gz", &proxy)?;
+    assert_eq!(
+        ark::download::sha256_file(&path)?,
+        pin_sha,
+        "反代直通产物 sha 应与 pin 锚一致（直连同 sha）"
+    );
+    Ok(())
+}

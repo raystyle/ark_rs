@@ -320,7 +320,12 @@
     {
       "path": "ark::download",
       "kind": "module",
-      "docs": "download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。\n缓存目录 <EnvRoot>\\cache\\<asset>：\n- 命中且 sha256 一致则复用；不符删除重下；无 sha 基准且文件非空则复用。\n- 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。\n- 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。\n- sha256 计算用 sha2，比较统一大写。"
+      "docs": "download：资产下载与缓存复用，语义对齐 helpers.ps1 的 Save-ReleaseAsset。\n缓存目录 <EnvRoot>\\cache\\<asset>：\n- 命中且 sha256 一致则复用；不符删除重下；无 sha 基准且文件非空则复用。\n- 下载先写 `<asset>.part` 再 rename，失败不留半截 dest。\n- 下载走 ureq（3 次指数退避），失败回退系统 curl.exe（--retry 5）。\n- sha256 计算用 sha2，比较统一大写。\n- 通道优先级（件三，2026-10-10）：工具镜像（R2 版本段）> GitHub 反代\n  （proxy.ohmygh.com 前缀形直通）> GitHub 直连；反代在官方腿内先行单次，\n  失败回落直连完整链；ARK_MIRROR=0 逃逸阀同关反代（真官方优先）。"
+    },
+    {
+      "path": "ark::download::GH_PROXY_BASE",
+      "kind": "constant",
+      "docs": "GitHub 反代缺省基址（件三，2026-10-10 升级轮对齐单：自建 ghproxy，\n源码仓 github.com/raystyle/ghproxy，前缀形 `<base>/<原URL>` 直通\nrelease 资产/raw/archive/clone；`ARK_GH_PROXY` 可覆盖或 `0` 关闭）。"
     },
     {
       "path": "ark::download::MIRROR_BASE",
@@ -335,7 +340,7 @@
     {
       "path": "ark::download::download_asset",
       "kind": "function",
-      "docs": "下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。\nexpected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。\n\n# Errors\n返回 Err（人读原因串）当：sha256 校验失败: {}\\n期望 {}\\n实际 {} 等（完整失败面见函数体错误构造）。"
+      "docs": "下载资产到缓存并复用：对齐 Save-ReleaseAsset 的缓存三分支（cache_reuse 提取共用）。\nexpected_sha256 为 None 时无校验基准，已有缓存直接复用；force 跳过复用直接重下。\n件三：GitHub 域 URL 在直连完整链前先经反代道单次（`gh_proxy_url` 改写，锚校验同尺），\n反代未命中或失败回落直连；ARK_MIRROR=0 逃逸阀同关反代。\n\n# Errors\n返回 Err（人读原因串）当：sha256 校验失败: {}\\n期望 {}\\n实际 {} 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::download::download_asset_with_mirror",
@@ -356,6 +361,11 @@
       "path": "ark::download::fetch_text_short",
       "kind": "function",
       "docs": "单次短超时文本取回（自动刷新探活用，D33）：不重试、不走 curl 兜底，失败即 Err。\n与 download_url 的重试链分离：自动路径要在网络异常时快速退化，不拖慢用户命令。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+    },
+    {
+      "path": "ark::download::gh_proxy_url",
+      "kind": "function",
+      "docs": "GitHub 域资产 URL 的反代改写（件三，纯函数可测）：github.com /\nreleases.githubusercontent.com / objects.githubusercontent.com 三域改写为\n前缀形 `<proxy_base>/<原URL>`（proxy.ohmygh.com 直通 release 资产）；\napi.github.com 与其余域返回 None（API 面与镜像域不走反代）。"
     },
     {
       "path": "ark::download::mirror_sidecar_sha",
