@@ -442,7 +442,7 @@ fn run() -> Result<(), ArkError> {
                 return Err(ArkError::from(format!(
                     "清单签名校验不过: {}（{e}）；修复: `ark catalog sync` 取回云端签名件，或设 ARK_CATALOG 指定本地清单；内嵌公钥 {}",
                     cat_path.display(),
-                    catalog::CLOUD_CATALOG_PUBKEY_ID
+                    catalog::CLOUD_CATALOG_PUBKEY_IDS.join("/")
                 )));
             }
             catalog::SignatureState::Missing => {
@@ -1767,7 +1767,8 @@ fn cmd_catalog(env_root: &Path, cat_path: &Path, cmd: Option<CatalogCmd>) -> Res
                 kv("ttl_secs", &st.ttl_secs.to_string()),
                 kv("offline", if st.offline { "true" } else { "false" }),
                 kv("signature", st.signature.label()),
-                kv("pubkey", catalog::CLOUD_CATALOG_PUBKEY_ID),
+                // 过渡期双钥 id 并列展示（与内嵌公钥数组同序，摘旧钥后收单）
+                kv("pubkey", &catalog::CLOUD_CATALOG_PUBKEY_IDS.join("/")),
                 // manifest 面（R016 六节新鲜度门）：在位/缺失、本地 sha、年龄、云端锚对比、签名态
                 kv("manifest_path", &st.manifest.path.display().to_string()),
                 kv(

@@ -24,3 +24,4 @@
 | REQ-0017 | implemented | 官方上游定时预播与R2版本段播种 | 首 run 36979714536 success（tier all、skip 13、seeded 9、failed 0）加 R2 域面抽锚 200 加对线两轮 CONFIRM（trace 见 REQ 内） |
 | REQ-0018 | implemented | 升级轮对齐修复与GitHub反代道 | 沙盒实弹三面（yq 装出 ELF 4.54.1、bun 滚装 1.4.3、反代 sha 与 pin 一致）加 cargo test 全绿 245 项加门禁四件套绿（trace 见 REQ 内） |
 | REQ-0019 | implemented | 三层聚合对齐迁移con-04 | 六件全落加门禁全绿（trace 见 REQ 内） |
+| REQ-0020 | implemented | D34密钥轮换第一步双钥过渡 | 双钥三态单测加独立源交叉验证四态加 cargo test 全绿 246 项加门禁四件套绿（trace 见 REQ 内） |

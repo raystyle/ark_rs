@@ -735,10 +735,14 @@ fn cloud_manifest_keys() -> [&'static str; 2] {
 /// 内嵌的云端清单签名公钥（D34，minisign 与 Ed25519 的 base64 公钥行；key id 见下）。
 /// 私钥只在本机 `~/.config/ome/catalog-signing.key` 与 CI 密钥库出现；其他机器只要二进制带此公钥即可校验。
 /// 轮换：先发版同时内嵌新旧两把公钥（任一验过即通过），再换私钥重签云端件，机器更新完后摘掉旧钥。
-const CLOUD_CATALOG_PUBKEYS: [&str; 1] =
-    ["RWQWI4x407+T+51a9TZWS487QCZbhzehIoD2+e/4quSr3hpsu9nmDR4o"];
-/// 内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出）。
-pub const CLOUD_CATALOG_PUBKEY_ID: &str = "FB93BFD3788C2316";
+/// 2026-10-11 起双钥过渡期（D34 轮换第一步）：第一把为旧钥（原私钥已不可达故轮换），第二把为新钥
+/// （私钥已在本机落位、重签云端件随后）；全端铺开新 ark 后摘旧钥收单。
+const CLOUD_CATALOG_PUBKEYS: [&str; 2] = [
+    "RWQWI4x407+T+51a9TZWS487QCZbhzehIoD2+e/4quSr3hpsu9nmDR4o",
+    "RWTb0D6JjzUV6ye3oYlKDUXl2jhWi6CMKS19UVIaim2v/45rmH9C0wKY",
+];
+/// 内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出；与上数组同序，过渡期两枚并列）。
+pub const CLOUD_CATALOG_PUBKEY_IDS: [&str; 2] = ["FB93BFD3788C2316", "EB15358F893ED0DB"];
 /// 自动刷新默认 TTL（秒）：一天一次锚比对。
 pub const DEFAULT_TTL_SECS: u64 = 24 * 60 * 60;
 /// 自动路径探活超时（秒）：网络异常时快速退化，不拖慢用户命令。
@@ -2163,6 +2167,22 @@ untrusted comment: ome catalog signature: selftest.txt
 RUQWI4x407+T+15MR2QUPmLELWU02ipckyrZjLgfDEYkHI41DYoEqT4VADuEQT2fiWvF9YoXvfMYDwU3oOdbJ7hfkRhB8pifRAs=
 trusted comment: ome catalog signature: C:\\Users\\ray\\AppData\\Local\\Temp\\catalog-sign-test\\selftest.txt
 FeN3CEmfyojZlc/nYDHD/JGL8Z+H9HoUj3KAq2lbtYuxMBqsTUiuenVbaqyyFM4L433njWZO45arpsiAAwzzAQ==";
+    /// 新钥自检签名：同一内容由轮换后新钥（EB15358F893ED0DB，私钥在本机）签署（2026-10-11 签署）。
+    /// 与旧钥 SELFTEST_SIG 构成同内容双签，锁住双钥过渡期「任一验过即通过」的验签面。
+    /// 剔除批不改：改串须持钥重签；摘旧钥收尾批本常量转正位（旧钥 SELFTEST_SIG 随旧钥一并撤，属预期红灯）。
+    /// 注意 trusted comment 属被签内容（改它等于改签名），故此处逐字保留签署当时文本。
+    const SELFTEST_SIG_ROTATED: &str = "\
+untrusted comment: ome catalog signature: /tmp/ark-rotate-test/selftest.txt
+RUTb0D6JjzUV6/TnPu2dHX0FgD1uZjjn5+IEMWsIP/NEJWVk3X5zBNX5Pb8ICYhwZKRjMPj/sP8nCST7hb1iiwfDxKpEM4ElQQQ=
+trusted comment: ome catalog signature: /tmp/ark-rotate-test/selftest.txt
+Muc5V4ZSkOesEGiSQ9mLZwCrcSGHKIDGgkid7XafMqsPJdcVt8C6SJtl5vEFMEHg99PmvKrnRZ6HAzbTLhQRCQ==";
+    /// 错钥自检签名：一次性废钥（key id 4A95257282439B25，签署后私钥即销毁、公钥未内嵌未落库）
+    /// 对同一内容的合法签名。锁住按钥拒收面：签名格式合法但非内嵌公钥所签，必须拒。
+    const SELFTEST_SIG_WRONGKEY: &str = "\
+untrusted comment: ome catalog signature: /tmp/ark-rotate-test/selftest.txt
+RUQlm0OCciWVSu3UmbhAj/4zT5MwtEVEc3Z5Qq050GbH5hvfNXEjHsQhC2wbMyM3RfrnebtBb6NQU1DNQyiDOHOfILO6yl5VUA4=
+trusted comment: ome catalog signature: /tmp/ark-rotate-test/selftest.txt
+UNR/9CajPCewjw8VkEF5hAyZXwATxgSkAYRNN8FVRLNfKEcFUtnt2/gOimOseLi0VaO+BhHh8E4VkkzpdMJWAA==";
 
     #[test]
     fn 验签_自检签名通过且篡改即失败() {
@@ -2182,15 +2202,41 @@ FeN3CEmfyojZlc/nYDHD/JGL8Z+H9HoUj3KAq2lbtYuxMBqsTUiuenVbaqyyFM4L433njWZO45arpsiA
     }
 
     #[test]
+    fn 验签_双钥过渡期旧钥新钥任一过且错钥拒() {
+        assert!(
+            verify_with_embedded_keys(SELFTEST_MSG.as_bytes(), SELFTEST_SIG).is_ok(),
+            "旧钥（第一把）签名应验过"
+        );
+        assert!(
+            verify_with_embedded_keys(SELFTEST_MSG.as_bytes(), SELFTEST_SIG_ROTATED).is_ok(),
+            "新钥（第二把）签名应验过（双钥过渡期任一验过即通过）"
+        );
+        assert!(
+            verify_with_embedded_keys(SELFTEST_MSG.as_bytes(), SELFTEST_SIG_WRONGKEY).is_err(),
+            "非内嵌公钥所签（格式合法的错钥签名）必须拒"
+        );
+    }
+
+    #[test]
     fn 内嵌公钥与仓库公钥文件一致() {
         let repo_pub = include_str!("../.tools/catalog-sign/catalog-signing.pub");
         assert!(
             repo_pub.contains(CLOUD_CATALOG_PUBKEYS[0]),
-            "仓库公钥文件与内嵌公钥必须一致（换钥需两处同步）"
+            "仓库公钥文件与内嵌旧钥必须一致（摘旧钥收尾时两处同步换新钥）"
         );
         assert!(
-            repo_pub.contains(CLOUD_CATALOG_PUBKEY_ID),
-            "key id 标注需与仓库公钥文件一致"
+            repo_pub.contains(CLOUD_CATALOG_PUBKEY_IDS[0]),
+            "旧钥 key id 标注需与仓库公钥文件一致"
+        );
+        // 双钥过渡期：新钥另立仓库文件（摘旧钥收尾时转正位文件并撤本文件）
+        let repo_pub_new = include_str!("../.tools/catalog-sign/catalog-signing-new.pub");
+        assert!(
+            repo_pub_new.contains(CLOUD_CATALOG_PUBKEYS[1]),
+            "过渡期新钥文件与内嵌新钥必须一致"
+        );
+        assert!(
+            repo_pub_new.contains(CLOUD_CATALOG_PUBKEY_IDS[1]),
+            "新钥 key id 标注需与过渡期公钥文件一致"
         );
     }
 

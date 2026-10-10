@@ -23,9 +23,9 @@
       "docs": "云端清单在镜像里的键（D41 C：主键 `ark/catalog/`；兼容键 `ome/catalog/` 为 omc 铺段前\n的过渡窗回落，读序主键先、404 落兼容键；停 ome/ 键判据为存量机水位清零）。"
     },
     {
-      "path": "ark::catalog::CLOUD_CATALOG_PUBKEY_ID",
+      "path": "ark::catalog::CLOUD_CATALOG_PUBKEY_IDS",
       "kind": "constant",
-      "docs": "内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出）。"
+      "docs": "内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出；与上数组同序，过渡期两枚并列）。"
     },
     {
       "path": "ark::catalog::CLOUD_MANIFEST_KEY",

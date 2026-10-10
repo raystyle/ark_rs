@@ -52,7 +52,7 @@ catalog：清单主功能。数据面（tools.toml 读写与路径解析）加�
 ## Constants
 
 - `CLOUD_CATALOG_KEY` — 云端清单在镜像里的键（D41 C：主键 `ark/catalog/`；兼容键 `ome/catalog/` 为 omc 铺段前
-- `CLOUD_CATALOG_PUBKEY_ID` — 内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出）。
+- `CLOUD_CATALOG_PUBKEY_IDS` — 内嵌公钥的 key id（人读标注，来自 `catalog-sign pubkey` 输出；与上数组同序，过渡期两枚并列）。
 - `CLOUD_MANIFEST_KEY` — 云端 manifest 键（R016 两件分离：与 tools.toml 同批同签；双键读序同上）。
 - `DEFAULT_TTL_SECS` — 自动刷新默认 TTL（秒）：一天一次锚比对。
 
