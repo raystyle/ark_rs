@@ -33,7 +33,7 @@
 | `src/download.rs` | 资产下载与缓存复用；D44 反转镜像优先链（env.ohmygh.com 单次快速首试、官方完整链兜底、有锚必校验）；D51 `ARK_MIRROR=0` 官方优先逃逸阀（跳过镜像首试） |
 | `src/checksum.rs` | sha256 校验与官方校验源（离线锚 offline_expected_sha256 供 dry-run 计划面，REQ-0016） |
 | `src/install.rs` | 安装主编排（幂等、防穿越、验版本、回写）；dry-run 计划面 plan_would/plan_target_rows（REQ-0016：幂等预测与资产/目标行） |
-| `src/extract.rs` | 解压/安装九分派 |
+| `src/extract.rs` | 解压/安装九分派；copy 型资产按魔数嗅探剥层到二进制（gzip/xz 压缩层加 tar/zip 归档层，成员按 exe 叶名或平台变体名挑真身，yq 病灶） |
 | `src/envpath.rs` | 注册表用户 PATH 管理（re-export platform 的跨平台 PATH 管理） |
 | `src/platform.rs` | 平台抽象层：EnvRoot 默认路径、PATH 管理、环境变量读写与撤除（win 注册表 / POSIX profile env 块）、环境变量展开、official 判定、self-deploy 目标 |
 | `src/toolver.rs` | 已装版本探测（探测参数与正则读 catalog `probe_args`/`probe_pattern` 字段，D28 迁移；exe 路径解析与 PATH 现查）；update 漂移三态 pin_drift（D49：一致 skip、落后补装、领先如实报） |

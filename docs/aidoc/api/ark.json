@@ -410,12 +410,17 @@
     {
       "path": "ark::extract",
       "kind": "module",
-      "docs": "extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。\nzip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录；gsudo 只取 x64；\n7z-extra 用 bootstrap 7zr.exe 解压并 shim 7za.exe 成 7z.exe 后清空目录其余文件；\n7zsfx 同步等待退出码；msi 走 msiexec /qn；rmux 跑资产内官方 install.ps1；"
+      "docs": "extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。\nzip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录（资产实为归档时剥层到二进制，\nyq 病灶 2026-10-10）；gsudo 只取 x64；\n7z-extra 用 bootstrap 7zr.exe 解压并 shim 7za.exe 成 7z.exe 后清空目录其余文件；\n7zsfx 同步等待退出码；msi 走 msiexec /qn；rmux 跑资产内官方 install.ps1；"
     },
     {
       "path": "ark::extract::extract_asset",
       "kind": "function",
       "docs": "解压/安装主分派（对齐 pwsh switch ($d.Extract)）。\ncache_path 为已下载资产，install_dir 为目标目录（msi/official 类由调用方另行处理）。\n\n# Errors\n返回 Err（人读原因串）当：{tool} targz-bin 提取类型仅在 Linux / macOS 可用 等（完整失败面见函数体错误构造）。"
+    },
+    {
+      "path": "ark::extract::extract_tar",
+      "kind": "function",
+      "docs": "裸 tar 解压（gzip/xz 剥压缩层后的内层归档，tar crate）。\n\n# Errors\n返回 Err（人读原因串）当：打开/解压失败（见错误串）等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::extract_targz",

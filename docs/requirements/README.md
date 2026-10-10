@@ -22,3 +22,4 @@
 | REQ-0015 | implemented | ledger命令族集成 | 签名道七件单测加实弹五面 201（new/list/show/publish/attest-promote）全过（trace 见 REQ 内） |
 | REQ-0016 | implemented | actl适配预览面与llms适配说明 | cargo test 全绿 232 项（新增七件）加真机三态冒烟加对线一轮 F1 修复回基线同形加门禁四件套绿（trace 见 REQ 内） |
 | REQ-0017 | implemented | 官方上游定时预播与R2版本段播种 | 首 run 36979714536 success（tier all、skip 13、seeded 9、failed 0）加 R2 域面抽锚 200 加对线两轮 CONFIRM（trace 见 REQ 内） |
+| REQ-0018 | implemented | 升级轮对齐修复与GitHub反代道 | 沙盒实弹三面（yq 装出 ELF 4.54.1、bun 滚装 1.4.3、反代 sha 与 pin 一致）加 cargo test 全绿 245 项加门禁四件套绿（trace 见 REQ 内） |

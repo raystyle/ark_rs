@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **yq copy 解包链完整到二进制层**（REQ-0018 件一，2026-10-10 双机全量升级轮对齐单）：copy/single 型资产落盘前按魔数嗅探形态，非归档保持原样复制（既有语义零变化）；上游把单二进制打成归档发放时（yq v4.54.1 的 yq_linux_amd64.tar.gz 是 gzip 套 tar 内含 ./yq_linux_amd64 平台变体名、yq_windows_amd64.zip 内含 yq.exe）剥层到二进制再落：压缩层（gzip 走 flate2、xz 走 xz2）先解，内层 tar/zip 展开成员后按 exe 叶子名（或平台变体名 yq_linux_amd64、同 stem 的 yq.exe）挑真身，多候选取最大者。此前归档本体原样落 ~/.local/bin 冒充可执行，双机同症「安装后未找到可执行文件或无法读取版本」（file 显示归档非 ELF）。targz-bin/tarxz-bin 提取同享平台变体名回退；解包临时目录带纳秒时戳防同进程并行互踩。新增 extract_tar（裸 tar 解压）。
 - **官方上游定时预播 R2 版本段**（REQ-0017，用户三裁 2026-10-02：ark 自己离线安装、分发走 R2；GitHub Actions 定期拉官方最新再 R2 发布；舰队 claude/codex 版本面归 ark 单通道）：新 agent-upstream workflow（每日 cron 恒跑 tier=agent 的 claude/codex/kimi，周一 UTC 加跑 tier=cli 的 gh/rclone/uv 等 19 件；dispatch 可显式 all 补跑与名单过滤），清单驱动 `.tools/agent-upstream.toml`（22 工具三平台资产与 sums 策略入册，不依赖 ai-cloud catalog 未补齐字段）；行为面 `.tools/agent-upstream.py`：gh api 解析 latest、同版域面 HEAD 绿跳（R2 即已播记录，零仓状态回写）、官方 SHASUMS 逐件校验（combined 与 sidecar 实校、none 形自产边车为唯一锚 WARN 注记）、先全下全验后统一灌防半灌、版本段 `<tool>/<version>/` immutable 加自产 sha256 边车（stable 段绝不触碰，R008 分工归 ai-cloud catalog-seed）；失败红灯加自动 gh issue（资产名与期望差，同日同题追加评论）；预播成 repository_dispatch（事件 agent-upstream-seeded，payload 出工具版本与逐件 sha）通知 ai-cloud 接 catalog bump（token 缺 WARN 不红）。
 
 ## [1.6.0] - 2026-09-28

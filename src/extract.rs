@@ -1,10 +1,12 @@
 //! extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。
-//! zip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录；gsudo 只取 x64；
+//! zip/targz 展平顶层单包裹目录；copy/single 单 exe 落目录（资产实为归档时剥层到二进制，
+//! yq 病灶 2026-10-10）；gsudo 只取 x64；
 //! 7z-extra 用 bootstrap 7zr.exe 解压并 shim 7za.exe 成 7z.exe 后清空目录其余文件；
 //! 7zsfx 同步等待退出码；msi 走 msiexec /qn；rmux 跑资产内官方 install.ps1；
 
 use std::fs::{self, File};
 use std::io;
+use std::io::Read;
 use std::path::Path;
 #[cfg(any(not(windows), test))]
 use std::path::PathBuf;
@@ -117,14 +119,15 @@ pub fn extract_asset(
                 Ok(())
             }
         }
-        // copy/single：单 exe 落目录（文件名取 exe 字段的叶子名，对齐 pwsh copy 分支）
+        // copy/single：单 exe 落目录（文件名取 exe 字段的叶子名，对齐 pwsh copy 分支）；
+        // 资产实为归档时（yq 形 gzip 套 tar / zip）剥层到二进制再落，不拿归档本体冒充可执行
         "copy" | "single" => {
             let leaf = def
                 .exe()
                 .and_then(|e| e.rsplit(['\\', '/']).next())
                 .ok_or_else(|| format!("{tool} 缺少 exe 字段，无法确定落地文件名"))?;
             let dst = install_dir.join(leaf);
-            fs::copy(cache_path, &dst).map_err(|e| format!("{tool} 复制资产失败: {e}"))?;
+            copy_asset_as_binary(tool, leaf, cache_path, &dst)?;
             #[cfg(not(windows))]
             set_executable(&dst)?;
             Ok(())
@@ -310,6 +313,176 @@ pub fn extract_tarxz(archive: &Path, dest: &Path) -> Result<(), String> {
     let mut ar = tar::Archive::new(xz);
     ar.unpack(dest)
         .map_err(|e| format!("tar.xz 解压失败: {}: {e}", archive.display()))
+}
+
+/// 裸 tar 解压（gzip/xz 剥压缩层后的内层归档，tar crate）。
+///
+/// # Errors
+/// 返回 Err（人读原因串）当：打开/解压失败（见错误串）等（完整失败面见函数体错误构造）。
+pub fn extract_tar(archive: &Path, dest: &Path) -> Result<(), String> {
+    let f =
+        File::open(archive).map_err(|e| format!("打开 tar 失败: {}: {e}", archive.display()))?;
+    let mut ar = tar::Archive::new(f);
+    ar.unpack(dest)
+        .map_err(|e| format!("tar 解压失败: {}: {e}", archive.display()))
+}
+
+/// copy 型资产的落盘形态（双机升级轮 yq 病灶，2026-10-10 对齐单件一）：
+/// copy 语义是「资产本体即单个可执行文件」，但上游会把单二进制打成归档发放
+/// （yq v4.54.1 的 yq_linux_amd64.tar.gz 是 gzip 套 tar 内含 ./yq_linux_amd64、
+/// yq_windows_amd64.zip 内含 yq.exe）——原样落盘会把归档本体冒充可执行，
+/// 装后验版本报「未找到可执行文件或无法读取版本」。落盘前按魔数嗅探剥层。
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+enum AssetKind {
+    /// gzip 压缩层（内层再嗅探：tar 归档或裸二进制）
+    Gzip,
+    /// xz 压缩层（同上）
+    Xz,
+    /// zip 归档
+    Zip,
+    /// 裸 tar 归档
+    Tar,
+    /// 非归档（copy 既有语义，原样复制）
+    Plain,
+}
+
+/// 按魔数嗅探资产形态：gzip `1f 8b`、xz `fd 37 7a 58 5a 00`、zip `PK\x03\x04`、
+/// tar 在 257 偏移的 `ustar`（GNU 与 POSIX 两形 tar 都含此前缀）。
+fn sniff_asset_kind(path: &Path) -> Result<AssetKind, String> {
+    let mut f = File::open(path).map_err(|e| format!("打开资产失败: {}: {e}", path.display()))?;
+    let mut head = Vec::with_capacity(262);
+    f.by_ref()
+        .take(262)
+        .read_to_end(&mut head)
+        .map_err(|e| format!("读取资产失败: {}: {e}", path.display()))?;
+    Ok(if head.starts_with(&[0x1f, 0x8b]) {
+        AssetKind::Gzip
+    } else if head.starts_with(&[0xfd, b'7', b'z', b'X', b'Z', 0x00]) {
+        AssetKind::Xz
+    } else if head.starts_with(b"PK\x03\x04") {
+        AssetKind::Zip
+    } else if head.len() > 261 && &head[257..262] == b"ustar" {
+        AssetKind::Tar
+    } else {
+        AssetKind::Plain
+    })
+}
+
+/// copy 落盘：非归档原样复制（既有语义零变化）；归档把解包链补完到二进制层——
+/// 压缩层（gzip/xz）先剥，内层是 tar 则展开成员，再按 exe 叶子名挑真身
+/// （`pick_payload_member`：精确名或平台变体名）落盘。
+fn copy_asset_as_binary(
+    tool: &str,
+    leaf: &str,
+    cache_path: &Path,
+    dst: &Path,
+) -> Result<(), String> {
+    let kind = sniff_asset_kind(cache_path)?;
+    if kind == AssetKind::Plain {
+        fs::copy(cache_path, dst).map_err(|e| format!("{tool} 复制资产失败: {e}"))?;
+        return Ok(());
+    }
+    // 目录名带纳秒时戳：同进程并行 install（集成测试多工具并行）下仅 pid 会互踩
+    let uniq = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let tmp =
+        std::env::temp_dir().join(format!("ark-copy-bin-{tool}-{}-{uniq}", std::process::id()));
+    let _ = fs::remove_dir_all(&tmp);
+    let result = (|| {
+        fs::create_dir_all(&tmp).map_err(|e| format!("{tool} 创建临时目录失败: {e}"))?;
+        let members = tmp.join("members");
+        fs::create_dir_all(&members).map_err(|e| format!("{tool} 创建临时目录失败: {e}"))?;
+        match kind {
+            AssetKind::Zip => extract_zip(cache_path, &members)?,
+            AssetKind::Tar => extract_tar(cache_path, &members)?,
+            AssetKind::Gzip | AssetKind::Xz => {
+                let dec = tmp.join("decoded");
+                decode_compressed_to_file(tool, kind, cache_path, &dec)?;
+                if sniff_asset_kind(&dec)? == AssetKind::Tar {
+                    extract_tar(&dec, &members)?;
+                } else {
+                    // 压缩内容即裸二进制（gzip 单层发放），无需挑成员
+                    fs::copy(&dec, dst).map_err(|e| format!("{tool} 复制资产失败: {e}"))?;
+                    return Ok(());
+                }
+            }
+            AssetKind::Plain => unreachable!("Plain 已在上游原样复制"),
+        }
+        let src = pick_payload_member(&members, leaf).ok_or_else(|| {
+            let mut files = Vec::new();
+            collect_files(&members, &mut files);
+            let names: Vec<String> = files.iter().map(|p| p.display().to_string()).collect();
+            format!(
+                "{tool} 资产是归档但未找到可执行成员: {leaf}（或其平台变体）; members={names:?}"
+            )
+        })?;
+        fs::copy(&src, dst).map_err(|e| format!("{tool} 复制资产失败: {e}"))?;
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&tmp);
+    result
+}
+
+/// 剥压缩层到单文件（gzip 走 flate2、xz 走 xz2，R005 组合现成库）。
+fn decode_compressed_to_file(
+    tool: &str,
+    kind: AssetKind,
+    archive: &Path,
+    dest: &Path,
+) -> Result<(), String> {
+    let f = File::open(archive).map_err(|e| format!("{tool} 打开资产失败: {e}"))?;
+    let mut reader: Box<dyn io::Read> = match kind {
+        AssetKind::Gzip => Box::new(flate2::read::GzDecoder::new(f)),
+        AssetKind::Xz => Box::new(xz2::read::XzDecoder::new(f)),
+        _ => return Err(format!("{tool} 非 gzip/xz 不走压缩层解码")),
+    };
+    let mut w = File::create(dest).map_err(|e| format!("{tool} 创建解压文件失败: {e}"))?;
+    io::copy(&mut reader, &mut w).map_err(|e| format!("{tool} 解压失败: {e}"))?;
+    Ok(())
+}
+
+/// 从归档成员目录挑真身二进制：先按 exe 叶子名精确匹配（任意包裹层深度）；
+/// 未命中再按平台变体名——成员 stem 等于 exe stem（yq.exe 对叶名 yq）或以
+/// 「exe stem + `_`/`-`」开头（yq → yq_linux_amd64），多候选取最大者
+/// （确定性口径：变体通常唯一，多命中时大文件优先近似主二进制）。
+fn pick_payload_member(dir: &Path, leaf: &str) -> Option<PathBuf> {
+    if let Some(p) = walkdir_find_file(dir, leaf) {
+        return Some(p);
+    }
+    let stem = leaf.strip_suffix(".exe").unwrap_or(leaf);
+    let mut files = Vec::new();
+    collect_files(dir, &mut files);
+    files
+        .into_iter()
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| {
+                    let s = n.strip_suffix(".exe").unwrap_or(n);
+                    s == stem
+                        || s.starts_with(&format!("{stem}_"))
+                        || s.starts_with(&format!("{stem}-"))
+                })
+                .unwrap_or(false)
+        })
+        .max_by_key(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+}
+
+/// 递归收集 dir 下全部普通文件路径。
+fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            collect_files(&p, out);
+        } else {
+            out.push(p);
+        }
+    }
 }
 
 /// 展平顶层单包裹目录（如 age zip 的 age/、python 的 python/ 包裹层）：
@@ -501,6 +674,8 @@ fn extract_tar_single_binary(
             .map_err(|e| format!("创建安装目录失败: {}: {e}", install_dir.display()))?;
         for leaf in &leaves {
             let src = walkdir_find_file(&tmp, leaf)
+                // 平台变体名回退（yq 形：归档成员是 yq_linux_amd64 而 exe 叶名是 yq）
+                .or_else(|| pick_payload_member(&tmp, leaf))
                 .ok_or_else(|| format!("{tool} 在 {kind} 中未找到可执行文件: {leaf}"))?;
             let dst = install_dir.join(leaf);
             fs::copy(&src, &dst).map_err(|e| {
@@ -750,6 +925,177 @@ mod tests {
             root.join("bin").join("gh.exe").exists(),
             "bin/gh.exe 应原样保留"
         );
+        Ok(())
+    }
+
+    /// 造 yq 形资产夹具：gzip( tar( ./<member> + 干扰成员 ) )。
+    /// member 用平台变体名（./yq_linux_amd64）对齐上游 v4.54.1 真实布局。
+    fn build_targz_with_member(
+        dir: &Path,
+        asset_name: &str,
+        member: &str,
+        payload: &[u8],
+    ) -> Result<PathBuf, String> {
+        let tar_path = dir.join("inner.tar");
+        {
+            let f = File::create(&tar_path).map_err(|e| e.to_string())?;
+            let mut tb = tar::Builder::new(f);
+            let mut h = tar::Header::new_gnu();
+            h.set_size(payload.len() as u64);
+            h.set_mode(0o755);
+            h.set_cksum();
+            tb.append_data(&mut h, member, payload)
+                .map_err(|e| e.to_string())?;
+            let mut h2 = tar::Header::new_gnu();
+            h2.set_size(9);
+            h2.set_cksum();
+            tb.append_data(&mut h2, "yq.1", b"man page".as_slice())
+                .map_err(|e| e.to_string())?;
+            tb.finish().map_err(|e| e.to_string())?;
+        }
+        let gz_path = dir.join(asset_name);
+        {
+            let f = File::create(&gz_path).map_err(|e| e.to_string())?;
+            let mut enc = flate2::write::GzEncoder::new(f, flate2::Compression::default());
+            io::Write::write_all(&mut enc, &fs::read(&tar_path).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
+            enc.finish().map_err(|e| e.to_string())?;
+        }
+        Ok(gz_path)
+    }
+
+    /// 造 yq 形 copy 工具夹具（三平台 extract/exe 同设 copy/yq，测试平台无关）。
+    fn copy_tool_def() -> Tool {
+        Tool {
+            extract: Some("copy".into()),
+            linux_extract: Some("copy".into()),
+            mac_extract: Some("copy".into()),
+            exe: Some("yq\\yq.exe".into()),
+            linux_exe: Some("yq".into()),
+            mac_exe: Some("yq".into()),
+            ..Tool::default()
+        }
+    }
+
+    /// yq 病灶回归（2026-10-10 双机升级轮对齐单件一）：copy 型资产是 gzip 套 tar
+    /// 双层归档（内含 ./yq_linux_amd64 平台变体名）时，解包链须完整到二进制层——
+    /// 装出物是真身字节（ELF 头）而非 tar/gzip 归档本体，且带执行位。
+    #[test]
+    fn copy解包_gzip套tar_抽真身elf非归档本体() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut payload = b"\x7fELF\x02\x01\x01\x00".to_vec();
+        payload.extend_from_slice(b"fake-yq-binary-payload");
+        let asset = build_targz_with_member(
+            tmp.path(),
+            "yq_linux_amd64.tar.gz",
+            "./yq_linux_amd64",
+            &payload,
+        )?;
+
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
+        extract_asset("yq", &copy_tool_def(), &asset, &install_dir, tmp.path())?;
+
+        let dst = install_dir.join("yq");
+        let got = fs::read(&dst).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "装出物应是真身二进制而非 tar/gzip 本体");
+        assert!(got.starts_with(b"\x7fELF"), "装出物应是可执行 ELF");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&dst)
+                .map_err(|e| e.to_string())?
+                .permissions()
+                .mode();
+            assert!(mode & 0o111 != 0, "装出物应带执行位");
+        }
+        Ok(())
+    }
+
+    /// win yq 形：copy 资产是 zip 归档（内含 yq.exe 与干扰文件），按 exe 叶名（或
+    /// stem 变体）挑真身；落地文件名仍取本平台 exe 叶子名。
+    #[test]
+    fn copy解包_zip归档_按叶名挑真身() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let payload = b"MZ\x90\x00fake-yq-exe-payload".to_vec();
+        let zip_path = tmp.path().join("yq_windows_amd64.zip");
+        {
+            let f = File::create(&zip_path).map_err(|e| e.to_string())?;
+            let mut zw = zip::ZipWriter::new(f);
+            let opts = zip::write::SimpleFileOptions::default();
+            zw.start_file("yq.exe", opts).map_err(|e| e.to_string())?;
+            io::Write::write_all(&mut zw, &payload).map_err(|e| e.to_string())?;
+            zw.start_file("README", opts).map_err(|e| e.to_string())?;
+            io::Write::write_all(&mut zw, b"readme").map_err(|e| e.to_string())?;
+            zw.finish().map_err(|e| e.to_string())?;
+        }
+
+        let install_dir = tmp.path().join("yq");
+        fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
+        extract_asset("yq", &copy_tool_def(), &zip_path, &install_dir, tmp.path())?;
+
+        // 落地名取本平台 exe 叶子名：Windows 叶 yq.exe（精确命中），POSIX 叶 yq（stem 变体命中）
+        let dst = install_dir.join(if cfg!(windows) { "yq.exe" } else { "yq" });
+        let got = fs::read(&dst).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "zip 内应按叶名挑出 yq.exe 真身");
+        assert!(got.starts_with(b"MZ"), "win 形装出物应是 PE 可执行");
+        Ok(())
+    }
+
+    /// gzip 单层（内容即裸二进制、无 tar 内层）也剥层落盘。
+    #[test]
+    fn copy解包_gzip裸二进制_剥压缩层() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let payload = b"\x7fELF\x02plain-gz-binary".to_vec();
+        let gz_path = tmp.path().join("tool.gz");
+        {
+            let f = File::create(&gz_path).map_err(|e| e.to_string())?;
+            let mut enc = flate2::write::GzEncoder::new(f, flate2::Compression::default());
+            io::Write::write_all(&mut enc, &payload).map_err(|e| e.to_string())?;
+            enc.finish().map_err(|e| e.to_string())?;
+        }
+
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
+        extract_asset("yq", &copy_tool_def(), &gz_path, &install_dir, tmp.path())?;
+        let got = fs::read(install_dir.join("yq")).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "gzip 单层应剥出裸二进制本体");
+        Ok(())
+    }
+
+    /// 非归档资产保持既有语义：原样复制（既有 copy 工具零行为变化）。
+    #[test]
+    fn copy解包_非归档资产_原样复制() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let payload = b"\x7fELF\x02raw-single-binary".to_vec();
+        let asset = tmp.path().join("tool.bin");
+        fs::write(&asset, &payload).map_err(|e| e.to_string())?;
+
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
+        extract_asset("yq", &copy_tool_def(), &asset, &install_dir, tmp.path())?;
+        let got = fs::read(install_dir.join("yq")).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "非归档资产应原样复制");
+        Ok(())
+    }
+
+    /// 归档内无匹配成员（也无平台变体）如实报错，不落半截产物。
+    #[test]
+    fn dies_copy解包_归档无匹配成员_如实报错() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let asset = build_targz_with_member(
+            tmp.path(),
+            "docs.tar.gz",
+            "./docs/readme.txt",
+            b"no binary here",
+        )?;
+
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(&install_dir).map_err(|e| e.to_string())?;
+        let err = extract_asset("yq", &copy_tool_def(), &asset, &install_dir, tmp.path())
+            .expect_err("归档无匹配成员应报错");
+        assert!(err.contains("未找到可执行成员"), "错误应说明缺成员: {err}");
+        assert!(!install_dir.join("yq").exists(), "不应落半截产物");
         Ok(())
     }
 

@@ -182,3 +182,46 @@ fn linux_profile_path_幂等() {
         .count();
     assert_eq!(count1, count2, "PATH 导出应幂等，不重复添加");
 }
+
+/// yq 病灶回归（2026-10-10 对齐单件一，真网真资产）：catalog 的 yq pin 资产是
+/// yq_linux_amd64.tar.gz（gzip 套 tar、成员 ./yq_linux_amd64 平台变体名）而
+/// linux_extract=copy——copy 解包链须剥层到二进制，装出物是可执行 ELF 而非
+/// tar/gzip 归档本体（此前双机同症「安装后未找到可执行文件或无法读取版本」）。
+#[cfg(not(windows))]
+#[test]
+fn linux_yq_copy归档资产_装出elf非归档本体() {
+    let (_guard, home, env_root) = sandbox();
+
+    ark_cli(&home, &env_root)
+        .args(["install", "yq"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("tool=yq"))
+        .stdout(predicates::str::contains("action=installed"));
+
+    let bin = home.join(".local").join("bin").join("yq");
+    assert!(bin.exists(), "yq 二进制应已安装到 ~/.local/bin");
+    // 期望值来自 ELF 头规范（魔数 \x7fELF）：装出物是真身二进制而非 tar/gzip 本体
+    let mut head = [0u8; 4];
+    use std::io::Read;
+    std::fs::File::open(&bin)
+        .expect("yq 应可读")
+        .read_exact(&mut head)
+        .expect("读 yq 头 4 字节");
+    assert_eq!(
+        &head, b"\x7fELF",
+        "装出物应是可执行 ELF 而非 tar/gzip 归档本体"
+    );
+
+    let out = std::process::Command::new(&bin)
+        .arg("--version")
+        .output()
+        .expect("yq 应可执行");
+    assert!(out.status.success(), "yq --version 应成功");
+    let ver_text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    assert!(
+        ver_text.contains("4.54.1"),
+        "yq --version 应报 pin 锁定版 4.54.1: {ver_text}"
+    );
+}
+
