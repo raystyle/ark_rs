@@ -3,7 +3,7 @@
 catalog：清单主功能。数据面（tools.toml 读写与路径解析）加两个子功能：
 `ark catalog status`（看解析面与云端同步态）与 `ark catalog sync`（从云端刷新用户数据副本，D33）。
 
-数据契约见 `docs/references/R001`：读用 serde（字段同 R001），
+数据契约见 `docs/knowledge/references/R001`：读用 serde（字段同 R001），
 写（pin 回写）用 toml_edit DocumentMut 直接改文档树，保住字段顺序与注释。
 路径解析优先级：
 - EnvRoot：`--env-root` 参数 > `ARK_ROOT` 环境变量 > 存在 D:\ 则 D:\ohmyenv 否则 C:\ohmyenv

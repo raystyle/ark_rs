@@ -7,7 +7,9 @@ __pycache__/
 
 # agent 会话目录（oma init 产物，不入库；CLAUDE.md 指针入库）
 .oma/
-.claude/
+# .claude/ 用 /* 形：划界放行标准 skill 加载视图（ADR-0008，operations/skills 的投影，守卫 .tools/llms-guard.py）
+.claude/*
+!.claude/skills/
 .codex/
 .agents/
 .grok/

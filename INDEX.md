@@ -4,7 +4,7 @@
 
 迁向速查：
 
-- R/G/S/P 编号：`docs/references/README.md`、`docs/guide/README.md`、`docs/research/README.md`、`docs/proven/README.md`
-- 项目日记：`docs/diary/README.md`
+- R/G/S/P 编号：`docs/knowledge/references/README.md`、`docs/operations/README.md`、`docs/knowledge/research/README.md`、`docs/sources/proven/README.md`
+- 项目日记：`docs/sources/diary/README.md`
 - 代码文件位置与目录结构：`llms.txt`
-- 错误速查（M 系列）：`docs/adr/README.md`（批四并入后）
+- 错误速查（M 系列）：`docs/knowledge/adr/README.md`（批四并入后）

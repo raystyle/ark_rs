@@ -6,10 +6,10 @@
 
 - AGENTS.md: 协作规则五节合同（Commands/Must/Must not/Read first/环境）
 - README.md: 项目简介与命令速查；PLAN.md: 命令语义全表
-- PRD.md: D01-D49 冻结决策索引；docs/adr/README.md: ADR-0001 起现行决策
-- docs/requirements/README.md: REQ 需求索引
-- docs/references/README.md: R 开发参考；docs/guide/README.md: G 元规范；docs/research/README.md: S 研究档案
-- CHANGELOG.md / ROADMAP.md: 版本与阶段；docs/diary/README.md: 项目日记
+- PRD.md: D01-D49 冻结决策索引；docs/knowledge/adr/README.md: ADR-0001 起现行决策
+- docs/knowledge/req/README.md: REQ 需求索引
+- docs/knowledge/references/README.md: R 开发参考；docs/operations/README.md: G 元规范；docs/knowledge/research/README.md: S 研究档案
+- CHANGELOG.md / ROADMAP.md: 版本与阶段；docs/sources/diary/README.md: 项目日记
 - 数据模式 R001；清单标准 R015/R016；测试 R004；选型 R005；跨仓协调 R014
 
 ## 目录结构
@@ -17,7 +17,7 @@
 - src/: Rust 源码平铺模块（模块职责见下表）
 - tests/: 集成测试（cli/catalog_lint/install/linux_install/golden/real/mirror_fallback）
 - .tools/: 可复用脚本（清单见 .tools/README.md；文档门禁 mdcharlint/md-ref-scan/md-heading-scan/md-replace）
-- docs/: adr/requirements/references/guide/research/proven/diary（mistakes 并入 ADR 中，ADR-0001 批四）
+- docs/ 三层聚合（ADR-0009）：sources/（diary 日轨迹加 proven 证据加 external 外档留底）、knowledge/（adr 加 req 加 references 加 research 加 mistakes 模式页加 skill-impact 防重提页加 distill-log 流水）、operations/（G 族手册加 skills 标准 skill）
 - bin/: init 产物（git 忽略）
 
 ## 代码文件位置

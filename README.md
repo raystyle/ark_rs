@@ -159,7 +159,7 @@ ark artifact attest <id> --attest-type attest_dev   # 开发验证（生产验�
 ark artifact list --current                          # 当前版列表（晋级/降级归 omc 工作台）
 ```
 
-输出契约：数据走 stdout、提示走 stderr、错误为单行 JSON；`--format kv|json|jsonl` 可选；裸调用 `ark` 出导航指引 exit 0。完整字段与退出码契约见 `docs/references/R013-Agent友好IO契约-输出格式退出码与冻结面.md`。
+输出契约：数据走 stdout、提示走 stderr、错误为单行 JSON；`--format kv|json|jsonl` 可选；裸调用 `ark` 出导航指引 exit 0。完整字段与退出码契约见 `docs/knowledge/references/R013-Agent友好IO契约-输出格式退出码与冻结面.md`。
 
 ### agent CLI 面
 

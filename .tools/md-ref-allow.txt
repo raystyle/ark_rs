@@ -1,5 +1,8 @@
 # md-ref-scan 豁免清单：每行一条正则（反斜杠需写成 \\），匹配引用串则不计断链
 # 占位符模式（格式说明非真实文件）
 ^docs\\proven\\PNNNN-短名\.md$
+^docs\\sources\\proven\\PNNNN-短名\.md$
 ^docs\\diary\\YYYY-MM-DD-主题\.md$
 ^template\.md$
+# ADR-0009 迁移形：历史 diary 不回写，冻结轨迹内指向旧目录结构的链接整族豁免（现役面禁用旧路径，现役引用一律新路径）
+^docs/(requirements|adr|references|research|guide|diary|proven)/

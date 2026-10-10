@@ -15,23 +15,23 @@
 - 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚；默认镜像段读序、GitHub API 兜底，`ARK_MIRROR=0` 官方优先逃逸阀（D51））
 - 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关）
 - 报缺陷：`ark issue new "<标题>" --kind bug --acceptance "<验收>"`（新真源 ledger.ohmygh.com 仓级公共账本，REQ-063/REQ-0015；`ark issue list [--before <id>]` 与 `show <n>` 读面；产物沉淀走 `ark artifact publish/attest/list`（只增面；关单/删除/晋级归 omc 工作台 herdr 委托）；遇缺陷即一键反馈，agent 纪律）
-- 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/research docs/references`；`mq -F grep '.h2' docs/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）
-- 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py`；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/repos/project-evo/.tools/check.py .`
+- 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/knowledge/research docs/knowledge/references`；`mq -F grep '.h2' docs/knowledge/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）
+- 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py` 加 `uv run --script .tools/llms-guard.py`（模块表与技能投影守卫，ADR-0009）；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/repos/project-evo/.tools/check.py .`
 - 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL` 闸门 skip
 - 格式与静态检查：`cargo fmt --check` 与 `cargo clippy --release --locked`（改 Rust 必跑）；lib 面 `missing_docs` 为 deny（Cargo.toml lints，ADR-0006 第五十九批强制口径）
 - aidoc 投影：改 pub 项后 `cargo aidoc` 生成并同提交 `docs/aidoc/`（生成物手改被覆盖）；漂移门禁 `cargo aidoc --check --strict`（需 cargo-aidoc 与其要求的 nightly 工具链；CI linux 岗已挂此门禁）
 - 文档骨架合规：`PEVO_CHECK_ALLOW="^docs/aidoc/" uv run ~/repos/project-evo/.tools/check.py .`（退出码 0；豁免在册，aidoc 条目分隔符 em dash 是渲染格式无开关，真门禁是 aidoc --check --strict；路径随 project-evo 两插件收敛迁 .tools，2026-10-09）
-- 提交：`feat:` / `docs:` / `fix:` / `chore:` 前缀加中文描述；一次提交只做一件事；未经指示不推远端
+- 提交：`feat:` / `docs:` / `fix:` / `chore:` 前缀加中文描述；一次提交只做一件事；未经指示不推远端；三层聚合单仓纪律形（ADR-0009）：knowledge 面（`docs/knowledge/`）先于标准面（`docs/operations/`）独立成 commit，闸门拒绝只回滚标准面与加载视图（`.claude/skills/`），knowledge 路径永不 reset
 
 ## Must
 
-- 每轮对话先核对任务面（`docs/requirements/` REQ 与 AGENTS 环境节；历史决策查 PRD 冻结索引）；实质推进当场更新，禁止不核对就干活、偏离当前目标、推进了不更新
-- 新需求先立 REQ（draft 起，实现回填 trace）；不可逆技术选择先立 ADR（`docs/adr/`，状态机 proposed 到 accepted 到 superseded）
+- 每轮对话先核对任务面（`docs/knowledge/req/` REQ 与 AGENTS 环境节；历史决策查 PRD 冻结索引）；实质推进当场更新，禁止不核对就干活、偏离当前目标、推进了不更新
+- 新需求先立 REQ（draft 起，实现回填 trace）；不可逆技术选择先立 ADR（`docs/knowledge/adr/`，状态机 proposed 到 accepted 到 superseded）
 - 踩坑当场落档：构成纪律或决策的立 ADR，过程性的记 diary，同根因同型坑合并（错误模式库 ADR-0002 至 ADR-0006）；深挖落 research。禁止只留在对话里反复试错
 - 发现问题走五步闭环（G003）：定位（先搜索引）、归类（错修文档、缺补规则、知识落研究、出错记档、实证进 references）、修正（改在源头，下游同步）、验证（门禁全跑）、提交（一事一提交，diary 记钩子）
 - 遇 ark 或部署工具链缺陷当场 `ark issue new "<标题>" --body "<复现与输出>"` 一键反馈（统一入口 issues.ohmygh.com，REQ-0009；回执 id/url 记 diary），不当场搁置
-- 交付变更时改代码同步对应文档，改文档同步索引与 `docs/diary/`；版本级成果进 CHANGELOG
-- 经验沉淀（G004 强规则）：成功方案回填 REQ trace 与关联 ADR；实证做法与多犯沉淀的正确工作流进 `docs/references/` 并挂路由或索引；同型坑二犯以上升格 references 并互指。禁止 `[经验]` 断言只留研究不落 references、错误只记现象不记根因、`[推断]`/`[假设]` 跳级、一条知识两个权威落位
+- 交付变更时改代码同步对应文档，改文档同步索引与 `docs/sources/diary/`；版本级成果进 CHANGELOG
+- 经验沉淀（G004 强规则）：成功方案回填 REQ trace 与关联 ADR；实证做法与多犯沉淀的正确工作流进 `docs/knowledge/references/` 并挂路由或索引；同型坑二犯以上升格 references 并互指。禁止 `[经验]` 断言只留研究不落 references、错误只记现象不记根因、`[推断]`/`[假设]` 跳级、一条知识两个权威落位
 - 写 Rust 先按 R005 双通道查 crates.io / GitHub 选最流行稳定库，最少代码接上，优先组合不自写协议、解压、HTTP、哈希、CLI 解析；**实质代码改动（新模块、跨文件接线、并发与进程管理）推送前必须经对线 review（herdr 驱动 codex 或用户点名复核），对线结论与修复回执入 diary**（用户裁 2026-09-11）
 - 写文档遵守 G001（树形、标题干净、文件名即标题、rumdl 与 .tools/mdcharlint.py 禁字机检）；写研究与测试文档事实性断言必标六态之一（G002）：`[实证]`、`[推断]`、`[经验]`、`[记忆]`、`[假设]`、`[直觉]`
 - 写测试遵守 R004（三层分层集成优先、期望值来自独立来源、断言只写稳定字段、`TestResult` 加 `?`、真实环境测试闸门 skip）
@@ -52,12 +52,12 @@
 ## Read first
 
 1. 本文件（五节合同）
-2. `PRD.md`（D01 至 D49 冻结决策索引）与 `docs/adr/README.md`（ADR-0001 起现行决策）
-3. `docs/requirements/README.md`（REQ 索引；`TODO.md` 为历史任务档案）
+2. `PRD.md`（D01 至 D49 冻结决策索引）与 `docs/knowledge/adr/README.md`（ADR-0001 起现行决策）
+3. `docs/knowledge/req/README.md`（REQ 索引；`TODO.md` 为历史任务档案）
 4. `README.md`（项目简介与命令；`PLAN.md` 为历史规划档案）
 5. `llms.txt`（agent 检索面：读序与代码文件位置；ADR-0001 批三起 INDEX 退役）
 6. 细则权威：数据模式 R001；清单标准 R015；测试 R004；选型 R005；协调 R014；元规范 G001 至 G004；错误模式查 ADR-0002 至 ADR-0006（原 M 系列并入，M0xx 编号附录内可检）
-7. `ROADMAP.md` / `CHANGELOG.md` 查阶段与历史；`docs/diary/` 当天钩子
+7. `ROADMAP.md` / `CHANGELOG.md` 查阶段与历史；`docs/sources/diary/` 当天钩子
 
 ## 环境
 
