@@ -8,7 +8,6 @@ use std::fs::{self, File};
 use std::io;
 use std::io::Read;
 use std::path::Path;
-#[cfg(any(not(windows), test))]
 use std::path::PathBuf;
 #[cfg(windows)]
 use std::process::Command;
@@ -747,7 +746,8 @@ fn extract_zip_bin(
 }
 
 /// 在 dir 下递归查找名为 name 的普通文件。
-#[cfg(not(windows))]
+/// 无平台门控：copy/single 剥层链（含 zip 形）Windows 同走（门控残留曾致 win-gnu 交叉编译红，
+/// CI build 岗与 release.ps1 构建步双闸在守）。
 fn walkdir_find_file(dir: &Path, name: &str) -> Option<PathBuf> {
     for entry in fs::read_dir(dir).ok()? {
         let entry = entry.ok()?;
