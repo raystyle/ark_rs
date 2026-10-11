@@ -185,11 +185,12 @@ fn linux_profile_path_幂等() {
 
 /// yq 病灶回归（2026-10-10 对齐单件一，真网真资产）：catalog 的 yq pin 资产是
 /// yq_linux_amd64.tar.gz（gzip 套 tar、成员 ./yq_linux_amd64 平台变体名）而
-/// linux_extract=copy——copy 解包链须剥层到二进制，装出物是可执行 ELF 而非
+/// linux_extract=copy——copy 解包链须剥层到二进制，装出物是平台真身可执行而非
 /// tar/gzip 归档本体（此前双机同症「安装后未找到可执行文件或无法读取版本」）。
+/// mac CI 岗同跑本测（资产按平台解析为 yq_darwin_arm64），魔数断言平台感知。
 #[cfg(not(windows))]
 #[test]
-fn linux_yq_copy归档资产_装出elf非归档本体() {
+fn linux_yq_copy归档资产_装出平台真身非归档本体() {
     let (_guard, home, env_root) = sandbox();
 
     ark_cli(&home, &env_root)
@@ -201,16 +202,23 @@ fn linux_yq_copy归档资产_装出elf非归档本体() {
 
     let bin = home.join(".local").join("bin").join("yq");
     assert!(bin.exists(), "yq 二进制应已安装到 ~/.local/bin");
-    // 期望值来自 ELF 头规范（魔数 \x7fELF）：装出物是真身二进制而非 tar/gzip 本体
+    // 期望值来自可执行格式规范魔数（R004 独立来源）：ELF 头 \x7fELF（Linux）、
+    // Mach-O 64 位 0xFEEDFACF 小端（macOS，CI mac 岗首跑实证）——装出物是平台
+    // 真身二进制而非 tar/gzip 本体
     let mut head = [0u8; 4];
     use std::io::Read;
     std::fs::File::open(&bin)
         .expect("yq 应可读")
         .read_exact(&mut head)
         .expect("读 yq 头 4 字节");
+    let expected: &[u8; 4] = if cfg!(target_os = "macos") {
+        &[0xcf, 0xfa, 0xed, 0xfe]
+    } else {
+        b"\x7fELF"
+    };
     assert_eq!(
-        &head, b"\x7fELF",
-        "装出物应是可执行 ELF 而非 tar/gzip 归档本体"
+        &head, expected,
+        "装出物应是平台真身可执行（ELF/Mach-O）而非 tar/gzip 归档本体"
     );
 
     let out = std::process::Command::new(&bin)
