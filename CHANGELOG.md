@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-11
+
+minor：Unreleased 窗四批（官方上游定时预播 REQ-0017 加升级轮对齐修复与 GitHub 反代道 REQ-0018 加三层聚合对齐迁移 REQ-0019 加 D34 密钥轮换第一步双钥过渡 REQ-0020）。
+
 - **D34 密钥轮换第一步双钥过渡**（REQ-0020，2026-10-11）：签发私钥原值不可达（旧仓 Secret 不可读加本机无副本），按 D34 既有轮换协议启动轮换：内嵌公钥 `CLOUD_CATALOG_PUBKEYS` 扩双钥（旧钥 FB93BFD3788C2316 居首、新钥 EB15358F893ED0DB 追加第二，过渡期任一验过即通过，验证逻辑零改动）；key id 单值数组化 `CLOUD_CATALOG_PUBKEY_IDS`，签名校验失败提示与 `catalog status` 的 `pubkey` 字段并列双 id；新钥公钥进仓库（`.tools/catalog-sign/catalog-signing-new.pub` 过渡期文件）；双钥三态单测（同内容旧钥签过、新钥签过、一次性废钥合法签名拒）加 catalog-sign 独立源交叉验证四态。云端清单重签归签发侧后续批，全端铺开后摘旧钥收单。
 - **三层聚合对齐迁移**（REQ-0019、ADR-0009，con-04 施工单六件，distil-skill v2 定稿后首施工）：docs 三层落位（sources：diary 加 proven 加 external 立位；knowledge：adr 加 req 改名加 references 加 research 加 mistakes 立位加防重提页加蒸馏流水；operations：G 族整族迁入加 skills 子面），git mv 保史、现役面引用全量同步、历史 diary 不回写（旧路径链接豁免在册）；单仓纪律形成文进 AGENTS（knowledge 先于标准独立 commit、knowledge 路径永不 reset）；`.gitignore` 划界放行 `.claude/skills/`；防重提页与流水空态立（权限句在文）；首轮蒸馏试点 M107 至 M109 三页模式页加一案 create 标准 skill 候选 ark-catalog-addition（点名义务装出物可执行断言、三证据页头自记、接受停人裁待审）；根 llms.txt 模块表漂移守卫 `.tools/llms-guard.py`（src 双向对账加技能投影同步）进门禁。
 - **GitHub 反代道**（REQ-0018 件三，同轮追加单）：下载层新增自建 GitHub 反代中间层（proxy.ohmygh.com 前缀形直通 release 资产，源码仓 raystyle/ghproxy），通道优先级 = 工具镜像（R2 版本段）> GitHub 反代 > GitHub 直连：反代道在官方腿内先行单次（github.com / releases.githubusercontent.com / objects.githubusercontent.com 三域 URL 改写为 `<base>/<原URL>`，锚校验同尺，api.github.com 与镜像域不改写），失败回落直连完整链（ureq 重试加 curl 兜底不变）；墙内直连回落慢断的病灶由反代补中间层。配置面 `ARK_GH_PROXY` 环境变量：缺省启用 `https://proxy.ohmygh.com/`，自定义基址覆盖，`0` 或空串关闭；`ARK_MIRROR=0` 逃逸阀同关反代（真官方优先）。`download_asset` 官方腿收口实现，selfupdate 官方腿自动受益；sums/清单类 download_fresh 仍直连（改动面收束，后续按需扩）。
