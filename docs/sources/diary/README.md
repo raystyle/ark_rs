@@ -56,3 +56,5 @@
 | 2026-10-02 | `docs/sources/diary/2026-10-02-官方上游定时预播REQ-0017.md` | 官方上游定时预播 REQ-0017：田野轮遮蔽实况、ai_ccoe 飞轮规划、agent-upstream 双频率层实现、对线两轮 NEEDS-FIX 六单至 CONFIRM |
 | 2026-10-10 | `docs/sources/diary/2026-10-10-升级轮对齐三件REQ-0018.md` | 升级轮对齐三件：yq copy 解包链剥层、evergreen CDN 滚装、GitHub 反代道 |
 | 2026-10-11 | `docs/sources/diary/2026-10-11-D34密钥轮换第一步REQ-0020.md` | D34 密钥轮换第一步双钥过渡加收尾批 d34-01：REQ-0020 落码、封版 v1.7.0、五端铺版与滚端 |
+| 2026-10-12 | `docs/sources/diary/2026-10-12-issue11预播失败排查预评审.md` | issue#11 预播失败排查预评审：熟仓证据基线、复现根因回归三段判据草案、dispatch token 404 嫌疑分级 |
+| 2026-10-12 | `docs/sources/diary/2026-10-12-issue11预播失败排查与通知面降级.md` | issue#11 根因定案（ai-cloud 归档）与通知面降级修复：dispatch 失败 WARN 不红、目标仓探活、九态回归 |

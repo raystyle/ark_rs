@@ -6,7 +6,9 @@
 # 来源，层判定收口在此）；workflow_dispatch 可显式 tier=all 补跑与 tools 名单过滤。
 # 分工边界（R008）：只灌版本段 <tool>/<version>/ immutable 加自产 sha256 边车；
 # stable 段与 catalog 锚定联动归 ai-cloud catalog-seed，本岗绝不触碰；预播成功发
-# repository_dispatch（事件 agent-upstream-seeded，token 缺则脚本 WARN 不红）。
+# repository_dispatch（事件 agent-upstream-seeded）。issue#11 起通知面降级口径：
+# token 缺或通知失联（目标仓归档 404、401/403）脚本 WARN 不红，预播主体不背锅，
+# 终局摘要出 dispatch 态字段；目标仓可经 repo variable AGENT_UPSTREAM_DISPATCH_REPO 换。
 # 失败红灯加自动 gh issue（写明资产名与期望差；同日同题开单追加评论不重复建档）。
 name: agent-upstream
 
@@ -43,6 +45,9 @@ jobs:
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       AGENT_UPSTREAM_DISPATCH_TOKEN: ${{ secrets.AGENT_UPSTREAM_DISPATCH_TOKEN }}
+      # issue#11：dispatch 目标仓可配（repo variable，换仓零改码）；未配/空回退
+      # 脚本缺省 raystyle/ai-cloud（已归档 2026-10-09，通知面降级 WARN 不红）
+      AGENT_UPSTREAM_DISPATCH_REPO: ${{ vars.AGENT_UPSTREAM_DISPATCH_REPO }}
     steps:
       - uses: actions/checkout@v5
       - name: 装 rclone 与 uv（rclone pin v1.75.1，sha 锚即 catalog linux pin；配方同 r2-seed.yml）
@@ -59,6 +64,8 @@ jobs:
           if [ "$TIER" = "agent" ] && [ "$(date -u +%u)" = "1" ]; then TIER=all; fi
           echo "TIER=$TIER" >> "$GITHUB_ENV"
           echo "TOOLS=${{ inputs.tools }}" >> "$GITHUB_ENV"
+      - name: 通知面自测（dispatch 三态回归，issue#11，零网络）
+        run: uv run --script .tools/test-agent-upstream.py
       - name: 预播（teelog 落盘供 issue 引用；pipefail 防吞退出码）
         env:
           GH_TOKEN: ${{ github.token }}

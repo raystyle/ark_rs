@@ -14,9 +14,11 @@
   上传（防半灌，同 seed.py 先例）。
 - rclone copyto 灌版本段 <tool>/<version>/（Cache-Control immutable）加自产
   sha256 边车（<hex 小写>空两格<asset>，同 seed.py 契约）。
-- 预播成功后 repository_dispatch 通知 ai-cloud 仓（event_type=agent-upstream-seeded，
-  client_payload 出工具加版本加逐件 sha 加 run_url；token 缺则 WARN 跳过不红）。
-  R008 分工边界：catalog bump 与 stable 段归 ai-cloud catalog-seed，本面绝不触碰。
+- 预播成功后 repository_dispatch 通知 dispatch 目标仓（event_type=agent-upstream-seeded，
+  client_payload 出工具加版本加逐件 sha 加 run_url）。通知面失败降级 WARN 不红
+  （issue#11：token 缺或目标仓失联（归档 404、401、403），预播主体不背锅；终局
+  摘要 JSON 出 dispatch 态字段保可见）。R008 分工边界：catalog bump 与 stable 段
+  归 ai-cloud catalog-seed，本面绝不触碰。
 - 红灯：任一资产缺或校验不符即该工具整体不灌记失败，终局退出码 1（workflow
   侧失败自动落 gh issue 写明资产名与期望差）。
 
@@ -27,7 +29,9 @@
 
 环境变量：GH_TOKEN（gh api 用，runner 予 github.token，本机用 gh 登录态）；
 上传需 R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / R2_BUCKET 与 rclone；
-AGENT_UPSTREAM_DISPATCH_TOKEN 可选（ai-cloud repository_dispatch）；
+AGENT_UPSTREAM_DISPATCH_TOKEN 可选（repository_dispatch 通知）；
+AGENT_UPSTREAM_DISPATCH_REPO 可选（通知目标仓，缺省 raystyle/ai-cloud，issue#11 后
+可经 GitHub repo variable AGENT_UPSTREAM_DISPATCH_REPO 换仓零改码，空值回退缺省）；
 AGENT_UPSTREAM_DOMAIN 可选（域面比对锚，缺省 https://env.ohmygh.com）。
 
 退出码：0 全跳过或全成；1 有失败项；2 清单解析或参数错。
@@ -52,7 +56,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tools" / "agent-upstream.toml"
 DOMAIN = os.environ.get("AGENT_UPSTREAM_DOMAIN", "https://env.ohmygh.com")
-DISPATCH_REPO = os.environ.get("AGENT_UPSTREAM_DISPATCH_REPO", "raystyle/ai-cloud")
+# 空值回退缺省（issue#11）：workflow 面 repo variable 未配时透传空串而非不出键
+DISPATCH_REPO = os.environ.get("AGENT_UPSTREAM_DISPATCH_REPO") or "raystyle/ai-cloud"
 DISPATCH_EVENT = "agent-upstream-seeded"
 RCLONE_ENV = {
     "RCLONE_CONFIG_SEED_TYPE": "s3",
@@ -154,6 +159,69 @@ def parse_sums(text: str) -> dict[str, str]:
         elif b:
             table[b.group(1).strip()] = b.group(2).lower()
     return table
+
+
+def send_dispatch(seeded: list[dict]) -> str:
+    """预播成功通知 dispatch 目标仓（catalog bump 面，R008 分工）。
+
+    返回态（issue#11 降级口径：通知属辅助面，失联不折预播验收）：
+    ok / skip-token（token 未配，WARN 不红，REQ-0017 既有口径）
+    / failed:<gh stderr 摘要>（目标仓归档 404、token 401/403 等失联，同 WARN 不红）。
+    F5：该端点必填 event_type 加 client_payload（对象形，顶层不超 10 键、64KB 内），
+    gh -F 传 string 会被拒，必须 --input - 喂整 JSON。
+    """
+    token = os.environ.get("AGENT_UPSTREAM_DISPATCH_TOKEN")
+    if not token:
+        return "skip-token"
+    run_url = ""
+    if os.environ.get("GITHUB_REPOSITORY"):
+        run_url = (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+                   f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
+                   f"{os.environ.get('GITHUB_RUN_ID', '')}")
+    payload = json.dumps({
+        "event_type": DISPATCH_EVENT,
+        "client_payload": {
+            "tools": seeded,
+            "run_url": run_url,
+            "seeded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+    }, ensure_ascii=False)
+    proc = subprocess.run(
+        ["gh", "api", f"repos/{DISPATCH_REPO}/dispatches", "--method", "POST",
+         "--input", "-", "-H", "Content-Type: application/json"],
+        input=payload, capture_output=True, text=True,
+        env={**os.environ, "GH_TOKEN": token},
+    )
+    if proc.returncode != 0:
+        return f"failed:{proc.stderr.strip()[:160]}"
+    return "ok"
+
+
+def probe_dispatch_target() -> str | None:
+    """token 在位时的通知面只读探活（评审格 O2，issue#11）：GET 目标仓验活性。
+
+    返回 None（token 未配不探）或 ok / archived / inaccessible:<码>。归档仓 REST
+    写面恒拒而 GET 仍 200（issue#11 根因：ai-cloud 归档后 POST dispatches 404、
+    GET 仓体照常），故判据取 archived 标志位而非 HTTP 200；token 腐化（401/403/
+    404 不可见）同探同报。只读探活 WARN 不红，全跳态（seeded=0）也跑，腐化前置
+    可见不必等新版发布日。
+    """
+    token = os.environ.get("AGENT_UPSTREAM_DISPATCH_TOKEN")
+    if not token:
+        return None
+    proc = subprocess.run(
+        ["gh", "api", f"repos/{DISPATCH_REPO}", "--jq", ".archived"],
+        capture_output=True, text=True, env={**os.environ, "GH_TOKEN": token},
+    )
+    if proc.returncode != 0:
+        err = proc.stderr.strip()
+        for code in ("401", "403", "404"):
+            if code in err:
+                return f"inaccessible:http-{code}"
+        return f"inaccessible:{err[:60]}"
+    if proc.stdout.strip() == "true":
+        return "archived"
+    return "ok"
 
 
 def main() -> int:
@@ -287,43 +355,34 @@ def main() -> int:
         })
         print(f"[ok] {name} {version}: {len(assets)} 件灌版本段（immutable）加边车")
 
-    # 预播成功通知 ai-cloud（catalog bump 面，R008 分工；token 缺则 WARN 跳过不红）。
-    # F5：该端点必填 event_type 加 client_payload（对象形，顶层不超 10 键、64KB 内），
-    # gh -F 传 string 会被拒，必须 --input - 喂整 JSON。
+    # 预播成功通知 dispatch 目标仓；issue#11 起降级口径：通知面失联（目标仓归档
+    # 404、token 401/403 等）WARN 不红，预播主体不背锅；终局摘要恒出 dispatch 态
+    # 字段（ok / skip-token / skip-no-seed / failed:<缘由>）保可见。
+    # 通知面探活（评审格 O2）：token 在位即 GET 目标仓验 archived 与可见性，
+    # 全跳态也跑，腐化前置可见；探活失联只 WARN 不折预播验收。
+    probe_state = probe_dispatch_target()
+    if probe_state not in (None, "ok"):
+        print(f"[WARN] dispatch 目标仓 {DISPATCH_REPO} 探活异常：{probe_state}"
+              "（通知面失联前置可见；目标仓归档或 token 不可见，catalog bump 需人工"
+              "对齐或换仓配 AGENT_UPSTREAM_DISPATCH_REPO）")
+    dispatch_state = "skip-no-seed"
     if seeded:
-        token = os.environ.get("AGENT_UPSTREAM_DISPATCH_TOKEN")
-        run_url = ""
-        if os.environ.get("GITHUB_REPOSITORY"):
-            run_url = (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
-                       f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
-                       f"{os.environ.get('GITHUB_RUN_ID', '')}")
-        payload = json.dumps({
-            "event_type": DISPATCH_EVENT,
-            "client_payload": {
-                "tools": seeded,
-                "run_url": run_url,
-                "seeded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            },
-        }, ensure_ascii=False)
-        if not token:
+        dispatch_state = send_dispatch(seeded)
+        if dispatch_state == "ok":
+            print(f"[ok] repository_dispatch {DISPATCH_EVENT} -> {DISPATCH_REPO}"
+                  f"（{len(seeded)} 工具）")
+        elif dispatch_state == "skip-token":
             print("[WARN] AGENT_UPSTREAM_DISPATCH_TOKEN 未配置，跳过 repository_dispatch"
                   "（预播已成功不红；配置后下次生效）")
         else:
-            proc = subprocess.run(
-                ["gh", "api", f"repos/{DISPATCH_REPO}/dispatches", "--method", "POST",
-                 "--input", "-", "-H", "Content-Type: application/json"],
-                input=payload, capture_output=True, text=True,
-                env={**os.environ, "GH_TOKEN": token},
-            )
-            if proc.returncode != 0:
-                print(f"[FAIL] repository_dispatch {DISPATCH_REPO}: {proc.stderr.strip()[:200]}")
-                stats["failed"] += 1
-                fails.append(f"dispatch: {proc.stderr.strip()[:120]}")
-            else:
-                print(f"[ok] repository_dispatch {DISPATCH_EVENT} -> {DISPATCH_REPO}"
-                      f"（{len(seeded)} 工具）")
+            print(f"[WARN] repository_dispatch {DISPATCH_REPO}: {dispatch_state[7:]}"
+                  "（通知面失联不红，预播主体已成功；常见因目标仓归档或不可见 404、"
+                  "token 失效 401、缺权限 403；换仓可配 AGENT_UPSTREAM_DISPATCH_REPO）")
 
-    print(json.dumps({"tier": args.tier, **stats, "fails": fails}, ensure_ascii=False))
+    summary = {"tier": args.tier, "dispatch": dispatch_state, **stats, "fails": fails}
+    if probe_state is not None:
+        summary["dispatch_probe"] = probe_state
+    print(json.dumps(summary, ensure_ascii=False))
     return 1 if stats["failed"] else 0
 
 
