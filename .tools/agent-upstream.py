@@ -193,7 +193,9 @@ def send_dispatch(seeded: list[dict]) -> str:
         env={**os.environ, "GH_TOKEN": token},
     )
     if proc.returncode != 0:
-        return f"failed:{proc.stderr.strip()[:160]}"
+        # 压白多行 stderr 保单行 WARN 约定（评审 G4）；空 stderr 兜退出码文案
+        reason = " ".join(proc.stderr.split())[:160] or f"gh exit {proc.returncode}"
+        return f"failed:{reason}"
     return "ok"
 
 
@@ -214,9 +216,10 @@ def probe_dispatch_target() -> str | None:
         capture_output=True, text=True, env={**os.environ, "GH_TOKEN": token},
     )
     if proc.returncode != 0:
-        err = proc.stderr.strip()
+        err = " ".join(proc.stderr.split())
+        # 锚定 (HTTP <码>) 形防数字串误吸（评审 G5；gh 报错恒此形）
         for code in ("401", "403", "404"):
-            if code in err:
+            if f"(HTTP {code})" in err:
                 return f"inaccessible:http-{code}"
         return f"inaccessible:{err[:60]}"
     if proc.stdout.strip() == "true":

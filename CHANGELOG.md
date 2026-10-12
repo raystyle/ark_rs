@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-- **预播通知面降级与目标仓探活**（REQ-0017 trace 批，issue#11）：根因定案 = dispatch 目标仓 `raystyle/ai-cloud` 2026-10-09T05:39:56Z 归档（REST 写面恒拒，POST dispatches 404；属主凭据直打复现排除 token 失效），run 9 预播本体成功唯通知腿失联记红、run 10/11 同版绿跳假性自愈。修复：dispatch 失败降级 WARN 不红（预播主体不背锅），终局摘要恒出 dispatch 态字段（ok/skip-token/skip-no-seed/failed:<缘由>）；token 在位时每跑先 GET 目标仓只读探活（archived 标志位与 token 可见性判据，全跳态也跑，腐化前置可见；GET 200 测不出归档，标志位才是判据）；目标仓可经 env 或 GitHub repo variable `AGENT_UPSTREAM_DISPATCH_REPO` 换仓零改码（空值回退缺省）；回归 `.tools/test-agent-upstream.py` 九态（零网络 mock）挂 agent-upstream workflow 自测步。catalog bump 新落点待总台裁（issue#11 在册）。
+- **预播通知面降级与目标仓探活**（REQ-0017 trace 批，issue#11）：根因定案 = dispatch 目标仓 `raystyle/ai-cloud` 2026-10-09T05:39:56Z 归档（REST 写面恒拒，POST dispatches 404；属主凭据直打复现排除 token 失效），run 9 预播本体成功唯通知腿失联记红、run 10/11 同版绿跳假性自愈。修复：dispatch 失败降级 WARN 不红（预播主体不背锅），终局摘要恒出 dispatch 态字段（ok/skip-token/skip-no-seed/failed:<缘由>）；token 在位时每跑先 GET 目标仓只读探活（archived 标志位与 token 可见性判据，全跳态也跑，腐化前置可见；GET 200 测不出归档，标志位才是判据）；目标仓可经 env 或 GitHub repo variable `AGENT_UPSTREAM_DISPATCH_REPO` 换仓零改码（空值回退缺省）；回归 `.tools/test-agent-upstream.py` 十五态（零网络 mock，评审 G3 main 级降级契约在内）挂 agent-upstream workflow 自测步。catalog bump 新落点待总台裁（issue#11 在册）。
 
 ## [1.7.0] - 2026-10-11
 
