@@ -173,6 +173,8 @@ class MainSummaryContractTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True), \
                 mock.patch.object(AU, "probe_dispatch_target",
                                   return_value=probe), \
+                mock.patch.object(AU, "gh_latest_tag",
+                                  return_value="v0.0.0-test"), \
                 mock.patch.object(sys, "stdout", out), \
                 mock.patch.object(AU, "http_head", return_value=404), \
                 mock.patch.object(AU, "http_get", return_value=(-1, b"net")):
