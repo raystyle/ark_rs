@@ -1,7 +1,8 @@
 //! verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。
 //! 维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、
 //! 文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。
-//! 输出 `dim=PASS/FAIL/NA` 收割行（NA 不参与收割）。
+//! 输出 `dim=PASS/WARN/FAIL/NA` 收割行（NA 不参与收割；WARN 不红不拦退出码——
+//! 已装未锁是撤钉/去锁形态的如实态，非部署缺陷，issue#7）。
 //! 密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。
 
 use std::path::Path;
@@ -166,11 +167,7 @@ static DIMS: &[DimDef] = &[
         windows: false,
         posix: true,
         tools: &["rmux"],
-        files_all: &[
-            "~/.local/bin/rmux",
-            "~/.local/bin/rmux-daemon",
-            "~/.local/libexec/rmux/rmux",
-        ],
+        files_all: &["~/.local/bin/rmux", "~/.local/share/rmux/libexec/rmux/rmux"],
         files_any: &[],
     },
     DimDef {
@@ -193,6 +190,8 @@ pub fn dim_names() -> Vec<&'static str> {
 pub enum Verdict {
     /// 维度通过
     Pass,
+    /// 维度告警（工具已装可跑但未锁定：evergreen 撤钉 / D43 去锁形态的如实态，不红不拦退出码）
+    Warn,
     /// 维度失败
     Fail,
     /// 本平台不适用
@@ -200,10 +199,11 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    /// 判定短名（dim=PASS/FAIL/NA 收割行）。
+    /// 判定短名（dim=PASS/WARN/FAIL/NA 收割行）。
     pub fn as_str(&self) -> &'static str {
         match self {
             Verdict::Pass => "PASS",
+            Verdict::Warn => "WARN",
             Verdict::Fail => "FAIL",
             Verdict::Na => "NA",
         }
@@ -266,8 +266,9 @@ pub fn run_verify_with<F: FnMut(&str, Verdict) -> Result<(), String>>(
         rows.push(row.clone());
         flush_ready(&rows, &mut out)
     })?;
-    flush_ready(&rows, &mut out)?; // 收尾：文件组维度兜底出列
-                                   // 兜底：维度含 catalog 缺失工具（row 永不到齐）时按 judge 判 NA 出列，不静默漏维度
+    // 收尾：文件组维度兜底出列
+    flush_ready(&rows, &mut out)?;
+    // 兜底：维度含 catalog 缺失工具（row 永不到齐）时按 judge 判 NA 出列，不静默漏维度
     for def in &active {
         if !out.iter().any(|(n, _)| n == def.name) {
             let v = judge(def, &rows, cat, env_root);
@@ -296,7 +297,10 @@ pub fn run_verify(
 }
 
 /// 单维度判定：工具组三态（组内有平台不适用工具则 NA）加文件组存在性。
+/// 工具组口径（issue#7）：已装未锁 → WARN（evergreen 撤钉 / D43 去锁的如实态，不红）；
+/// 未装 → FAIL（部署缺失）；锁装不等 → FAIL（真漂移）。文件组任一缺失恒 FAIL（硬断言压过 WARN）。
 fn judge(def: &DimDef, rows: &[status::StatusRow], cat: &Catalog, env_root: &Path) -> Verdict {
+    let mut has_warn = false;
     for t in def.tools {
         let tool = match cat.tool(t) {
             Ok(td) => td,
@@ -311,8 +315,10 @@ fn judge(def: &DimDef, rows: &[status::StatusRow], cat: &Catalog, env_root: &Pat
         let Some(installed) = &row.installed else {
             return Verdict::Fail;
         };
-        if row.locked.as_deref() != Some(installed.as_str()) {
-            return Verdict::Fail;
+        match row.locked.as_deref() {
+            None => has_warn = true, // 已装未锁：撤钉/去锁形态，文件组无缺失则 WARN
+            Some(locked) if locked != installed => return Verdict::Fail,
+            _ => {}
         }
     }
     for f in def.files_all {
@@ -328,17 +334,26 @@ fn judge(def: &DimDef, rows: &[status::StatusRow], cat: &Catalog, env_root: &Pat
     {
         return Verdict::Fail;
     }
-    Verdict::Pass
+    if has_warn {
+        Verdict::Warn
+    } else {
+        Verdict::Pass
+    }
 }
 
-/// 汇总（--json 用）。
-pub fn summarize(rows: &[(String, Verdict)]) -> (usize, Vec<String>) {
+/// 汇总（--json 用）：FAIL 计入红灯名单；WARN 单列（已装未锁态，不拦退出码）。
+pub fn summarize(rows: &[(String, Verdict)]) -> (usize, Vec<String>, Vec<String>) {
     let fails = rows
         .iter()
         .filter(|(_, v)| *v == Verdict::Fail)
         .map(|(n, _)| n.clone())
         .collect::<Vec<_>>();
-    (rows.len(), fails)
+    let warns = rows
+        .iter()
+        .filter(|(_, v)| *v == Verdict::Warn)
+        .map(|(n, _)| n.clone())
+        .collect::<Vec<_>>();
+    (rows.len(), fails, warns)
 }
 
 #[cfg(test)]
@@ -393,16 +408,83 @@ mod tests {
         Ok(())
     }
 
-    /// 汇总：FAIL 维度计数与名单。
+    /// 汇总：FAIL 红灯名单、WARN 单列（不拦退出码）。
     #[test]
-    fn 汇总_fail名单() {
+    fn 汇总_fail与warn名单() {
         let rows = vec![
             ("toolRoot".to_string(), Verdict::Pass),
-            ("bun".to_string(), Verdict::Fail),
-            ("ghost".to_string(), Verdict::Na),
+            ("bun".to_string(), Verdict::Warn),
+            ("ghost".to_string(), Verdict::Fail),
+            ("na-dim".to_string(), Verdict::Na),
         ];
-        let (total, fails) = summarize(&rows);
-        assert_eq!(total, 3);
-        assert_eq!(fails, vec!["bun".to_string()]);
+        let (total, fails, warns) = summarize(&rows);
+        assert_eq!(total, 4);
+        assert_eq!(fails, vec!["ghost".to_string()]);
+        assert_eq!(warns, vec!["bun".to_string()]);
+    }
+
+    /// 工具组判定口径（issue#7）：已装未锁 WARN、锁装不等 FAIL、未装 FAIL、一致 PASS；
+    /// 文件组缺失压过 WARN 恒 FAIL（硬断言优先）。
+    #[test]
+    fn 工具组判定_未锁warn与漂移fail() -> Result<(), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        // catalog：ghost-bun 未锁（无 pin 字段）、ghost-old 锁旧版
+        let toml = "\
+[tools.ghost-bun]\ncategory = \"extras\"\ndir = \"g\"\nexe = \"g\\\\g.exe\"\nlinux_exe = \"g\"\nprobe_pattern = 'v(\\\\d+)'\n\
+[tools.ghost-old]\ncategory = \"extras\"\ndir = \"o\"\nexe = \"o\\\\o.exe\"\nlinux_exe = \"o\"\nprobe_pattern = 'v(\\\\d+)'\ntag = \"v1.0.0\"\nversion = \"1.0.0\"\n";
+        let cat = Catalog::parse(toml, std::path::PathBuf::from("synthetic.toml"))?;
+        // rows 手工构造（installed 探针面已由 status 测覆盖，此处锁判定口径）：
+        let row = |name: &str, locked: Option<&str>, installed: Option<&str>| status::StatusRow {
+            name: name.to_string(),
+            category: "extras".into(),
+            locked: locked.map(str::to_string),
+            installed: installed.map(str::to_string),
+            path: true,
+            exe: None,
+        };
+        let def_all = |tools: &'static [&'static str]| DimDef {
+            name: "t",
+            windows: true,
+            posix: true,
+            tools,
+            files_all: &[],
+            files_any: &[],
+        };
+        // 已装未锁 → WARN
+        let rows = vec![row("ghost-bun", None, Some("2.0.0"))];
+        assert_eq!(
+            judge(&def_all(&["ghost-bun"]), &rows, &cat, dir.path()),
+            Verdict::Warn
+        );
+        // 已装且锁装不等 → FAIL（真漂移）
+        let rows = vec![row("ghost-old", Some("1.0.0"), Some("2.0.0"))];
+        assert_eq!(
+            judge(&def_all(&["ghost-old"]), &rows, &cat, dir.path()),
+            Verdict::Fail
+        );
+        // 未装 → FAIL
+        let rows = vec![row("ghost-bun", None, None)];
+        assert_eq!(
+            judge(&def_all(&["ghost-bun"]), &rows, &cat, dir.path()),
+            Verdict::Fail
+        );
+        // 已装且锁装一致 → PASS
+        let rows = vec![row("ghost-old", Some("1.0.0"), Some("1.0.0"))];
+        assert_eq!(
+            judge(&def_all(&["ghost-old"]), &rows, &cat, dir.path()),
+            Verdict::Pass
+        );
+        // 文件组缺失压过 WARN：工具未锁但文件缺失 → FAIL
+        let def_files = DimDef {
+            name: "t",
+            windows: true,
+            posix: true,
+            tools: &["ghost-bun"],
+            files_all: &["{envroot}/definitely-missing"],
+            files_any: &[],
+        };
+        let rows = vec![row("ghost-bun", None, Some("2.0.0"))];
+        assert_eq!(judge(&def_files, &rows, &cat, dir.path()), Verdict::Fail);
+        Ok(())
     }
 }

@@ -121,7 +121,7 @@ ark doctor                    # 1 体检：系统/依赖诊断列缺口
 # 诊断缺口会带下一步建议命令（CTA）
 ark install                   # 2 全量安装（或单装：ark install rg）
 ark status                    # 3 三态对照：锁定/已装/PATH
-ark verify                    # 4 部署域验收，FAIL 退出码非零可进脚本
+ark verify                    # 4 部署域验收，FAIL 退出码非零可进脚本（已装未锁显 WARN 不拦退出）
 ```
 
 查与更新：

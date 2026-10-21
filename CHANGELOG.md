@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+- **verify 误报三修与 bun 嵌套布局装正**（issue#7；D37 锁定归数据面与 D43 去锁口径延续）：根因定案（lan-pve 实证，ark 1.7.0 / manifest seq 190）：①bun/zig 恒 FAIL 非 PATH 双模式、非 wrapper 形态（zig 探针实测 0.17.0 解析正常、rmux 0.10.0 正常），是撤钉（evergreen，2026-09-14 用户裁）与去锁（D43）工具的已装未锁态被旧判据 `locked != installed` 一律判 FAIL；②rmux 恒 FAIL 在 verify 注册表 files_all 两条断言路径与实装布局不符（`~/.local/libexec/rmux/rmux` 陈旧、`~/.local/bin/rmux-daemon` 不在装出面）；③bun install 后置判定找不到 bin = `bun-linux-x64.zip` 解出 `bun-linux-x64/bun` 嵌一层，展平在共享目录（`~/.local/bin` 多目录）不触发。修复：verify 判定引入 WARN 态（已装未锁如实报 WARN 不红不拦退出码；文件组缺失恒 FAIL 压过 WARN；收割行 `dim=PASS/WARN/FAIL/NA`，汇总附 WARN 名单行）；rmux POSIX files_all 对齐实装布局；POSIX zip/targz 装后新增嵌套上提（平台 exe 与 extras 从包裹层提齐期望位、zip 条目 unix 执行位恢复、变空包裹目录链清理、`{version}` 占位布局护栏零动作）；`set_executable_for_tool` 期望位改平台 exe 相对位（旧实现只认通用 exe 叶名，POSIX chmod 全落空）；附带清零 docker.rs 与 toolver.rs 预存 13 警（POSIX 门控面 unused 与 unused_mut）。
 - **预播通知面降级与目标仓探活**（REQ-0017 trace 批，issue#11）：根因定案 = dispatch 目标仓 `raystyle/ai-cloud` 2026-10-09T05:39:56Z 归档（REST 写面恒拒，POST dispatches 404；属主凭据直打复现排除 token 失效），run 9 预播本体成功唯通知腿失联记红、run 10/11 同版绿跳假性自愈。修复：dispatch 失败降级 WARN 不红（预播主体不背锅），终局摘要恒出 dispatch 态字段（ok/skip-token/skip-no-seed/failed:<缘由>）；token 在位时每跑先 GET 目标仓只读探活（archived 标志位与 token 可见性判据，全跳态也跑，腐化前置可见；GET 200 测不出归档，标志位才是判据）；目标仓可经 env 或 GitHub repo variable `AGENT_UPSTREAM_DISPATCH_REPO` 换仓零改码（空值回退缺省）；回归 `.tools/test-agent-upstream.py` 十五态（零网络 mock，评审 G3 main 级降级契约在内）挂 agent-upstream workflow 自测步。catalog bump 新落点待总台裁（issue#11 在册）。
 
 ## [1.7.0] - 2026-10-11

@@ -34,14 +34,20 @@ pub fn extract_asset(
             extract_zip(cache_path, install_dir)?;
             flatten_single_wrapper(install_dir)?;
             #[cfg(not(windows))]
-            set_executable_for_tool(def, install_dir)?;
+            {
+                hoist_platform_exe(tool, def, install_dir)?;
+                set_executable_for_tool(def, install_dir)?;
+            }
             Ok(())
         }
         "targz" => {
             extract_targz(cache_path, install_dir)?;
             flatten_single_wrapper(install_dir)?;
             #[cfg(not(windows))]
-            set_executable_for_tool(def, install_dir)?;
+            {
+                hoist_platform_exe(tool, def, install_dir)?;
+                set_executable_for_tool(def, install_dir)?;
+            }
             Ok(())
         }
         "targz-bin" => {
@@ -256,6 +262,8 @@ pub fn extract_asset(
 }
 
 /// zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。
+/// POSIX 端恢复条目携带的 unix 执行位（bun 发行 zip 的二进制带 0o755；不恢复则
+/// 装后探测 Permission denied，issue#7）。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
@@ -283,9 +291,23 @@ pub fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
                 File::create(&out).map_err(|e| format!("创建文件失败: {}: {e}", out.display()))?;
             io::copy(&mut entry, &mut w)
                 .map_err(|e| format!("写出文件失败: {}: {e}", out.display()))?;
+            // 恢复 zip 条目的 unix 权限位（含执行位的条目才落；无位条目保持缺省）
+            #[cfg(not(windows))]
+            if let Some(mode) = entry.unix_mode() {
+                if mode & 0o111 != 0 {
+                    apply_exec_mode(&out, mode & 0o777);
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// POSIX 端按给定 mode 设权限（尽力而为，失败不拦解压主链）。
+#[cfg(not(windows))]
+fn apply_exec_mode(path: &Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
 }
 
 /// tar.gz 解压（flate2 + tar crate）。
@@ -764,24 +786,118 @@ fn walkdir_find_file(dir: &Path, name: &str) -> Option<PathBuf> {
     None
 }
 
-/// Linux / macOS：根据 exe 字段叶子名与 extra_bins 在安装目录中设置可执行权限。
+/// Linux / macOS：根据平台 exe 与 extra_bins 在安装目录中设置可执行权限。
+/// 期望位取平台专属 exe（相对 install_dir，可带子目录如 rmux 的 bin/rmux——
+/// 旧实现只认通用 exe 叶名，POSIX 共享目录装的 bun/rmux chmod 全落空，issue#7），
+/// extras 落 exe 同目录（rmux-daemon 在 bin/）。
 #[cfg(not(windows))]
 fn set_executable_for_tool(def: &Tool, install_dir: &Path) -> Result<(), String> {
-    let Some(exe_rel) = def.exe() else {
+    let Some(rel) = expected_posix_rel(def) else {
         return Ok(());
     };
-    let leaf = exe_rel.rsplit(['\\', '/']).next().unwrap_or(exe_rel);
-    let target = install_dir.join(leaf);
+    if rel.contains('{') {
+        return Ok(()); // {version} 占位布局走 zip-dir/tarxz-dir 全量解压，tar 自带权限位
+    }
+    let target = install_dir.join(&rel);
     if target.exists() {
         set_executable(&target)?;
     }
+    let exe_dir = target.parent().unwrap_or(install_dir);
     for extra in def.extra_bins() {
-        let t = install_dir.join(extra);
+        let t = exe_dir.join(extra);
         if t.exists() {
             set_executable(&t)?;
         }
     }
     Ok(())
+}
+
+/// POSIX 端期望的 exe 相对位（相对 install_dir）：平台专属 exe（linux_exe/mac_exe，
+/// 反斜杠归一）优先，回退通用 exe 叶名。无可用字段返回 None。
+#[cfg(not(windows))]
+fn expected_posix_rel(def: &Tool) -> Option<String> {
+    def.platform_exe()
+        .map(|p| p.replace('\\', "/"))
+        .or_else(|| {
+            def.exe()
+                .and_then(|e| e.rsplit(['\\', '/']).next().map(str::to_string))
+        })
+}
+
+/// Linux / macOS：共享目录（如 ~/.local/bin）全量解压后，把嵌套包裹层里的平台 exe
+/// 上提到期望位（issue#7 bun 病灶：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
+/// 展平在多条目共享目录不触发，装后判定在 install_dir/bun 找不到 bin）。
+/// 期望位已在（多数正常布局）零动作；嵌套命中则移动到位、补执行位、清掉因此变空的
+/// 包裹目录链（只删空目录不碰文件）；两处都无零动作（探测期由装后判定如实报错）。
+#[cfg(not(windows))]
+fn hoist_platform_exe(tool: &str, def: &Tool, install_dir: &Path) -> Result<(), String> {
+    let Some(rel) = expected_posix_rel(def) else {
+        return Ok(());
+    };
+    if rel.contains('{') {
+        return Ok(()); // {version} 占位布局归 zip-dir/tarxz-dir 域，探测期 glob 定位
+    }
+    let target = install_dir.join(&rel);
+    if target.exists() {
+        return Ok(());
+    }
+    let Some(leaf) = rel.rsplit('/').next().map(str::to_string) else {
+        return Ok(());
+    };
+    let Some(found) = walkdir_find_file(install_dir, &leaf) else {
+        return Ok(());
+    };
+    let source_dir = found.parent().map(Path::to_path_buf);
+    if let Some(p) = target.parent() {
+        fs::create_dir_all(p).map_err(|e| format!("创建目录失败: {}: {e}", p.display()))?;
+    }
+    fs::rename(&found, &target).map_err(|e| {
+        format!(
+            "{tool} 上提嵌套二进制失败: {} -> {}: {e}",
+            found.display(),
+            target.display()
+        )
+    })?;
+    set_executable(&target)?;
+    // extras 同批上提（包裹层含 rmux-daemon 形伴生二进制时一并提齐，exe_dir 缺谁提谁）
+    let exe_dir = target.parent().unwrap_or(install_dir).to_path_buf();
+    for extra in def.extra_bins() {
+        let extra_leaf = extra.rsplit('/').next().unwrap_or(extra);
+        let dst = exe_dir.join(extra_leaf);
+        if dst.exists() {
+            continue;
+        }
+        if let Some(src) = walkdir_find_file(install_dir, extra_leaf) {
+            if src != dst {
+                fs::rename(&src, &dst).map_err(|e| {
+                    format!(
+                        "{tool} 上提嵌套伴生二进制失败: {} -> {}: {e}",
+                        src.display(),
+                        dst.display()
+                    )
+                })?;
+                set_executable(&dst)?;
+            }
+        }
+    }
+    // 清掉因上提变空的包裹目录链（install_dir 本身与含其他条目的目录不删）
+    let mut cur = source_dir;
+    while let Some(d) = cur {
+        if d == install_dir || !is_dir_empty(&d) {
+            break;
+        }
+        let _ = fs::remove_dir(&d);
+        cur = d.parent().map(Path::to_path_buf);
+    }
+    Ok(())
+}
+
+/// 目录是否为空（读取失败按非空处理，保守不删）。
+#[cfg(not(windows))]
+fn is_dir_empty(dir: &Path) -> bool {
+    fs::read_dir(dir)
+        .map(|mut rd| rd.next().is_none())
+        .unwrap_or(false)
 }
 
 /// 递归删除 dir 下除指定文件名外的全部文件与目录（7z-extra 清场用）。
@@ -1096,6 +1212,207 @@ mod tests {
             .expect_err("归档无匹配成员应报错");
         assert!(err.contains("未找到可执行成员"), "错误应说明缺成员: {err}");
         assert!(!install_dir.join("yq").exists(), "不应落半截产物");
+        Ok(())
+    }
+
+    /// bun 形共享目录装（issue#7）：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
+    /// 共享目录（~/.local/bin 同构：既有其他目录与文件）展平不触发——须把嵌套二进制
+    /// 上提到期望位 install_dir/bun、恢复执行位、清空包裹目录，邻居条目原样保留。
+    #[test]
+    #[cfg(not(windows))]
+    fn zip嵌套bun形_共享目录上提与执行位() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut payload = b"\x7fELF\x02\x01\x01\x00".to_vec();
+        payload.extend_from_slice(b"fake-bun-payload");
+        let zip_path = tmp.path().join("bun-linux-x64.zip");
+        {
+            let f = File::create(&zip_path).map_err(|e| e.to_string())?;
+            let mut zw = zip::ZipWriter::new(f);
+            let opts = zip::write::SimpleFileOptions::default().unix_permissions(0o755);
+            zw.start_file("bun-linux-x64/bun", opts)
+                .map_err(|e| e.to_string())?;
+            io::Write::write_all(&mut zw, &payload).map_err(|e| e.to_string())?;
+            zw.finish().map_err(|e| e.to_string())?;
+        }
+
+        // 共享目录既有内容：一个其他工具目录 + 一个散文件（展平的多目录判据因此不触发）
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(install_dir.join("other-tool-dir")).map_err(|e| e.to_string())?;
+        fs::write(install_dir.join("other-tool-dir/lib.so"), b"x").map_err(|e| e.to_string())?;
+        fs::write(install_dir.join("jq"), b"#!/bin/sh\n").map_err(|e| e.to_string())?;
+
+        let def = Tool {
+            extract: Some("zip".into()),
+            linux_extract: Some("zip".into()),
+            mac_extract: Some("zip".into()),
+            exe: Some("bun\\bun.exe".into()),
+            linux_exe: Some("bun".into()),
+            mac_exe: Some("bun".into()),
+            ..Tool::default()
+        };
+        extract_asset("bun", &def, &zip_path, &install_dir, tmp.path())?;
+
+        let got = fs::read(install_dir.join("bun")).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "嵌套 bun 应上提到期望位");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(install_dir.join("bun"))
+                .map_err(|e| e.to_string())?
+                .permissions()
+                .mode();
+            assert!(mode & 0o111 != 0, "上提后应带执行位（zip 条目 0o755 恢复）");
+        }
+        assert!(
+            !install_dir.join("bun-linux-x64").exists(),
+            "变空的包裹目录应清掉"
+        );
+        assert!(
+            install_dir.join("other-tool-dir/lib.so").exists() && install_dir.join("jq").exists(),
+            "邻居条目应原样保留"
+        );
+        Ok(())
+    }
+
+    /// targz 嵌套同型（共享目录 + 单文件包裹目录）：上提、清空目录链、extras 同目录执行位。
+    #[test]
+    #[cfg(not(windows))]
+    fn targz嵌套形_上提与extras执行位() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let payload = b"\x7fELF\x02fake-targz-payload".to_vec();
+        let tar_path = tmp.path().join("inner.tar");
+        {
+            let f = File::create(&tar_path).map_err(|e| e.to_string())?;
+            let mut tb = tar::Builder::new(f);
+            let mut h = tar::Header::new_gnu();
+            h.set_size(payload.len() as u64);
+            h.set_mode(0o755);
+            h.set_cksum();
+            tb.append_data(&mut h, "pkg-1.2.3/inner-tool", payload.as_slice())
+                .map_err(|e| e.to_string())?;
+            // extras 成员：与主二进制同目录（rmux-daemon 形）
+            let mut h2 = tar::Header::new_gnu();
+            h2.set_size(6);
+            h2.set_mode(0o644);
+            h2.set_cksum();
+            tb.append_data(&mut h2, "pkg-1.2.3/inner-tool-daemon", b"daemon".as_slice())
+                .map_err(|e| e.to_string())?;
+            tb.finish().map_err(|e| e.to_string())?;
+        }
+        let gz_path = tmp.path().join("pkg.tar.gz");
+        {
+            let f = File::create(&gz_path).map_err(|e| e.to_string())?;
+            let mut enc = flate2::write::GzEncoder::new(f, flate2::Compression::default());
+            io::Write::write_all(&mut enc, &fs::read(&tar_path).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
+            enc.finish().map_err(|e| e.to_string())?;
+        }
+
+        // 共享目录（已有第二个目录，展平不触发）
+        let install_dir = tmp.path().join("bin");
+        fs::create_dir_all(install_dir.join("another-dir")).map_err(|e| e.to_string())?;
+        fs::write(install_dir.join("another-dir/x"), b"x").map_err(|e| e.to_string())?;
+
+        let def = Tool {
+            extract: Some("targz".into()),
+            linux_extract: Some("targz".into()),
+            mac_extract: Some("targz".into()),
+            exe: Some("inner\\inner.exe".into()),
+            linux_exe: Some("inner-tool".into()),
+            mac_exe: Some("inner-tool".into()),
+            linux_extra_bins: Some("inner-tool-daemon".into()),
+            mac_extra_bins: Some("inner-tool-daemon".into()),
+            ..Tool::default()
+        };
+        extract_asset("inner", &def, &gz_path, &install_dir, tmp.path())?;
+
+        let got = fs::read(install_dir.join("inner-tool")).map_err(|e| e.to_string())?;
+        assert_eq!(got, payload, "嵌套主二进制应上提");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let m = |p: &Path| {
+                fs::metadata(p)
+                    .map(|md| md.permissions().mode())
+                    .map_err(|e| e.to_string())
+            };
+            assert!(
+                m(&install_dir.join("inner-tool"))? & 0o111 != 0,
+                "主二进制应带执行位"
+            );
+            assert!(
+                m(&install_dir.join("inner-tool-daemon"))? & 0o111 != 0,
+                "extras 应在期望位补执行位（tar 0o644 条目由 set_executable_for_tool 补）"
+            );
+        }
+        // extras 同批上提后包裹目录变空：清链删除（install_dir 本身保留）
+        assert!(
+            !install_dir.join("pkg-1.2.3").exists(),
+            "全部成员上提后的空包裹目录应清掉"
+        );
+        assert!(install_dir.join("another-dir/x").exists(), "邻居目录保留");
+        Ok(())
+    }
+
+    /// set_executable_for_tool 的子目录期望位（rmux 形 bin/rmux）：chmod 落 bin/ 而非根。
+    #[test]
+    #[cfg(not(windows))]
+    fn 执行位_子目录期望位rmux形() -> Result<(), String> {
+        let install_dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let bin = install_dir.path().join("bin");
+        fs::create_dir_all(&bin).map_err(|e| e.to_string())?;
+        fs::write(bin.join("rmux"), b"#!/bin/sh\n").map_err(|e| e.to_string())?;
+        fs::write(bin.join("rmux-daemon"), b"#!/bin/sh\n").map_err(|e| e.to_string())?;
+        // 根目录同名干扰位：不应被 chmod（期望位是 bin/ 下）
+        fs::write(install_dir.path().join("rmux"), b"root").map_err(|e| e.to_string())?;
+
+        let def = Tool {
+            linux_exe: Some("bin/rmux".into()),
+            mac_exe: Some("bin/rmux".into()),
+            linux_extra_bins: Some("rmux-daemon".into()),
+            mac_extra_bins: Some("rmux-daemon".into()),
+            ..Tool::default()
+        };
+        set_executable_for_tool(&def, install_dir.path())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = |p: &Path| {
+                fs::metadata(p)
+                    .map(|md| md.permissions().mode())
+                    .map_err(|e| e.to_string())
+            };
+            assert!(mode(&bin.join("rmux"))? & 0o111 != 0, "bin/rmux 应带执行位");
+            assert!(
+                mode(&bin.join("rmux-daemon"))? & 0o111 != 0,
+                "bin/rmux-daemon 应带执行位"
+            );
+        }
+        Ok(())
+    }
+
+    /// {version} 占位布局护栏：hoist 与 chmod 对占位形态零动作（归 zip-dir/tarxz-dir 域）。
+    #[test]
+    #[cfg(not(windows))]
+    fn 占位布局_上提与执行位零动作() -> Result<(), String> {
+        let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let install_dir = tmp.path().join("zig");
+        let nested = install_dir.join("zig-x86_64-linux-0.17.0");
+        fs::create_dir_all(&nested).map_err(|e| e.to_string())?;
+        fs::write(nested.join("zig"), b"\x7fELF").map_err(|e| e.to_string())?;
+
+        let def = Tool {
+            linux_exe: Some("zig-x86_64-linux-{version}/zig".into()),
+            mac_exe: Some("zig-aarch64-macos-{version}/zig".into()),
+            ..Tool::default()
+        };
+        hoist_platform_exe("zig", &def, &install_dir)?;
+        set_executable_for_tool(&def, &install_dir)?;
+        assert!(
+            nested.join("zig").exists(),
+            "占位布局嵌套成员不应被上提（glob 定位域）"
+        );
+        assert!(!install_dir.join("zig").exists() || install_dir.join("zig").is_dir());
         Ok(())
     }
 

@@ -445,7 +445,7 @@
     {
       "path": "ark::extract::extract_zip",
       "kind": "function",
-      "docs": "zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
+      "docs": "zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。\nPOSIX 端恢复条目携带的 unix 执行位（bun 发行 zip 的二进制带 0o755；不恢复则\n装后探测 Permission denied，issue#7）。\n\n# Errors\n返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。"
     },
     {
       "path": "ark::extract::flatten_single_wrapper",
@@ -1250,7 +1250,7 @@
     {
       "path": "ark::verify",
       "kind": "module",
-      "docs": "verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。\n维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、\n文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。\n输出 `dim=PASS/FAIL/NA` 收割行（NA 不参与收割）。\n密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。"
+      "docs": "verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog 三态）。\n维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、\n文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。\n输出 `dim=PASS/WARN/FAIL/NA` 收割行（NA 不参与收割；WARN 不红不拦退出码——\n已装未锁是撤钉/去锁形态的如实态，非部署缺陷，issue#7）。\n密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。"
     },
     {
       "path": "ark::verify::Verdict",
@@ -1275,7 +1275,7 @@
     {
       "path": "ark::verify::summarize",
       "kind": "function",
-      "docs": "汇总（--json 用）。"
+      "docs": "汇总（--json 用）：FAIL 计入红灯名单；WARN 单列（已装未锁态，不拦退出码）。"
     },
     {
       "path": "ark::vsbuild",

@@ -14,9 +14,11 @@ use clap::{Parser, Subcommand};
 
 use ark::arerr::ArkError;
 use ark::catalog::{self, Catalog};
-use ark::install::{install_tool, InstallOptions, InstallOutcome};
+use ark::install::install_tool;
+use ark::install::{InstallOptions, InstallOutcome};
 use ark::render;
-use ark::resolve::{resolve_tool, Resolution, ResolveOptions};
+use ark::resolve::resolve_tool;
+use ark::resolve::{Resolution, ResolveOptions};
 use ark::status;
 use ark::toolver;
 
@@ -52,7 +54,7 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark update [名] [--dry-run] | 家族自研 CLI（hst/browse/reader/officecli）委托其自身自升级通道（channel=self-update 标注，--force 不作用）；其余工具对齐云端锁定安装（镜像优先零 GitHub API；落后补装、领先如实报，不回写锁定）；省略则全量混合；--dry-run 出真计划不落盘（update 面另出 drift） | 同 install 加 channel | 0/1 |\n",
     "| ark pin [名] [--latest\\|--version V] | 查看/设置锁定（省略则全量；lock 别名） | tool,tag,version,sha256 | 0/1 |\n",
     "| ark init | 部署自身到用户目录并同步 catalog（幂等） | action,exe,catalog,path | 0 |\n",
-    "| ark verify [--check a,b] | 部署域验收维度（省略则全量） | name,verdict | 1=有 FAIL |\n",
+    "| ark verify [--check a,b] | 部署域验收维度（省略则全量；已装未锁显 WARN 不红） | name,verdict | 1=有 FAIL |\n",
     "| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |\n",
     "| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |\n",
     "| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |\n",
@@ -82,6 +84,7 @@ const EX_UPDATE: &str = "示例:\n  ark update\n  ark update gh\n  ark update --
 const EX_STATUS: &str = "示例:\n  ark status";
 const EX_INIT: &str = "示例:\n  ark init";
 const EX_VERIFY: &str = "示例:\n  ark verify\n  ark verify --check toolRoot,localbin16 --json";
+/// verify 收割行四态：PASS/WARN/FAIL/NA（WARN=已装未锁的撤钉/去锁形态，不拦退出码）。
 const EX_HEAL: &str = "示例:\n  ark heal\n  ark heal aria2 --dry-run";
 const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
 const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
@@ -921,8 +924,9 @@ fn cmd_doctor(cat: &Catalog, env_root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// verify：部署域验收维度检查，kv 输出 dim=PASS/FAIL/NA 收割行，
-/// 结构化输出 name/verdict 块。维度就绪即出（流式）。FAIL 即 exit 1。
+/// verify：部署域验收维度检查，kv 输出 dim=PASS/WARN/FAIL/NA 收割行，
+/// 结构化输出 name/verdict 块。维度就绪即出（流式）。FAIL 即 exit 1；
+/// WARN（已装未锁，issue#7）只汇总提示不红不拦退出码。
 fn cmd_verify(cat: &Catalog, env_root: &Path, check: Option<&str>) -> Result<(), String> {
     let filter: Vec<String> = check
         .map(|c| {
@@ -944,7 +948,14 @@ fn cmd_verify(cat: &Catalog, env_root: &Path, check: Option<&str>) -> Result<(),
         }
         Ok(())
     })?;
-    let (total, fails) = ark::verify::summarize(&rows);
+    let (total, fails, warns) = ark::verify::summarize(&rows);
+    if !warns.is_empty() {
+        eprintln!(
+            "[WARN] {} 项已装未锁定（撤钉/去锁形态，不拦验收）: {}",
+            warns.len(),
+            warns.join(", ")
+        );
+    }
     eprintln!("[汇总] {total} 项，FAIL {} 项", fails.len());
     if !fails.is_empty() {
         return Err(format!("验收失败 {} 项: {}", fails.len(), fails.join(", ")));
