@@ -42,4 +42,7 @@
 ## 消息面补记
 
 - 总台 lan-win:w19:p1 推进令（开修 issue #7、实弹验收、锁陈化并行裁）经 fleet 流收讫；回执同走 fleet（lan-win 端 engine_fail 持续，修复回执时直投已恢复 delivered）。
+- [实证] 总台锁滚落地复核（本站 `ark catalog sync` 至 seq 200 后）：ark locked=1.7.0=installed、hst locked=2.15.2=installed，零漂移；总台提交 7f63f25 已推。
+- [实证] 同种陈旧坑再捕一枚并当场修（commit 1cb7464）：aria2 POSIX 验收 files_any 只认 `/usr/bin/aria2c` 与 brew 位，ark 装出位 `~/.local/bin/aria2c` 不在册致 lan-ubuntu 恒 FAIL；补位后本站复验 aria2=PASS（新二进制全维 FAIL 仅剩 toolRoot）。
+- toolRoot 残 FAIL 归因：herdr 锁 0.9.3 vs 装 0.9.5，又一例家族自升级通道锁陈化（同 hst 前例），已报总台建议数据面同批滚；非引擎面。
 - 总台锁滚转办回执称「hst.ohmygh.com v2.15.x 与 ark.ohmygh.com linux/mac 1.7.0 边车全 404、执行权在我侧资产补传」经实证反转：404 是探针路径形少 `{tool}` 段（引擎消费形 `{mirror_domain}/{tool}/{version}/{asset}`，`download.rs` 的 `mirror_url_at`）；`ark.ohmygh.com/ark/1.7.0/` 与 `hst.ohmygh.com/hst/2.15.2/` 三平台二进制加边车全 200，边车与 GitHub release 原件逐字节等（ark linux `6804d6c3…`、hst linux `0b4b42f9…`）；`hst/stable` 双域滚动段 200 且 stable 边车即 2.15.2 的 sha；`env.ohmygh.com/ark/stable/` 三平台 200。GitHub release 侧 v1.7.0（六件齐、2026-10-11 published）与 v2.15.2（八件齐）均完整（pve gh 凭据核）。结论：分发面零缺口，我侧零资产动作，总台可直接跑 catalog 锁滚（hst 三平台至 2.15.2、ark linux/mac 至 1.7.0，边车直取）加 lint 加 seed-local 刷 seq。
