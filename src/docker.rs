@@ -4,21 +4,42 @@
 //! 需管理员：未提权且 gsudo 在位时经 gsudo 重跑 `ark install docker`（vsbuild 同模式）。
 //! 与 vsbuild 的差异：docker 有版本与 pin（非 evergreen），resolve 走 cdn_url 分支。
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::Path;
 
 use crate::catalog::Tool;
-use crate::download;
-use crate::install::{InstallAction, InstallOutcome};
-use crate::platform;
+use crate::install::InstallOutcome;
 use crate::resolve::Resolution;
+
+// Windows-only 依赖面（服务注册、compose 插件、提权重跑；POSIX 桩不引用，门控消 unused）
+#[cfg(windows)]
+use std::path::PathBuf;
+
+#[cfg(windows)]
+use std::process::Command;
+
+#[cfg(windows)]
+use crate::download;
+
+#[cfg(windows)]
+use crate::install::InstallAction;
+
+#[cfg(windows)]
+use crate::platform;
+
+#[cfg(windows)]
 use crate::toolver;
 
+// compose 插件与 Windows 服务/组常量（仅 deploy 腿使用）
+#[cfg(windows)]
 const COMPOSE_VERSION: &str = "v5.5.0";
+#[cfg(windows)]
 const COMPOSE_ASSET: &str = "docker-compose-windows-x86_64.exe";
+#[cfg(windows)]
 const COMPOSE_URL: &str =
     "https://github.com/docker/compose/releases/download/{ver}/docker-compose-windows-x86_64.exe";
+#[cfg(windows)]
 const SERVICE: &str = "docker";
+#[cfg(windows)]
 const GROUP: &str = "docker-users";
 
 /// 是否 docker 专用安装条目（extract 标记分发）。
@@ -27,6 +48,7 @@ pub fn is_docker(tool: &Tool) -> bool {
 }
 
 /// 安装目录：<EnvRoot>\docker。
+#[cfg(windows)]
 fn install_root(env_root: &Path) -> PathBuf {
     env_root.join("docker")
 }
@@ -339,6 +361,7 @@ fn install_compose_plugin(env_root: &Path) -> Result<(), String> {
 }
 
 /// 从 sha 清单文本提取首个 64 位 hex（compose 官方清单格式「<sha>  <file>」）。
+#[cfg(windows)]
 fn extract_sha64(text: &str) -> Result<String, String> {
     let mut cur = String::new();
     for c in text.chars() {
@@ -411,7 +434,7 @@ fn ensure_machine_path(def: &Tool, env_root: &Path, bin_dir: &Path) -> Result<()
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

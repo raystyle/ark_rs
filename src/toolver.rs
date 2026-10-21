@@ -263,6 +263,8 @@ pub fn installed_version(exe: &Path, tool: &Tool) -> Option<String> {
 /// PATH 上查找命令（D07 agent 存量纳管判定）：返回首个命中位的完整路径，未命中 None。
 /// Windows 依次试 `名.exe` 与裸名；POSIX 无扩展名直试裸名。
 pub fn find_on_path(name: &str) -> Option<PathBuf> {
+    // Windows 候选含 .cmd/.bat 脚本 shim（下方 insert），POSIX 无后续变异
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut candidates: Vec<String> = if std::env::consts::EXE_EXTENSION.is_empty() {
         vec![name.to_string()]
     } else {
