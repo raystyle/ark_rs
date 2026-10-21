@@ -41,4 +41,5 @@
 
 ## 消息面补记
 
-- 总台 lan-win:w19:p1 推进令（开修 issue #7、实弹验收、锁陈化并行裁）经 fleet 流收讫；回执同走 fleet（lan-win 端 engine_fail 持续）。
+- 总台 lan-win:w19:p1 推进令（开修 issue #7、实弹验收、锁陈化并行裁）经 fleet 流收讫；回执同走 fleet（lan-win 端 engine_fail 持续，修复回执时直投已恢复 delivered）。
+- 总台锁滚转办回执称「hst.ohmygh.com v2.15.x 与 ark.ohmygh.com linux/mac 1.7.0 边车全 404、执行权在我侧资产补传」经实证反转：404 是探针路径形少 `{tool}` 段（引擎消费形 `{mirror_domain}/{tool}/{version}/{asset}`，`download.rs` 的 `mirror_url_at`）；`ark.ohmygh.com/ark/1.7.0/` 与 `hst.ohmygh.com/hst/2.15.2/` 三平台二进制加边车全 200，边车与 GitHub release 原件逐字节等（ark linux `6804d6c3…`、hst linux `0b4b42f9…`）；`hst/stable` 双域滚动段 200 且 stable 边车即 2.15.2 的 sha；`env.ohmygh.com/ark/stable/` 三平台 200。GitHub release 侧 v1.7.0（六件齐、2026-10-11 published）与 v2.15.2（八件齐）均完整（pve gh 凭据核）。结论：分发面零缺口，我侧零资产动作，总台可直接跑 catalog 锁滚（hst 三平台至 2.15.2、ark linux/mac 至 1.7.0，边车直取）加 lint 加 seed-local 刷 seq。
