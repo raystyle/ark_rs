@@ -176,7 +176,12 @@ static DIMS: &[DimDef] = &[
         posix: true,
         tools: &[],
         files_all: &[],
-        files_any: &["/usr/bin/aria2c", "/opt/homebrew/bin/aria2c"],
+        // ark 装出位（~/.local/bin，issue#7 同种补）与系统位（apt/brew）任一
+        files_any: &[
+            "~/.local/bin/aria2c",
+            "/usr/bin/aria2c",
+            "/opt/homebrew/bin/aria2c",
+        ],
     },
 ];
 
