@@ -42,6 +42,7 @@
 ## 消息面补记
 
 - 总台 lan-win:w19:p1 推进令（开修 issue #7、实弹验收、锁陈化并行裁）经 fleet 流收讫；回执同走 fleet（lan-win 端 engine_fail 持续，修复回执时直投已恢复 delivered）。
+- [实证] herdr 锁滚挂账勘验复核（总台探 browse.ohmygh.com 全 404、判「herdr 段整体空」）：两处修正:herdr 段非整体空，`env.ohmygh.com/herdr/0.9.3/` 三平台资产加边车全 200（linux 边车 `18a8dc65…` 与 catalog pin 全等；herdr catalog 无 `mirror_domain` 键，安装消费走缺省 env 域，browse 域探错位）；上游 herderdev/herdr v0.9.5 release 五资产在但零 `.sha256` 边车（上游不带，播种前需边车自算）。结论同总台：0.9.5 未上镜像域（`env/herdr/0.9.5/` 全 404），前置归 herdr 播种面（ohmycloud 侧），本机零 R2 凭据无从直传，挂账背书。
 - [实证] 总台锁滚落地复核（本站 `ark catalog sync` 至 seq 200 后）：ark locked=1.7.0=installed、hst locked=2.15.2=installed，零漂移；总台提交 7f63f25 已推。
 - [实证] 同种陈旧坑再捕一枚并当场修（commit 1cb7464）：aria2 POSIX 验收 files_any 只认 `/usr/bin/aria2c` 与 brew 位，ark 装出位 `~/.local/bin/aria2c` 不在册致 lan-ubuntu 恒 FAIL；补位后本站复验 aria2=PASS（新二进制全维 FAIL 仅剩 toolRoot）。
 - toolRoot 残 FAIL 归因：herdr 锁 0.9.3 vs 装 0.9.5，又一例家族自升级通道锁陈化（同 hst 前例），已报总台建议数据面同批滚；非引擎面。
