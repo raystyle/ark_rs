@@ -47,3 +47,13 @@
 - [实证] 同种陈旧坑再捕一枚并当场修（commit 1cb7464）：aria2 POSIX 验收 files_any 只认 `/usr/bin/aria2c` 与 brew 位，ark 装出位 `~/.local/bin/aria2c` 不在册致 lan-ubuntu 恒 FAIL；补位后本站复验 aria2=PASS（新二进制全维 FAIL 仅剩 toolRoot）。
 - toolRoot 残 FAIL 归因：herdr 锁 0.9.3 vs 装 0.9.5，又一例家族自升级通道锁陈化（同 hst 前例），已报总台建议数据面同批滚；非引擎面。
 - 总台锁滚转办回执称「hst.ohmygh.com v2.15.x 与 ark.ohmygh.com linux/mac 1.7.0 边车全 404、执行权在我侧资产补传」经实证反转：404 是探针路径形少 `{tool}` 段（引擎消费形 `{mirror_domain}/{tool}/{version}/{asset}`，`download.rs` 的 `mirror_url_at`）；`ark.ohmygh.com/ark/1.7.0/` 与 `hst.ohmygh.com/hst/2.15.2/` 三平台二进制加边车全 200，边车与 GitHub release 原件逐字节等（ark linux `6804d6c3…`、hst linux `0b4b42f9…`）；`hst/stable` 双域滚动段 200 且 stable 边车即 2.15.2 的 sha；`env.ohmygh.com/ark/stable/` 三平台 200。GitHub release 侧 v1.7.0（六件齐、2026-10-11 published）与 v2.15.2（八件齐）均完整（pve gh 凭据核）。结论：分发面零缺口，我侧零资产动作，总台可直接跑 catalog 锁滚（hst 三平台至 2.15.2、ark linux/mac 至 1.7.0，边车直取）加 lint 加 seed-local 刷 seq。
+
+## D52 ledger 撤除与 v1.7.1 封版
+
+- 总台令（用户裁 2026-10-21）：ledger 功能线撤除，客户端面全撤，发新版。剔除面：`src/ledger.rs` 全文件、lib.rs mod、Cargo.toml ledger-rs 依赖、main.rs 命令族（枚举、早期派发、两函数、示例常量、--llms 两行）、tests/cli.rs 漂移守卫 12 改 11、注释面 ledger 单号改日期实证形、README/AGENTS/llms.txt 同步、PRD 增 D52、REQ-0015 撤裁 trace、CHANGELOG [1.7.1]。
+- [实证] 门禁：build/test --release --locked 全绿零警（codex 复核 249 项）、fmt/clippy 过、md 四件套加 llms-guard 加 PEVO 加 aidoc --check --strict（27 件）全过；--llms 与 --help 命令树 issue/artifact 消失。
+- 对线（R005）：一轮 CONFIRM（零 F；G1 孤立注释行采纳时险些误删 tar 依赖行:python 替换吞了 `#` 空格后缀致 `tar = "0.4"` 变注释，构建 E0433 当场暴露即修，教训：注释行删除必须看 git diff 再提交；G2 测试计数口径 248/249 无阻塞）。回执 `/tmp/herdr-flywheel/2026-10-21-D52-ledger撤除/review-round1.md`。
+- [实证] 发布流水（本地三段式第五跑全绿，前三跑各修一坑）：①win 冒烟腿在 Linux 宿主 Exec format error（原 WSL interop 假设），补 ssh lan-win 实机腿对齐 mac 形；②lan-win 默认 shell 是 cmd、/tmp 不存在（scp dest open），上载位改主目录相对路径；③tag 锚闸要求 HEAD 即 tag，release.ps1 补丁两笔后 tag 重指（tag 无消费方，release 未建窗口期重指安全）。修毕三平台冒烟逐字对全绿，gh draft 传齐直发。
+- [实证] v1.7.1 发布链全绿：GitHub release 六资产齐（三平台加边车，非 draft）；r2-seed workflow published 事件 28s success（run 39628878327）；镜像双段 `env.ohmygh.com/ark/1.7.1/` 与 `ark/stable/` 全 200，stable 边车 `4784958b…` 与官方 release 原件逐字节等。
+- 发布提交链：84890a9（D52 撤除与封版，amend 后 f4cbc46）加 a5bb770 与 e7cac1a（release.ps1 两修）全部已推；tag v1.7.1 指向 e7cac1a。
+- 交流波两笺（Rust 专题与 agent 原生 CLI 专题）四点晒单已回执总台；gh 本机凭据失效，借 pve 同账号有效凭据（原 hosts.yml 备份为 .broken.bak）。
