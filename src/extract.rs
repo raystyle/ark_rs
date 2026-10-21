@@ -263,7 +263,7 @@ pub fn extract_asset(
 
 /// zip 解压（zip crate，防路径穿越：拒绝越出目标的条目）。
 /// POSIX 端恢复条目携带的 unix 执行位（bun 发行 zip 的二进制带 0o755；不恢复则
-/// 装后探测 Permission denied，issue#7）。
+/// 装后探测 Permission denied，2026-10-21 lan-pve 实证）。
 ///
 /// # Errors
 /// 返回 Err（人读原因串）当：操作失败（见错误串） 等（完整失败面见函数体错误构造）。
@@ -787,8 +787,8 @@ fn walkdir_find_file(dir: &Path, name: &str) -> Option<PathBuf> {
 }
 
 /// Linux / macOS：根据平台 exe 与 extra_bins 在安装目录中设置可执行权限。
-/// 期望位取平台专属 exe（相对 install_dir，可带子目录如 rmux 的 bin/rmux——
-/// 旧实现只认通用 exe 叶名，POSIX 共享目录装的 bun/rmux chmod 全落空，issue#7），
+/// 期望位取平台专属 exe（相对 install_dir，可带子目录如 rmux 的 bin/rmux；
+/// 旧实现只认通用 exe 叶名，POSIX 共享目录装的 bun/rmux chmod 全落空，2026-10-21 实证），
 /// extras 落 exe 同目录（rmux-daemon 在 bin/）。
 #[cfg(not(windows))]
 fn set_executable_for_tool(def: &Tool, install_dir: &Path) -> Result<(), String> {
@@ -825,7 +825,7 @@ fn expected_posix_rel(def: &Tool) -> Option<String> {
 }
 
 /// Linux / macOS：共享目录（如 ~/.local/bin）全量解压后，把嵌套包裹层里的平台 exe
-/// 上提到期望位（issue#7 bun 病灶：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
+/// 上提到期望位（bun 病灶，2026-10-21 lan-pve 实证：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
 /// 展平在多条目共享目录不触发，装后判定在 install_dir/bun 找不到 bin）。
 /// 期望位已在（多数正常布局）零动作；嵌套命中则移动到位、补执行位、清掉因此变空的
 /// 包裹目录链（只删空目录不碰文件）；两处都无零动作（探测期由装后判定如实报错）。
@@ -1215,8 +1215,8 @@ mod tests {
         Ok(())
     }
 
-    /// bun 形共享目录装（issue#7）：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
-    /// 共享目录（~/.local/bin 同构：既有其他目录与文件）展平不触发——须把嵌套二进制
+    /// bun 形共享目录装（2026-10-21 lan-pve 实证）：bun-linux-x64.zip 解出 bun-linux-x64/bun 嵌一层，
+    /// 共享目录（~/.local/bin 同构：既有其他目录与文件）展平不触发，须把嵌套二进制
     /// 上提到期望位 install_dir/bun、恢复执行位、清空包裹目录，邻居条目原样保留。
     #[test]
     #[cfg(not(windows))]

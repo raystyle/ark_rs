@@ -4,7 +4,7 @@ verify：部署域验收维度（P0026 M3 第一批，数据驱动自 catalog �
 维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、
 文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。
 输出 `dim=PASS/WARN/FAIL/NA` 收割行（NA 不参与收割；WARN 不红不拦退出码——
-已装未锁是撤钉/去锁形态的如实态，非部署缺陷，issue#7）。
+已装未锁是撤钉/去锁形态的如实态，非部署缺陷，2026-10-21 lan-pve 实证）。
 密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。
 
 ## Functions

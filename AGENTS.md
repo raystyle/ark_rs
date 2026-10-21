@@ -14,7 +14,6 @@
 - 自部署：`ark init`（self-deploy 别名；二进制进用户程序目录、catalog 同步、注册 PATH）
 - 升级：`ark self update`（dev 默认滚动加 `--stable` 正式，双通道开放；`--git` 源码通道；判新 digest 锚；默认镜像段读序、GitHub API 兜底，`ARK_MIRROR=0` 官方优先逃逸阀（D51））
 - 查刷软件清单：`ark catalog`（status 看解析面与签名态，sync 立即从云端刷新过 minisign 校验；自动刷新按 `ARK_CATALOG_TTL`，`ARK_OFFLINE=1` 关）
-- 报缺陷：`ark issue new "<标题>" --kind bug --acceptance "<验收>"`（新真源 ledger.ohmygh.com 仓级公共账本，REQ-063/REQ-0015；`ark issue list [--before <id>]` 与 `show <n>` 读面；产物沉淀走 `ark artifact publish/attest/list`（只增面；关单/删除/晋级归 omc 工作台 herdr 委托）；遇缺陷即一键反馈，agent 纪律）
 - 查文档：先查 `llms.txt`（读序与代码文件位置）与各目录 README 索引再读；搜索方法：`rg -n "关键词" llms.txt`、`rg --files docs | rg 关键词`、`rg -n "关键词" docs/knowledge/research docs/knowledge/references`；`mq -F grep '.h2' docs/knowledge/research/*.md`（section 必带 -A）；`ast-grep outline -l rs src/`（fn 模式必须带 body 通配 `$$$`、可见性写进模式）
 - 验证门禁（每次交付必跑，裸跑看退出码）：`rumdl check .` 加 `uv run --script .tools/mdcharlint.py .` 加 `uv run --script .tools/md-ref-scan.py` 加 `uv run --script .tools/md-heading-scan.py` 加 `uv run --script .tools/llms-guard.py`（模块表与技能投影守卫，ADR-0009）；结构大改加跑 `uv run --script .tools/md-replace.py`；体系合规加 `uv run ~/repos/project-evo/.tools/check.py .`
 - 测试：`cargo test --release --locked`；真实环境测试按 `ARK_TEST_REAL` 闸门 skip
@@ -29,7 +28,7 @@
 - 新需求先立 REQ（draft 起，实现回填 trace）；不可逆技术选择先立 ADR（`docs/knowledge/adr/`，状态机 proposed 到 accepted 到 superseded）
 - 踩坑当场落档：构成纪律或决策的立 ADR，过程性的记 diary，同根因同型坑合并（错误模式库 ADR-0002 至 ADR-0006）；深挖落 research。禁止只留在对话里反复试错
 - 发现问题走五步闭环（G003）：定位（先搜索引）、归类（错修文档、缺补规则、知识落研究、出错记档、实证进 references）、修正（改在源头，下游同步）、验证（门禁全跑）、提交（一事一提交，diary 记钩子）
-- 遇 ark 或部署工具链缺陷当场 `ark issue new "<标题>" --body "<复现与输出>"` 一键反馈（统一入口 issues.ohmygh.com，REQ-0009；回执 id/url 记 diary），不当场搁置
+- 遇 ark 或部署工具链缺陷当场提仓 issue（GitHub raystyle/ark_rs issues；回执 url 记 diary），不当场搁置；ledger 客户端面已撤（用户裁 2026-10-21，v1.7.1 起 issue/artifact 命令族移除，服务端去留另裁）
 - 交付变更时改代码同步对应文档，改文档同步索引与 `docs/sources/diary/`；版本级成果进 CHANGELOG
 - 经验沉淀（G004 强规则）：成功方案回填 REQ trace 与关联 ADR；实证做法与多犯沉淀的正确工作流进 `docs/knowledge/references/` 并挂路由或索引；同型坑二犯以上升格 references 并互指。禁止 `[经验]` 断言只留研究不落 references、错误只记现象不记根因、`[推断]`/`[假设]` 跳级、一条知识两个权威落位
 - 写 Rust 先按 R005 双通道查 crates.io / GitHub 选最流行稳定库，最少代码接上，优先组合不自写协议、解压、HTTP、哈希、CLI 解析；**实质代码改动（新模块、跨文件接线、并发与进程管理）推送前必须经对线 review（herdr 驱动 codex 或用户点名复核），对线结论与修复回执入 diary**（用户裁 2026-09-11）

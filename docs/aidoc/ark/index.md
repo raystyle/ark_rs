@@ -1,4 +1,4 @@
-# ark 1.7.0
+# ark 1.7.1
 
 ark：Ark（Agent Runtime Kit）本机跨平台环境部署管理 CLI。
 三原语 doctor / install / status；派生 query、update、pin、verify、heal、
@@ -19,7 +19,6 @@ init、self update。catalog 为唯一 pin 源。
 - [`extract`](extract.md): extract：解压/安装分派，对齐 helpers.ps1 Install-ToolVersion 的 switch（1148-1242 行）。
 - [`heal`](heal.md): heal：部署域幂等自愈（P0026 M4，heal-map.psd1 的 42 键迁嵌入注册表）。
 - [`install`](install.md): install：安装主编排，对齐 helpers.ps1 的 Install-ToolVersion（1019-1267 行）。
-- [`ledger`](ledger.md): ledger：仓级公共账本命令面接线（REQ-0015；总台修正令 2026-09-20 收口为
 - [`manifest`](manifest.md): manifest.toml：安装配置部署逻辑的数据面（R016 B 层，D39 第一波引擎）。
 - [`platform`](platform.md): platform：跨平台抽象层。
 - [`render`](render.md): render：单一渲染层（吸收自 incurs 的「handler 结构化产出 + 单一渲染层」模式，S003 扩展三格式）。

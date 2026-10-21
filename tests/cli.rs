@@ -636,8 +636,9 @@ fn 漂移守卫_help与llms同源() {
     }
     // clap 内建 help 子命令是导航项非业务命令（其内容即 --help 自身），手册不单列
     commands.retain(|c| c != "help");
+    // ledger 功能线撤除（用户裁 2026-10-21）后命令树为 11 项
     assert!(
-        commands.len() >= 12,
+        commands.len() >= 11,
         "根帮助应列出全部子命令，实得 {commands:?}"
     );
     for cmd in &commands {

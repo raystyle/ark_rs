@@ -2,7 +2,7 @@
 //! 维度注册表按平台生效，判定三层：catalog 工具组（locked==installed，强于 ps1 存在性断言）、
 //! 文件全在组（存在性，对齐 ps1 弱断言）、任一存在组（aria2 系统位）。
 //! 输出 `dim=PASS/WARN/FAIL/NA` 收割行（NA 不参与收割；WARN 不红不拦退出码——
-//! 已装未锁是撤钉/去锁形态的如实态，非部署缺陷，issue#7）。
+//! 已装未锁是撤钉/去锁形态的如实态，非部署缺陷，2026-10-21 lan-pve 实证）。
 //! 密钥、secret-guard、mesh、compileMatrix 等非部署域不在本命令范围。
 
 use std::path::Path;
@@ -176,7 +176,7 @@ static DIMS: &[DimDef] = &[
         posix: true,
         tools: &[],
         files_all: &[],
-        // ark 装出位（~/.local/bin，issue#7 同种补）与系统位（apt/brew）任一
+        // ark 装出位（~/.local/bin，2026-10-21 实证补）与系统位（apt/brew）任一
         files_any: &[
             "~/.local/bin/aria2c",
             "/usr/bin/aria2c",
@@ -302,7 +302,7 @@ pub fn run_verify(
 }
 
 /// 单维度判定：工具组三态（组内有平台不适用工具则 NA）加文件组存在性。
-/// 工具组口径（issue#7）：已装未锁 → WARN（evergreen 撤钉 / D43 去锁的如实态，不红）；
+/// 工具组口径（2026-10-21 lan-pve 实证）：已装未锁 → WARN（evergreen 撤钉 / D43 去锁的如实态，不红）；
 /// 未装 → FAIL（部署缺失）；锁装不等 → FAIL（真漂移）。文件组任一缺失恒 FAIL（硬断言压过 WARN）。
 fn judge(def: &DimDef, rows: &[status::StatusRow], cat: &Catalog, env_root: &Path) -> Verdict {
     let mut has_warn = false;
@@ -428,7 +428,7 @@ mod tests {
         assert_eq!(warns, vec!["bun".to_string()]);
     }
 
-    /// 工具组判定口径（issue#7）：已装未锁 WARN、锁装不等 FAIL、未装 FAIL、一致 PASS；
+    /// 工具组判定口径（2026-10-21 lan-pve 实证）：已装未锁 WARN、锁装不等 FAIL、未装 FAIL、一致 PASS；
     /// 文件组缺失压过 WARN 恒 FAIL（硬断言优先）。
     #[test]
     fn 工具组判定_未锁warn与漂移fail() -> Result<(), String> {

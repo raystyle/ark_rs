@@ -40,3 +40,4 @@ trace: cargo test --release --locked 全绿 239 项（签名基/kid/digest/幂�
 - kind 十五值与服务端 ARTIFACT_KINDS 同口径（总台单写 16 值系笔误，服务端 Set 实数 15）。
 - 事件回执 seq 取 /event/seq（EventRow 全字段回执）。
 - artifact_list URL 拼接免尾空参；issue list has_more 仅 before/more 形回执带（服务端同构）。
+- 撤裁（2026-10-21，用户裁经总台令）：ledger 功能线整体撤除，v1.7.1 起客户端面（issue/artifact 命令族、src/ledger.rs、ledger-rs 依赖、文档面）全撤（D52）；服务端与已开单据/产物去留另裁；本 REQ 转历史档（交付态与撤裁态并存记录，不删原文）。

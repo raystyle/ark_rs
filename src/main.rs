@@ -58,9 +58,7 @@ const LLMS_MANIFEST: &str = concat!(
     "| ark heal [维度] [--dry-run] | 部署维度幂等自愈（省略则全量） | dim,action,result | 1=有 fail |\n",
     "| ark catalog [status\\|sync] | 派生·运行态软件清单：status 看解析面/云端锚/同步态与 manifest 面（在位/本地锚/年龄/云端锚/签名），sync 立即从云端刷新两件（边车锚，ARK_CATALOG_TTL 与 ARK_OFFLINE 只管自动刷新） | path,origin,local_sha256,cloud_sha256,synced,manifest_present,manifest_local_sha256,manifest_cloud_sha256,manifest_synced 或 action,sha256 | 0/1 |\n",
     "| ark self update [--stable\\|--git] | 升级自身三通道（默认镜像段读序、边车即锚、官方 API 兜底；ARK_MIRROR=0 官方优先逃逸阀） | exe,sha256 | 0/1 |\n",
-    "| ark issue new\\|list\\|show | 统一 issue 入口（真源 ledger.ohmygh.com，只增面）：new 开单（kind 为 bug 错误任务或 improvement 改进优化任务加 acceptance 验收条件）；list 读面（默认 limit 100 即上限，count 是本次返回条数非在册总数，--before 翻更早一页，免私钥）；show 详情（关单归 omc 工作台） | filed,issue 或 count,#行 或 单条 | 0/1 |
 ",
-    "| ark artifact publish\\|attest\\|list | 产物共享库（ledger.ohmygh.com，只增面）：publish 发布（kind 十五类加 digest=sha256 正文哈希加 summary/outcome 结构化）；attest 证明（attest_dev/attest_prod/verification_failed；晋级降级归 omc 工作台）；list 列表（current/env 过滤，免私钥） | filed,artifact_id 或 count 行 | 0/1 |
 ",
     "\n",
     "## 退出码\n",
@@ -90,8 +88,6 @@ const EX_DOCTOR: &str = "示例:\n  ark doctor\n  ark doctor --json";
 const EX_CATALOG: &str = "示例:\n  ark catalog\n  ark catalog status --json\n  ark catalog sync";
 const EX_SELF: &str =
     "示例:\n  ark self update\n  ark self update --stable\n  ark self update --git";
-const EX_ARTIFACT: &str = "示例:\n  ark artifact publish --name \"镜像通道教训\" --kind lesson --digest sha256:<64hex> --summary \"一句话\"\n  ark artifact attest <id> --attest-type attest_dev\n  ark artifact list --current";
-const EX_ISSUE: &str = "示例:\n  ark issue new \"doctor 报 PATH 重复\" --kind bug --acceptance \"复现步骤与修复验证\"\n  ark issue list --limit 3 --before 51\n  ark issue show 3";
 
 #[derive(Parser)]
 #[command(
@@ -247,18 +243,6 @@ enum Commands {
         #[command(subcommand)]
         cmd: SelfCmd,
     },
-    /// 统一 issue 入口：new 一键提交（自动带 tool=ark 与版本/平台/host）、list/show 读面
-    #[command(after_help = EX_ISSUE)]
-    Issue {
-        #[command(subcommand)]
-        cmd: IssueCmd,
-    },
-    /// 产物共享库（ledger.ohmygh.com：publish 至 attest 至 promote）
-    #[command(after_help = EX_ARTIFACT)]
-    Artifact {
-        #[command(subcommand)]
-        cmd: ArtifactCmd,
-    },
 }
 
 /// `ark catalog` 子命令面（缺省 status）。
@@ -282,94 +266,6 @@ enum SelfCmd {
         /// 源码安装：浅克隆仓库 cargo build 后替换（封版前通道，需 git 与 cargo）
         #[arg(long, conflicts_with = "stable")]
         git: bool,
-    },
-}
-
-/// `ark issue` 子命令面（REQ-0015，ledger.ohmygh.com 仓级公共账本；issues.ohmygh.com 过渡期保役）。
-#[derive(Subcommand, Clone)]
-enum IssueCmd {
-    /// 开单（kind 为 bug 错误任务或 improvement 改进优化任务；新真源 ledger.ohmygh.com）
-    New {
-        /// 标题（1 至 200）
-        title: String,
-        /// 任务性质：bug=BUG 错误任务（修复）或 improvement=改进优化任务
-        #[arg(long, default_value = "bug")]
-        kind: String,
-        /// 验收条件（完成判据描述）
-        #[arg(long, default_value = "")]
-        acceptance: String,
-        /// 补充正文
-        #[arg(long)]
-        body: Option<String>,
-    },
-    /// 集中列表（新到旧；count 是本次返回条数非在册总数；--before 翻更早一页）
-    List {
-        /// 至多行数（1 至 100 服务端封顶；默认 100 即上限）
-        #[arg(long, default_value_t = 100)]
-        limit: u32,
-        /// keyset 游标：取该 issue 号之前（更旧）一页
-        #[arg(long)]
-        before: Option<u64>,
-    },
-    /// 单条详情（projection 加 timeline）
-    Show {
-        /// issue 号
-        n: u64,
-    },
-}
-
-/// `ark artifact` 子命令面（REQ-0015，产物共享库：publish 至 attest 至 promote）。
-#[derive(Subcommand, Clone)]
-enum ArtifactCmd {
-    /// 发布产物（共享库本体；digest 是正文或记录哈希，库不收二进制实体）
-    Publish {
-        /// 产物名（1 至 200）
-        #[arg(long)]
-        name: String,
-        /// 产物类（binary|image|wasm|sbom|schema|openapi|eval-set|benchmark|runbook|decision|attested-report|experience|lesson|research|prototype）
-        #[arg(long)]
-        kind: String,
-        /// 身份摘要（sha256:<64hex> 小写；正文或记录文件哈希）
-        #[arg(long)]
-        digest: String,
-        /// 版本信息（实现成果的 tag 或版本号）
-        #[arg(long)]
-        version: Option<String>,
-        /// 开发记录区间（如 v1.4.2..v1.4.3）
-        #[arg(long)]
-        git_range: Option<String>,
-        /// 依赖出处（artifact_id 逗号串，回溯链即证据链）
-        #[arg(long)]
-        deps: Option<String>,
-        /// 结果倾向（experience 类用 success|failure）
-        #[arg(long)]
-        outcome: Option<String>,
-        /// 一行摘要
-        #[arg(long)]
-        summary: Option<String>,
-        /// 补充正文
-        #[arg(long)]
-        body: Option<String>,
-    },
-    /// 证明（attest_dev|attest_prod|verification_failed；晋级与降级归 omc 工作台）
-    Attest {
-        /// artifact id
-        id: String,
-        /// 证明类型
-        #[arg(long)]
-        attest_type: String,
-        /// 证明备注
-        #[arg(long)]
-        note: Option<String>,
-    },
-    /// 产物列表（current=1 只看当前版；kind/name 过滤归网页面）
-    List {
-        /// 只看当前版（未被 supersede）
-        #[arg(long)]
-        current: bool,
-        /// 按环境过滤：dev|prod
-        #[arg(long)]
-        env: Option<String>,
     },
 }
 
@@ -420,14 +316,6 @@ fn run() -> Result<(), ArkError> {
         eprintln!("命令清单：ark --llms；详情：ark --help");
         return Ok(());
     };
-    // issue 与 artifact 域纯网络面（REQ-0009/REQ-0015）：早期派发，不经 catalog
-    // 加载与签名巡检（无清单环境也能一键反馈与发布）。
-    if let Commands::Issue { cmd } = cmd.clone() {
-        return cmd_issue(cmd).map_err(ArkError::from);
-    }
-    if let Commands::Artifact { cmd } = cmd.clone() {
-        return cmd_artifact(cmd).map_err(ArkError::from);
-    }
     let env_root = catalog::resolve_env_root(cli.env_root.as_deref()).map_err(ArkError::from)?;
     let cat_path = catalog::resolve_catalog_path().map_err(ArkError::from)?;
     // D33：仅当解析面就是用户数据副本时按 TTL 刷新云端清单（仓库与 ARK_CATALOG 指定面零干扰；
@@ -495,259 +383,9 @@ fn run() -> Result<(), ArkError> {
             };
             cmd_self_update(&env_root, channel).map_err(ArkError::from)
         }
-        // issue 已在 catalog 前早期派发（纯网络面），此臂不可达
-        Commands::Issue { .. } => unreachable!("issue 已早期派发"),
-        Commands::Artifact { .. } => unreachable!("artifact 已早期派发"),
     }
 }
 
-/// issue 域（REQ-0009）：统一 issue 入口三叶（new/list/show，issues.ohmygh.com）。
-fn cmd_issue(cmd: IssueCmd) -> Result<(), String> {
-    use ark::ledger;
-    match cmd {
-        IssueCmd::New {
-            title,
-            kind,
-            acceptance,
-            body,
-        } => {
-            let n = ledger::issue_new(&title, &kind, &acceptance, body.as_deref())?;
-            render::emit(&[
-                kv("filed", &n.to_string()),
-                kv("issue", &n.to_string()),
-                kv("kind", &kind),
-                kv("endpoint", ledger_client::BASE_URL),
-            ]);
-            eprintln!("[OK] issue #{n} 已开单（kind {kind}）");
-            eprintln!(
-                "[HINT] 复核：ark issue show {n}；网页面：{}/repos/{}/i/{n}",
-                ledger_client::BASE_URL,
-                ledger::REPO_ID
-            );
-            Ok(())
-        }
-        IssueCmd::List { limit, before } => {
-            let (issues, has_more) = ledger::issue_list(limit, before)?;
-            let mut out = vec![
-                kv("count", &issues.len().to_string()),
-                kv("endpoint", ledger_client::BASE_URL),
-            ];
-            // has_more 恒出（crate more=1 索取）；饱和提示以 has_more 为准
-            let hm = has_more.unwrap_or(false);
-            out.push(kv("has_more", if hm { "true" } else { "false" }));
-            let saturated = match has_more {
-                Some(h) => h,
-                None => ledger::list_saturated(issues.len(), limit),
-            };
-            for r in &issues {
-                let n = r
-                    .get("issue_n")
-                    .and_then(serde_json::Value::as_i64)
-                    .unwrap_or(0);
-                let title = r
-                    .get("title")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                let status = r
-                    .get("status")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                let kind = r
-                    .get("kind")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                out.push(kv(&format!("#{n}"), &format!("{kind} {status} {title}")));
-            }
-            render::emit(&out);
-            if saturated {
-                eprintln!("[HINT] issue list 尚有更早条目；下一步：--before <id> 翻更早一页");
-            }
-            eprintln!(
-                "[HINT] 网页面：{}/repos/{}",
-                ledger_client::BASE_URL,
-                ledger::REPO_ID
-            );
-            Ok(())
-        }
-        IssueCmd::Show { n } => {
-            let v = ledger::issue_show(n)?;
-            let mut rows = vec![kv("issue", &n.to_string())];
-            for key in ["kind", "status", "assignee"] {
-                let val = v
-                    .pointer(&format!("/projection/{key}"))
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("-");
-                rows.push(kv(key, val));
-            }
-            // title 不在服务端 projection 面，从 timeline 首个 issue_open 事件 payload 取
-            let title = v
-                .get("timeline")
-                .and_then(serde_json::Value::as_array)
-                .and_then(|tl| {
-                    tl.iter().find(|e| {
-                        e.get("type").and_then(serde_json::Value::as_str) == Some("issue_open")
-                    })
-                })
-                .and_then(|e| e.get("payload"))
-                .and_then(|pl| {
-                    serde_json::from_str::<serde_json::Value>(pl.as_str().unwrap_or("")).ok()
-                })
-                .and_then(|pl| {
-                    pl.get("title")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_string)
-                })
-                .unwrap_or_else(|| "-".to_string());
-            rows.insert(2, kv("title", &title));
-            if let Some(tl) = v.get("timeline").and_then(serde_json::Value::as_array) {
-                rows.push(kv("events", &tl.len().to_string()));
-                for ev in tl {
-                    let seq = ev
-                        .get("seq")
-                        .and_then(serde_json::Value::as_i64)
-                        .unwrap_or(0);
-                    let t = ev
-                        .get("type")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("");
-                    rows.push(kv(&format!("e{seq}"), t));
-                }
-            }
-            render::emit(&rows);
-            eprintln!(
-                "[HINT] 网页面：{}/repos/{}/i/{n}",
-                ledger_client::BASE_URL,
-                ledger::REPO_ID
-            );
-            Ok(())
-        }
-    }
-}
-
-/// artifact 命令族（REQ-0015 产物共享库面；收口后只增面：publish/attest/list）。
-fn cmd_artifact(cmd: ArtifactCmd) -> Result<(), String> {
-    use ark::ledger;
-    match cmd {
-        ArtifactCmd::Publish {
-            name,
-            kind,
-            digest,
-            version,
-            git_range,
-            deps,
-            outcome,
-            summary,
-            body,
-        } => {
-            let deps_list: Vec<String> = deps
-                .map(|d| {
-                    d.split(',')
-                        .map(str::trim)
-                        .filter(|x| !x.is_empty())
-                        .map(str::to_string)
-                        .collect()
-                })
-                .unwrap_or_default();
-            let id = ledger::artifact_publish(
-                &name,
-                &kind,
-                &digest,
-                version.as_deref(),
-                git_range.as_deref(),
-                &deps_list,
-                body.as_deref(),
-                summary.as_deref(),
-                outcome.as_deref(),
-            )?;
-            render::emit(&[
-                kv("filed", &id),
-                kv("artifact_id", &id),
-                kv("kind", &kind),
-                kv("digest", &digest),
-                kv("endpoint", ledger_client::BASE_URL),
-            ]);
-            eprintln!("[OK] artifact 已发布（kind {kind}）：{id}");
-            eprintln!(
-                "[HINT] 证明：ark artifact attest {id} --attest-type attest_dev；网页面：{}/repos/{}/a/{id}",
-                ledger_client::BASE_URL,
-                ledger::REPO_ID
-            );
-            Ok(())
-        }
-        ArtifactCmd::Attest {
-            id,
-            attest_type,
-            note,
-        } => {
-            let resp =
-                ledger::artifact_attest(&id, &attest_type, serde_json::json!({}), note.as_deref())?;
-            let seq = resp
-                .get("event")
-                .and_then(|e| e.get("seq"))
-                .and_then(serde_json::Value::as_i64)
-                .unwrap_or(0);
-            render::emit(&[
-                kv("artifact_id", &id),
-                kv("action", "attested"),
-                kv("attest_type", &attest_type),
-                kv("seq", &seq.to_string()),
-                kv("endpoint", ledger_client::BASE_URL),
-            ]);
-            eprintln!("[OK] artifact {id} 已证明（{attest_type}，seq {seq}）");
-            Ok(())
-        }
-        ArtifactCmd::List { current, env } => {
-            let arts = ledger::artifact_list(current, env.as_deref())?;
-            let mut out = vec![
-                kv("count", &arts.len().to_string()),
-                kv("endpoint", ledger_client::BASE_URL),
-            ];
-            for a in &arts {
-                let id = a
-                    .get("artifact_id")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                let short: String = id.chars().take(8).collect();
-                let k = a
-                    .get("kind")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                let n = a
-                    .get("name")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("");
-                let dv = a
-                    .get("dev_verified")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                let pv = a
-                    .get("prod_verified")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                let cur = a
-                    .get("current")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false);
-                out.push(kv(
-                    &short,
-                    &format!(
-                        "{k} {n} dev={} prod={} current={}",
-                        if dv { "y" } else { "n" },
-                        if pv { "y" } else { "n" },
-                        if cur { "y" } else { "n" }
-                    ),
-                ));
-            }
-            render::emit(&out);
-            eprintln!(
-                "[HINT] 网页面：{}/repos/{}",
-                ledger_client::BASE_URL,
-                ledger::REPO_ID
-            );
-            Ok(())
-        }
-    }
-}
 fn cmd_self_update(env_root: &Path, channel: ark::selfupdate::Channel) -> Result<(), String> {
     let out = ark::selfupdate::self_update(env_root, channel)?;
     render::emit(&[
@@ -926,7 +564,7 @@ fn cmd_doctor(cat: &Catalog, env_root: &Path) -> Result<(), String> {
 
 /// verify：部署域验收维度检查，kv 输出 dim=PASS/WARN/FAIL/NA 收割行，
 /// 结构化输出 name/verdict 块。维度就绪即出（流式）。FAIL 即 exit 1；
-/// WARN（已装未锁，issue#7）只汇总提示不红不拦退出码。
+/// WARN（已装未锁，2026-10-21 lan-pve 实证）只汇总提示不红不拦退出码。
 fn cmd_verify(cat: &Catalog, env_root: &Path, check: Option<&str>) -> Result<(), String> {
     let filter: Vec<String> = check
         .map(|c| {
