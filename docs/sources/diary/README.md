@@ -58,3 +58,4 @@
 | 2026-10-11 | `docs/sources/diary/2026-10-11-D34密钥轮换第一步REQ-0020.md` | D34 密钥轮换第一步双钥过渡加收尾批 d34-01：REQ-0020 落码、封版 v1.7.0、五端铺版与滚端 |
 | 2026-10-12 | `docs/sources/diary/2026-10-12-issue11预播失败排查预评审.md` | issue#11 预播失败排查预评审：熟仓证据基线、复现根因回归三段判据草案、dispatch token 404 嫌疑分级 |
 | 2026-10-12 | `docs/sources/diary/2026-10-12-issue11预播失败排查与通知面降级.md` | issue#11 根因定案（ai-cloud 归档）与通知面降级修复：dispatch 失败 WARN 不红、目标仓探活、九态回归 |
+| 2026-10-21 | `docs/sources/diary/2026-10-21-verify误报issue7开单与ledger常设钥就位.md` | ledger 常设钥就位（kid 830f2b26）与 verify 误报 issue#7 直开回执；lan-win 当窗不可达 fleet 流回执替代 |
