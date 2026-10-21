@@ -159,6 +159,12 @@ foreach ($a in $assets) {
         RunOk "上载冒烟件 $($a.name) 红"
         # scp 不保执行位，先 chmod 再跑（2026-09-17 演练实录：permission denied）
         $out = @(ssh lan-mac "chmod +x /tmp/$macBin && /tmp/$macBin --version")
+    } elseif ($a.name -like '*windows*' -and -not $IsWindows) {
+        # Linux/mac 宿主发布时 win 件无法本地直跑（原注释「WSL interop」是 Windows 宿主
+        # 假设；lan-ubuntu 实跑 Exec format error 实证）：走 lan-win 实机，对齐 mac 腿形
+        scp -q (Join-Path $dist $a.name) "lan-win:/tmp/ark-smoke.exe"
+        RunOk "上载冒烟件 $($a.name) 红"
+        $out = @(ssh lan-win "/tmp/ark-smoke.exe --version")
     } else {
         $out = @(& (Join-Path $dist $a.name) --version)
     }
